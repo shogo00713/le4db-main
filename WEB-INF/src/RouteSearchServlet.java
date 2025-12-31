@@ -11,7 +11,6 @@ import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Properties;
-
 import javax.servlet.ServletException;
 import javax.servlet.http.HttpServlet;
 import javax.servlet.http.HttpServletRequest;
@@ -19,15 +18,16 @@ import javax.servlet.http.HttpServletResponse;
 
 @SuppressWarnings("serial")
 
-// サーバ接続の変数定義
+
 public class RouteSearchServlet extends HttpServlet {
 
+    // サーバ接続の変数定義
     private String _hostname = null;
     private String _dbname = null;
     private String _username = null;
     private String _password = null;
 
-    // DB初期設定の読み込み
+    // DB初期設定の関数
     public void init() throws ServletException {
         String iniFilePath = getServletConfig().getServletContext()
                 .getRealPath("WEB-INF/le4db.ini");
@@ -45,55 +45,58 @@ public class RouteSearchServlet extends HttpServlet {
         }
     }
 
-    // メインの関数
+    // メインの関数 (doGet)
     protected void doGet(HttpServletRequest request, HttpServletResponse response)
             throws ServletException, IOException {
 
         response.setContentType("text/html;charset=UTF-8");
         PrintWriter out = response.getWriter();
 
-        // SQLに投げる変数
-        String fromStop = request.getParameter("from_stop");  // 出発地
-        String toStop   = request.getParameter("to_stop");    // 目的地
-        String day      = request.getParameter("day");        // 平日 or 休日
-        String timeMode = request.getParameter("time_mode");  // 現在 or 指定時間
-        String timeVal  = request.getParameter("time_val");   // HH:mm
+        // フォームでやり取りするパラメータ
+        String fromstop        = request.getParameter("from_stop");  // 出発地
+        String tostop          = request.getParameter("to_stop");    // 目的地
+        String day             = request.getParameter("day");        // 平日 or 休日
+        String timemode        = request.getParameter("time_mode");  // 現在 or 指定時間
+        String timevalue       = request.getParameter("time_val");   // HH:mm
+        String fromstopidstr   = request.getParameter("from_id");   // 出発地候補ID (選択された場合)
+        String tostopidstr     = request.getParameter("to_id");     // 目的地候補ID (選択された場合)
         
-        // 選択できたかな（候補選択フォームから来る）
-        String fromIdStr = request.getParameter("from_id");
-        String toIdStr   = request.getParameter("to_id");
-        
-        final int TRANSFER_MIN = 3;      // 乗換余裕（分）
-        final int MID_LIMIT = 30;        // mid候補の数
-        final int RESULT_LIMIT = 5;      // 表示する乗換経路の数
+        // ---- いじる定数 ----
+        final int TRANSFER_MIN = 3;      // 乗換猶予時間 (分)
+        final int MID_LIMIT = 30;        // mid候補の探索上限
+        final int RESULT_LIMIT = 5;      // 表示する乗換経路の数の最大
+        // -------------------
 
-        // ★ int じゃなく Integer（null を許す）
-        Integer fromId = null;
-        Integer toId   = null;
+        Integer fromId = null; // Integer 型で null 許容
+        Integer toId   = null; // Integer 型で null 許容
 
-        if (fromIdStr != null && !fromIdStr.trim().isEmpty()) {
+        // fromIDStr/toIdStr を fromId/toId (Integer型) に変換
+        if (fromstopidstr != null && !fromstopidstr.trim().isEmpty()) {
             try {
-                fromId = Integer.valueOf(fromIdStr);
+                fromId = Integer.valueOf(fromstopidstr);
             } catch (NumberFormatException e) {
                 fromId = null;
             }
         }
-        if (toIdStr != null && !toIdStr.trim().isEmpty()) {
+        if (tostopidstr != null && !tostopidstr.trim().isEmpty()) {
             try {
-                toId = Integer.valueOf(toIdStr);
+                toId = Integer.valueOf(tostopidstr);
             } catch (NumberFormatException e) {
                 toId = null;
             }
         }
         
-        // NULLを回避
-        if (fromStop == null) fromStop = "";
-        if (toStop == null) toStop = "";
+        // NULL => 空文字列 に変換
+        if (fromstop == null) fromstop = "";
+        if (tostop == null) tostop = "";
         if (day == null || day.isEmpty()) day = "平日";
-        if (timeMode == null) timeMode = "now";
-        if (timeVal == null)  timeVal = "";
+        if (timemode == null) timemode = "now";
+        if (timevalue == null)  timevalue = "";
 
-        // HTML作成パート
+
+        // -----------------------------------------------------------------------------------------------
+
+        // HTMLヘッダ部分
         out.println("<!DOCTYPE html>");
         out.println("<html lang=\"ja\">");
         out.println("<head>");
@@ -101,7 +104,7 @@ public class RouteSearchServlet extends HttpServlet {
         out.println("<meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">");
         out.println("<title>RouteSearch</title>");
 
-        // ===== CSS（直書き）=====
+        // CSS 直書き (外部ファイルに変更予定)
         out.println("<style>");
         out.println(":root{"
                 + "--bg:#f6f7fb;"
@@ -151,14 +154,16 @@ public class RouteSearchServlet extends HttpServlet {
         out.println(".cand-name{font-weight:600;}");
         out.println(".cand-type{color:var(--muted);font-size:12px;}");
         out.println("</style>");
+        // CSS ここまで
 
+        // HTML本文
         out.println("</head>");
         out.println("<body>");
         out.println("<div class=\"app\">");
 
         out.println("<div class=\"header\">");
         out.println("<h2 class=\"title\">マルチモーダル路線検索</h2>");
-        out.println("<p class=\"subtitle\">出発・到着、運行日、時刻条件を指定して検索できます。</p>");
+        out.println("<p class=\"subtitle\">出発地/到着地, 運行日, 時刻条件を指定して検索</p>");
         out.println("</div>");
 
         out.println("<div class=\"card\">");
@@ -166,18 +171,18 @@ public class RouteSearchServlet extends HttpServlet {
         // フォーム形式
         out.println("<form class=\"form\" action=\"routesearch\" method=\"GET\">");
 
-        // 出発地・目的地
+        // 出発地 / 目的地 => from_stop / to_stop
         out.println("<div class=\"field\">");
         out.println("<label class=\"label\" for=\"from_stop\">出発</label>");
-        out.println("<input class=\"input\" id=\"from_stop\" type=\"text\" name=\"from_stop\" placeholder=\"例: 国際会館\" value=\"" + esc(fromStop) + "\"/>");
+        out.println("<input class=\"input\" id=\"from_stop\" type=\"text\" name=\"from_stop\" placeholder=\"例 : 京都駅\" value=\"" + esc(fromstop) + "\"/>");
         out.println("</div>");
 
         out.println("<div class=\"field\">");
         out.println("<label class=\"label\" for=\"to_stop\">到着</label>");
-        out.println("<input class=\"input\" id=\"to_stop\" type=\"text\" name=\"to_stop\" placeholder=\"例: 九条\" value=\"" + esc(toStop) + "\"/>");
+        out.println("<input class=\"input\" id=\"to_stop\" type=\"text\" name=\"to_stop\" placeholder=\"例 : 三条駅\" value=\"" + esc(tostop) + "\"/>");
         out.println("</div>");
 
-        // 運行日
+        // 運行日 => day
         out.println("<div class=\"field\">");
         out.println("<label class=\"label\" for=\"day\">運行日</label>");
         out.println("<select class=\"select\" id=\"day\" name=\"day\">");
@@ -186,56 +191,58 @@ public class RouteSearchServlet extends HttpServlet {
         out.println("</select>");
         out.println("</div>");
 
-        // 時刻選択
+
+        // 時刻指定選択 => time_mode
         out.println("<div class=\"field\">");
         out.println("<label class=\"label\" for=\"time_mode\">時刻条件</label>");
         out.println("<select class=\"select\" id=\"time_mode\" name=\"time_mode\">");
-        out.println(option("now",  "現在時刻", timeMode));
-        out.println(option("spec", "指定時刻", timeMode));
+        out.println(option("now",  "現在時刻", timemode));
+        out.println(option("spec", "指定時刻", timemode));
         out.println("</select>");
         out.println("</div>");
 
+        // 時刻選択 time_val
         out.println("<div class=\"field\">");
         out.println("<label class=\"label\" for=\"time_val\">指定時刻（時刻条件=指定時刻のとき）</label>");
-        out.println("<input class=\"input\" id=\"time_val\" type=\"time\" name=\"time_val\" value=\"" + esc(timeVal) + "\"/>");
+        out.println("<input class=\"input\" id=\"time_val\" type=\"time\" name=\"time_val\" value=\"" + esc(timevalue) + "\"/>");
         out.println("</div>");
 
+        // 検索ボタン
         out.println("<div class=\"actions\">");
         out.println("<input class=\"btn\" type=\"submit\" value=\"検索\"/>");
         out.println("<span class=\"muted\">※ 指定時刻以降に出発する便を検索</span>");
         out.println("</div>");
 
         out.println("</form>");
-
         out.println("<div class=\"hr\"></div>");
 
         // 入力が揃っているかチェック
-        if (fromStop.equals("") || toStop.equals("")) {
-            out.println("<p>出発と到着を入力して検索してください。</p>");
+        if (fromstop.equals("") || tostop.equals("")) {
+            out.println("<p>出発と到着を入力して検索してください</p>");
             out.println("</body>");
             out.println("</html>");
             return;
         }
-        if (timeMode.equals("spec") && timeVal.equals("")) {
-            out.println("<p>指定時刻を入力してください。</p>");
+        if (timemode.equals("spec") && timevalue.equals("")) {
+            out.println("<p>指定時刻を入力してください</p>");
             out.println("</body></html>");
             return;
         }
 
-        // input type="time" は通常 HH:mm なので HH:mm:ss に整形する
+        // 時間を basetime として統合
         String baseTime;
-        if (timeMode.equals("spec") && !timeVal.equals("")) {
-            baseTime = timeVal + ":00";
+        if (timemode.equals("spec") && !timevalue.equals("")) {
+            baseTime = timevalue;
         } else {
-            baseTime = LocalTime.now().format(DateTimeFormatter.ofPattern("HH:mm:ss"));
+            baseTime = LocalTime.now().format(DateTimeFormatter.ofPattern("HH:mm"));
         }
 
-        // DB検索パート
-        Connection conn = null;
-        PreparedStatement ps = null;
-        ResultSet rs = null;
+        // -----------------------------------------------------------------------------------------------
 
-        boolean found = false;
+        // DB検索パート
+        Connection conn = null;       // 認証 & 接続用
+        PreparedStatement ps = null;  // DBに送る文章 
+        ResultSet rs = null;          // DBの結果を受け取る文章
 
         try {
             Class.forName("org.postgresql.Driver");
@@ -243,15 +250,18 @@ public class RouteSearchServlet extends HttpServlet {
                     "jdbc:postgresql://" + _hostname + ":5432/" + _dbname,
                     _username, _password);
 
-    
+        // -----------------------------------------------------------------------------------------------
+        
+            // 地点候補 => 一つに選定
+            //
             List<StopCandidate> fromCandidates = new ArrayList<>();
             List<StopCandidate> toCandidates   = new ArrayList<>();
 
             if (fromId == null) {
-                fromCandidates = searchStopCandidates(conn, fromStop, 10);
+                fromCandidates = searchStopCandidates(conn, fromstop, 10);
             }
             if (toId == null) {
-                toCandidates = searchStopCandidates(conn, toStop, 10);
+                toCandidates = searchStopCandidates(conn, tostop, 10);
             }
 
             // 0件なら終了（HTMLも閉じる）
@@ -276,11 +286,11 @@ public class RouteSearchServlet extends HttpServlet {
                 out.println("<form class=\"form\" action=\"routesearch\" method=\"GET\">");
 
                 // 元の入力値も引き継ぐ（これがないと条件が消える）(フォームの上部分)
-                out.println("<input type=\"hidden\" name=\"from_stop\" value=\"" + esc(fromStop) + "\"/>");
-                out.println("<input type=\"hidden\" name=\"to_stop\" value=\"" + esc(toStop) + "\"/>");
+                out.println("<input type=\"hidden\" name=\"from_stop\" value=\"" + esc(fromstop) + "\"/>");
+                out.println("<input type=\"hidden\" name=\"to_stop\" value=\"" + esc(tostop) + "\"/>");
                 out.println("<input type=\"hidden\" name=\"day\" value=\"" + esc(day) + "\"/>");
-                out.println("<input type=\"hidden\" name=\"time_mode\" value=\"" + esc(timeMode) + "\"/>");
-                out.println("<input type=\"hidden\" name=\"time_val\" value=\"" + esc(timeVal) + "\"/>");
+                out.println("<input type=\"hidden\" name=\"time_mode\" value=\"" + esc(timemode) + "\"/>");
+                out.println("<input type=\"hidden\" name=\"time_val\" value=\"" + esc(timevalue) + "\"/>");
 
                 // 出発候補
                 out.println("<div class=\"field\">");
@@ -465,8 +475,7 @@ public class RouteSearchServlet extends HttpServlet {
             }
 
 
-            // ----------
-            
+            // -----------------------------------------------------------------------------------------------
 
             // 徒歩関係
             
@@ -479,10 +488,10 @@ public class RouteSearchServlet extends HttpServlet {
             	double distance = distanceMeters(fromll.lat, fromll.lon, toll.lat, toll.lon);
             	int walkmin = walkingminutes(distance);
                 // baseTime は "HH:mm:ss" なのでそれで parse する
-                LocalTime dep = LocalTime.parse(baseTime, DateTimeFormatter.ofPattern("HH:mm:ss"));
+                LocalTime dep = LocalTime.parse(baseTime, DateTimeFormatter.ofPattern("HH:mm"));
                 LocalTime arr = dep.plusMinutes(walkmin);
-                String depstr = dep.format(DateTimeFormatter.ofPattern("HH:mm:ss"));
-                String arrstr = arr.format(DateTimeFormatter.ofPattern("HH:mm:ss"));
+                String depstr = dep.format(DateTimeFormatter.ofPattern("HH:mm"));
+                String arrstr = arr.format(DateTimeFormatter.ofPattern("HH:mm"));
             
             out.println("<tr>");
             out.println("<td>" + "徒歩" + "</td>");
@@ -492,9 +501,7 @@ public class RouteSearchServlet extends HttpServlet {
             out.println("<td>" + esc(depstr) + " → " + esc(arrstr)  + "</td>");
             out.println("<td>" + walkmin + "分 (約" + (int)distance + "m)" + "</td>");
             out.println("</tr>");
-            
-            found = true;
-            
+
             }
 
             
@@ -503,7 +510,6 @@ public class RouteSearchServlet extends HttpServlet {
             out.println("</div>"); // table-wrap
 
             out.println("<br/>");
-            out.println("<b>" + (found ? "" : "残念ですがルートがありません") + "</b>");
 
         // 例外処理 (DB関係)
         } catch (Exception e) {
@@ -547,9 +553,9 @@ public class RouteSearchServlet extends HttpServlet {
     }
 
     // 時間管理の関数
-    private String addMinutes(String hhmmss, int minutes) {
-        LocalTime t = LocalTime.parse(hhmmss); // "HH:MM:SS" 前提
-        return t.plusMinutes(minutes).toString(); // "HH:MM:SS"
+    private String addMinutes(String HHmm, int minutes) {
+        LocalTime time = LocalTime.parse(HHmm); // "HH:mm"
+        return time.plusMinutes(minutes).format(DateTimeFormatter.ofPattern("HH:mm"));
     }
     
     // 緯度経度を渡すためのクラス
@@ -624,8 +630,6 @@ public class RouteSearchServlet extends HttpServlet {
     	}
     }
     
-    // 候補地を一致度合いから昇順に返す関数
-
     // 候補の前検索
     private List<StopCandidate> searchStopCandidates (Connection conn, String keyword, int limit) throws SQLException {
     	String sql = 
@@ -687,9 +691,7 @@ public class RouteSearchServlet extends HttpServlet {
             this.arrTime = arrTime;
         }
     }
-    
-    // 移動を表すクラス
-
+ 
     // 直通の検索
     private List<DirectPath> searchDirect(Connection conn, int fromStopId, int toStopId,
             String baseTime, String day, int limit) throws SQLException {
@@ -753,8 +755,6 @@ public class RouteSearchServlet extends HttpServlet {
         return list;
     }
 	
-    // ある地点からのいきさきｗ
-
     // 乗換一回の前半の移動
     private static class OutgoingOption {
         final int tripId;
@@ -769,8 +769,6 @@ public class RouteSearchServlet extends HttpServlet {
             this.arrTime = arrTime;
         }
     }
-    
-    // 乗換可能な便を検索するクラス
 
     // 出発地からいける停留所を全部調べる
     private List<OutgoingOption> listTransferCandidates(
@@ -820,8 +818,6 @@ public class RouteSearchServlet extends HttpServlet {
         return list;
     }
     
-    // 1度の乗換の全工程を持つクラス
-
     // 乗換の前後を保持
     private static class TransferPath {
         final DirectPath leg1;  // from -> mid
@@ -834,8 +830,6 @@ public class RouteSearchServlet extends HttpServlet {
             this.totalMinutes = totalMinutes;
         }
     }
-    
-    // ある停留所から他の停留所のID, 距離, 所要時間を持つクラス
 
     // 停留所感のID,距離,時間を持つ
     private static class NearbyStop {
@@ -849,8 +843,6 @@ public class RouteSearchServlet extends HttpServlet {
             this.name = name;
         }
     }
-
-    // ある停留所から近い停留所を拾ってくる関数
 
     // 近くの停留所のうち近いものを全列挙
     private List<NearbyStop> nearbyStops(Connection conn, int centerStopId, int radiusM, int limit) throws SQLException {
@@ -904,8 +896,6 @@ public class RouteSearchServlet extends HttpServlet {
         if (tmp.size() > limit) return new ArrayList<>(tmp.subList(0, limit));
         return tmp;
       }
-    
-    // 結果の表を一列表示
     
     // 結果の表を一列表示する関数
     private void printTransferRow(PrintWriter out, TransferPath tp) {
