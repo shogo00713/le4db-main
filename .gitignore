@@ -1,0 +1,14 @@
+# secrets
+WEB-INF/le4db.ini
+
+# build outputs
+WEB-INF/classes/
+*.class
+
+# (任意) jarは重いので基本は除外推奨
+WEB-INF/lib/*.jar
+
+# misc
+work/
+__MACOSX/
+.DS_Store
