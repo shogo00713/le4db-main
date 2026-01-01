@@ -63,11 +63,11 @@ public class RouteSearchServlet extends HttpServlet {
         String tostopidstr     = request.getParameter("to_id");     // 目的地候補ID (選択された後)
         
         // ---- いじる定数 ----
-        final int TRANSFER_MIN = 3;      // 乗換猶予時間 (分)
+        final int TRANSFER_MIN = 2;      // 乗換猶予時間 (分)
         final int MID_LIMIT = 30;        // mid候補の探索上限
         final int RESULT_LIMIT = 5;      // 表示する乗換経路の最大
         final int WALK_RADIUS_M = 1000;   // 乗り換えの許容距離
-        final int NEAR_LIMIT = 30;       // 探索する乗換経路の最大
+        final int NEAR_LIMIT = 50;       // 探索する乗換経路の最大
         // -------------------
 
         Integer fromid = null; // Integer 型で null 許容
@@ -437,24 +437,80 @@ public class RouteSearchServlet extends HttpServlet {
 
             // 出発地 / 目的地 の近くの停留所を探索
             List<NearbyStop> nearFromStop = nearbyStops(conn, fromid, WALK_RADIUS_M, NEAR_LIMIT);
-            List<NearbyStop> nearToStop = nearbyStops(conn, toid, WALK_RADIUS_M, NEAR_LIMIT);
+            List<NearbyStop> nearToStop   = nearbyStops(conn, toid,   WALK_RADIUS_M, NEAR_LIMIT);
 
-            // 乗り換え経路全体を保存
-            java.util.Set<String> seen = new java.util.HashSet<>();
-            List<TransferPath> transfers = new ArrayList<>();
+            // ★ここから「徒歩/直通/乗換」をまとめる
+            final int TRANSFER_CANDIDATE_LIMIT = RESULT_LIMIT * 30; // 候補を多めに集めてから絞る
+            final int DIRECT_CANDIDATE_LIMIT   = RESULT_LIMIT * 30;
+
+            List<ResultItem> results = new ArrayList<>();
+
+            // 0) 徒歩のみ
+            double dist = distanceMeters(fromll.lat, fromll.lon, toll.lat, toll.lon);
+            int walkOnlyMin = walkingminutes(dist);
+            String walkOnlyEnd = addMinutes(baseTime, walkOnlyMin);
+            results.add(new ResultItem(
+                    0, walkOnlyEnd, walkOnlyMin, "",
+                    new WalkOnlyPlan(fromll.name, toll.name, (int)Math.round(dist), walkOnlyMin, baseTime, walkOnlyEnd)
+            ));
+
+            // 1) 直通(乗車1回) ＝ 「近くの乗車停留所」→「近くの降車停留所」を1本で結ぶ
+            java.util.Set<String> seenDirect = new java.util.HashSet<>();
+            List<DirectPlan> directPlans = new ArrayList<>();
 
             for (NearbyStop nsfrom : nearFromStop) {
-                // walk0
                 int walk0Min = walkingminutes(nsfrom.distance);
                 String walk0End = addMinutes(baseTime, walk0Min);
                 WalkPath w0 = new WalkPath(fromll.name, nsfrom.name, nsfrom.distance, walk0Min, baseTime, walk0End);
 
                 String base1 = walk0End;
 
-                List<GoingOption> mids = listTransferCandidates(conn, nsfrom.stopId, base1, day, MID_LIMIT);
-                for (GoingOption mid : mids) {
+                for (NearbyStop nsto : nearToStop) {
+                    List<DirectPath> dlist = searchDirect(conn, nsfrom.stopId, nsto.stopId, base1, day, 1);
+                    if (dlist.isEmpty()) continue;
+                    DirectPath leg = dlist.get(0);
 
-                    // まず leg1 を確定（この時点で "実際の到着時刻" が確定する）
+                    int walk2Min = walkingminutes(nsto.distance);
+                    String walk2End = addMinutes(leg.arrTime, walk2Min);
+                    WalkPath w2 = new WalkPath(nsto.name, toll.name, nsto.distance, walk2Min, leg.arrTime, walk2End);
+
+                    int totalMin = (int) java.time.Duration.between(
+                            java.time.LocalTime.parse(baseTime),
+                            java.time.LocalTime.parse(walk2End)
+                    ).toMinutes();
+
+                    DirectPlan dp = new DirectPlan(w0, leg, w2, totalMin, baseTime, walk2End);
+
+                    String key = leg.tripId + ":" + leg.fromStopId + ":" + leg.toStopId + "|" + nsfrom.stopId + "->" + nsto.stopId;
+                    if (seenDirect.add(key)) {
+                        directPlans.add(dp);
+
+                        // 候補が増えすぎたら早いものだけ残す（軽量化）
+                        if (directPlans.size() > DIRECT_CANDIDATE_LIMIT) {
+                            directPlans.sort(Comparator.comparing(p -> LocalTime.parse(p.endTime)));
+                            directPlans.subList(DIRECT_CANDIDATE_LIMIT, directPlans.size()).clear();
+                        }
+                    }
+                }
+            }
+            for (DirectPlan dp : directPlans) {
+                results.add(new ResultItem(1, dp.endTime, dp.totalMinutes, "", dp));
+            }
+
+            // 2) 乗換(2本) ＝ 既存のロジックを「候補多めに集める」＆「nstoは全部見て最良を選ぶ」に調整
+            java.util.Set<String> seenTransfer = new java.util.HashSet<>();
+            List<TransferPath> transferCandidates = new ArrayList<>();
+
+            outer:
+            for (NearbyStop nsfrom : nearFromStop) {
+                int walk0Min = walkingminutes(nsfrom.distance);
+                String walk0End2 = addMinutes(baseTime, walk0Min);
+                WalkPath w0 = new WalkPath(fromll.name, nsfrom.name, nsfrom.distance, walk0Min, baseTime, walk0End2);
+
+                String base1 = walk0End2;
+                List<GoingOption> mids = listTransferCandidates(conn, nsfrom.stopId, base1, day, MID_LIMIT);
+
+                for (GoingOption mid : mids) {
                     List<DirectPath> leg1list = searchDirect(conn, nsfrom.stopId, mid.midStopId, base1, day, 1);
                     if (leg1list.isEmpty()) continue;
                     DirectPath leg1 = leg1list.get(0);
@@ -466,8 +522,9 @@ public class RouteSearchServlet extends HttpServlet {
                         String walk1End = addMinutes(leg1.arrTime, walk1Min);
                         WalkPath w1 = new WalkPath(mid.midStopName, nsmid.name, nsmid.distance, walk1Min, leg1.arrTime, walk1End);
 
-                        // 2本目探索の基準時刻（徒歩 + 乗換猶予）
                         String base2 = addMinutes(leg1.arrTime, TRANSFER_MIN + walk1Min);
+
+                        TransferPath best = null;
 
                         for (NearbyStop nsto : nearToStop) {
                             int walk2Min = walkingminutes(nsto.distance);
@@ -480,53 +537,66 @@ public class RouteSearchServlet extends HttpServlet {
                             WalkPath w2 = new WalkPath(nsto.name, toll.name, nsto.distance, walk2Min, leg2.arrTime, walk2End);
 
                             int totalMin = (int) java.time.Duration.between(
-                                java.time.LocalTime.parse(baseTime),
-                                java.time.LocalTime.parse(walk2End)
+                                    java.time.LocalTime.parse(baseTime),
+                                    java.time.LocalTime.parse(walk2End)
                             ).toMinutes();
 
                             String key = leg1.tripId + ":" + leg1.fromStopId + ":" + leg1.toStopId
                                     + "|" + leg2.tripId + ":" + leg2.fromStopId + ":" + leg2.toStopId;
 
-                            if (seen.add(key)) {
-                                transfers.add(new TransferPath(w0, leg1, w1, leg2, w2, totalMin, baseTime, walk2End));
-                                break;
-                            }
+                            if (!seenTransfer.add(key)) continue;
 
+                            TransferPath cand = new TransferPath(w0, leg1, w1, leg2, w2, totalMin, baseTime, walk2End);
+                            if (best == null || LocalTime.parse(cand.endTime).isBefore(LocalTime.parse(best.endTime))) {
+                                best = cand;
+                            }
                         }
-                        if (transfers.size() >= RESULT_LIMIT) break;
+
+                        if (best != null) {
+                            transferCandidates.add(best);
+                            if (transferCandidates.size() >= TRANSFER_CANDIDATE_LIMIT) break outer;
+                        }
                     }
-                    if (transfers.size() >= RESULT_LIMIT) break;
                 }
-                if (transfers.size() >= RESULT_LIMIT) break;
             }
 
-            // 到着時間が速い順でソート
-            transfers.sort(
-                Comparator.comparing((TransferPath tp) -> LocalTime.parse(tp.endTime))
+            // 乗換候補も results に入れる（firstRoute はここで持たせる）
+            for (TransferPath tp : transferCandidates) {
+                results.add(new ResultItem(2, tp.endTime, tp.totalMinutes, tp.leg1.routeName, tp));
+            }
+
+            // 3) 最終ソート（到着が早い順。タイは所要時間→徒歩/直通を少し優先）
+            results.sort(
+                    Comparator.comparing((ResultItem r) -> r.end)
+                            .thenComparingInt(r -> r.totalMinutes)
+                            .thenComparingInt(r -> r.kind)
             );
 
-            // 一列として表示
-            for (TransferPath tp : transfers) {
-                printTransferRow(out, tp);
+            // 4) 表示：乗換は「1本目の路線(routeName)が同じなら高々1つ」
+            java.util.Set<String> usedFirstRoute = new java.util.HashSet<>();
+            int shown = 0;
+
+            for (ResultItem ri : results) {
+                if (shown >= RESULT_LIMIT) break;
+
+                if (ri.kind == 2) {
+                    // 乗換のみ適用
+                    if (ri.firstRoute != null && !ri.firstRoute.isEmpty()) {
+                        if (!usedFirstRoute.add(ri.firstRoute)) {
+                            continue; // 1本目が同じ路線はスキップ
+                        }
+                    }
+                }
+
+                if (ri.payload instanceof WalkOnlyPlan) {
+                    printWalkOnlyRow(out, (WalkOnlyPlan) ri.payload);
+                } else if (ri.payload instanceof DirectPlan) {
+                    printDirectRow(out, (DirectPlan) ri.payload);
+                } else {
+                    printTransferRow(out, (TransferPath) ri.payload);
+                }
+                shown++;
             }
-
-
-            // -----------------------------------------------------------------------------------------------
-
-            // 徒歩関係
-           	
-            	double distance = distanceMeters(fromll.lat, fromll.lon, toll.lat, toll.lon);
-            	int walkmin = walkingminutes(distance);
-                String arriveTime = addMinutes(baseTime, walkmin);
-            
-                out.println("<tr>");
-                out.println("<td>" + "徒歩のみ" + "</td>");
-                out.println("<td>" + "-" + "</td>");
-                out.println("<td>" + esc(fromll.name) + "</td>");
-                out.println("<td>" + esc(toll.name) + "</td>");
-                out.println("<td>" + esc(baseTime) + " → " + esc(arriveTime)  + "</td>");
-                out.println("<td>" + walkmin + "分 (約" + (int)distance + "m)" + "</td>");
-                out.println("</tr>");
 
             // -----------------------------------------------------------------------------------------------            
 
@@ -696,7 +766,7 @@ public class RouteSearchServlet extends HttpServlet {
 
     // --------------------- 経路探索系 --------------------
 
-    // 移動一回を返すためのクラス
+    // 移動1回の動き
     private static class DirectPath {
         final int tripId;
         final String routeName;
@@ -861,30 +931,6 @@ public class RouteSearchServlet extends HttpServlet {
         }
         return list;
     }
-    
-    // 乗換の前後を保持
-    private static class TransferPath {
-        final WalkPath walk0;    // 出発地 -> 1本目乗車停留所
-        final DirectPath leg1;  // 乗り物1
-        final WalkPath walk1;    // 乗換徒歩
-        final DirectPath leg2;  // 乗り物2
-        final WalkPath walk2;    // 最後の徒歩
-        final int totalMinutes;
-        final String startTime; // baseTime
-        final String endTime;   // 最終到着(徒歩後)
-
-        TransferPath(WalkPath walk0, DirectPath leg1, WalkPath walk1, DirectPath leg2, WalkPath walk2,
-                    int totalMinutes, String startTime, String endTime) {
-            this.walk0 = walk0;
-            this.leg1 = leg1;
-            this.walk1 = walk1;
-            this.leg2 = leg2;
-            this.walk2 = walk2;
-            this.totalMinutes = totalMinutes;
-            this.startTime = startTime;
-            this.endTime = endTime;
-        }
-    }
 
     // 停留所感のID,距離,時間を持つ
     private static class NearbyStop {
@@ -949,13 +995,68 @@ public class RouteSearchServlet extends HttpServlet {
         return tmp;
       }
     
-    // HTML表示の簡略化
-    private void printStep(PrintWriter out, String kind, String main, String meta) {
-    out.println("<div class=\"step\">"
-        + "<span class=\"kind\">" + esc(kind) + "</span>"
-        + "<span class=\"main\">" + esc(main) + "</span>"
-        + "<span class=\"meta\">" + esc(meta) + "</span>"
-        + "</div>");
+    // --------------------
+
+    // (1) 徒歩のみの結果
+    private static class WalkOnlyPlan {
+        final String fromName;
+        final String toName;
+        final int distanceM;
+        final int minutes;
+        final String startTime; // "HH:mm"
+        final String endTime;   // "HH:mm"
+
+        WalkOnlyPlan(String fromName, String toName, int distanceM, int minutes, String startTime, String endTime) {
+            this.fromName = fromName;
+            this.toName = toName;
+            this.distanceM = distanceM;
+            this.minutes = minutes;
+            this.startTime = startTime;
+            this.endTime = endTime;
+        }
+    }
+
+    // (2) 乗換なしの結果
+    private static class DirectPlan {
+        final WalkPath walk0;
+        final DirectPath leg;
+        final WalkPath walk2;
+        final int totalMinutes;
+        final String startTime; // "HH:mm"
+        final String endTime;   // "HH:mm"
+
+        DirectPlan(WalkPath walk0, DirectPath leg, WalkPath walk2, int totalMinutes, String startTime, String endTime) {
+            this.walk0 = walk0;
+            this.leg = leg;
+            this.walk2 = walk2;
+            this.totalMinutes = totalMinutes;
+            this.startTime = startTime;
+            this.endTime = endTime;
+        }
+    }
+
+    // (3) 乗換ありの結果
+    private static class TransferPath {
+        final WalkPath walk0;    // 出発地 -> 1本目乗車停留所
+        final DirectPath leg1;  // 乗り物1
+        final WalkPath walk1;    // 乗換徒歩
+        final DirectPath leg2;  // 乗り物2
+        final WalkPath walk2;    // 最後の徒歩
+        final int totalMinutes;
+        final String startTime; // baseTime
+        final String endTime;   // 最終到着(徒歩後)
+
+        TransferPath(WalkPath walk0, DirectPath leg1, WalkPath walk1, DirectPath leg2, WalkPath walk2,
+                    int totalMinutes, String startTime, String endTime) {
+            this.walk0 = walk0;
+            this.leg1 = leg1;
+            this.walk1 = walk1;
+            this.leg2 = leg2;
+            this.walk2 = walk2;
+            this.totalMinutes = totalMinutes;
+            this.startTime = startTime;
+            this.endTime = endTime;
+        }
     }
 
     // 乗り換えが同一地点かどうかを判断する関数
@@ -965,11 +1066,112 @@ public class RouteSearchServlet extends HttpServlet {
     return same && w.minutes == 0 && w.distanceM == 0;
     }
 
-    // 結果の表を一列表示する関数    
+    // 結果のソート用
+    private static class ResultItem {
+        // 0=徒歩のみ, 1=直通, 2=乗換(2本)
+        final int kind;
+        final LocalTime end;        // ソートキー
+        final int totalMinutes;     // タイブレーク
+        final String firstRoute;    // 乗換だけ tp.leg1.routeName を入れる
+        final Object payload;       // WalkOnlyPlan / DirectPlan / TransferPath
+
+        ResultItem(int kind, String endTime, int totalMinutes, String firstRoute, Object payload) {
+            this.kind = kind;
+            this.end = LocalTime.parse(endTime);
+            this.totalMinutes = totalMinutes;
+            this.firstRoute = firstRoute;
+            this.payload = payload;
+        }
+    }
+
+    // --------------------
+
+    // HTML表示の簡略化
+    private void printStep(PrintWriter out, String kind, String main, String meta) {
+    out.println("<div class=\"step\">"
+        + "<span class=\"kind\">" + esc(kind) + "</span>"
+        + "<span class=\"main\">" + esc(main) + "</span>"
+        + "<span class=\"meta\">" + esc(meta) + "</span>"
+        + "</div>");
+    }
+
+    // 徒歩のみの結果を表示
+    private void printWalkOnlyRow(PrintWriter out, WalkOnlyPlan wp) {
+        out.println("<tr>");
+        out.println("<td>徒歩のみ</td>");
+        out.println("<td>-</td>");
+        out.println("<td>" + esc(wp.fromName) + "</td>");
+        out.println("<td>" + esc(wp.toName) + "</td>");
+        out.println("<td>" + esc(hhmm(wp.startTime)) + " → " + esc(hhmm(wp.endTime)) + "</td>");
+        out.println("<td>" + wp.minutes + "分 (約" + wp.distanceM + "m)</td>");
+        out.println("</tr>");
+
+        out.println("<tr class=\"detail-row\"><td colspan=\"6\">");
+        out.println("<details class=\"summary\">");
+        out.println("<summary>経路詳細</summary>");
+        out.println("<div class=\"steps\">");
+        printStep(out, "徒歩",
+                wp.fromName + " → " + wp.toName,
+                wp.minutes + "分 / 約" + wp.distanceM + "m, " + hhmm(wp.startTime) + "→" + hhmm(wp.endTime));
+        out.println("</div>");
+        out.println("</details>");
+        out.println("</td></tr>");
+    }
+
+    // 乗換なしの結果を表示
+    private void printDirectRow(PrintWriter out, DirectPlan dp) {
+    StringBuilder route = new StringBuilder();
+    if (!isZeroWalk(dp.walk0)) route.append("徒歩 → ");
+    route.append(dp.leg.routeName);
+    if (!isZeroWalk(dp.walk2)) route.append(" → 徒歩");
+
+    out.println("<tr>");
+    out.println("<td>" + esc(route.toString()) + "</td>");
+    out.println("<td>" + esc(dp.leg.tripName) + "</td>");
+    out.println("<td>" + esc(dp.walk0.fromName) + "</td>");
+    out.println("<td>" + esc(dp.walk2.toName) + "</td>");
+    out.println("<td>" + esc(hhmm(dp.startTime)) + " → " + esc(hhmm(dp.endTime)) + "</td>");
+    out.println("<td>" + dp.totalMinutes + "分</td>");
+    out.println("</tr>");
+
+    out.println("<tr class=\"detail-row\"><td colspan=\"6\">");
+    out.println("<details class=\"summary\">");
+    out.println("<summary>経路詳細</summary>");
+    out.println("<div class=\"steps\">");
+
+    if (!isZeroWalk(dp.walk0)) {
+        printStep(out, "徒歩",
+                dp.walk0.fromName + " → " + dp.walk0.toName,
+                dp.walk0.minutes + "分 / 約" + dp.walk0.distanceM + "m, " + hhmm(dp.walk0.startTime) + "→" + hhmm(dp.walk0.endTime));
+    }
+
+    printStep(out, "乗車",
+            dp.leg.routeName + " " + dp.leg.tripName,
+            dp.leg.fromStopName + " " + hhmm(dp.leg.depTime) + " → " + dp.leg.toStopName + " " + hhmm(dp.leg.arrTime));
+
+    if (!isZeroWalk(dp.walk2)) {
+        printStep(out, "徒歩",
+                dp.walk2.fromName + " → " + dp.walk2.toName,
+                dp.walk2.minutes + "分 / 約" + dp.walk2.distanceM + "m, " + hhmm(dp.walk2.startTime) + "→" + hhmm(dp.walk2.endTime));
+    }
+
+    out.println("</div>");
+    out.println("</details>");
+    out.println("</td></tr>");
+}
+
+    // 乗換ありの結果表示    
     private void printTransferRow(PrintWriter out, TransferPath tp) {
 
     // --- 1行目: いままで通りのサマリ行（表の行） ---
-    String route = "徒歩 → " + tp.leg1.routeName + " → 徒歩 → " + tp.leg2.routeName + " → 徒歩";
+    StringBuilder sb = new StringBuilder();
+    if (!isZeroWalk(tp.walk0)) sb.append("徒歩 → ");
+    sb.append(tp.leg1.routeName);
+    if (!isZeroWalk(tp.walk1)) sb.append(" → 徒歩 → ");
+    else sb.append(" → 乗換 → ");
+    sb.append(tp.leg2.routeName);
+    if (!isZeroWalk(tp.walk2)) sb.append(" → 徒歩");
+    String route = sb.toString();
     String trips = tp.leg1.tripName + " → " + tp.leg2.tripName;
 
     out.println("<tr>");
