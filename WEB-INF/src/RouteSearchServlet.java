@@ -9,6 +9,7 @@ import java.sql.SQLException;
 import java.time.LocalTime;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Properties;
 import javax.servlet.ServletException;
@@ -58,31 +59,33 @@ public class RouteSearchServlet extends HttpServlet {
         String day             = request.getParameter("day");        // 平日 or 休日
         String timemode        = request.getParameter("time_mode");  // 現在 or 指定時間
         String timevalue       = request.getParameter("time_val");   // HH:mm
-        String fromstopidstr   = request.getParameter("from_id");   // 出発地候補ID (選択された場合)
-        String tostopidstr     = request.getParameter("to_id");     // 目的地候補ID (選択された場合)
+        String fromstopidstr   = request.getParameter("from_id");   // 出発地候補ID (選択された後)
+        String tostopidstr     = request.getParameter("to_id");     // 目的地候補ID (選択された後)
         
         // ---- いじる定数 ----
         final int TRANSFER_MIN = 3;      // 乗換猶予時間 (分)
         final int MID_LIMIT = 30;        // mid候補の探索上限
-        final int RESULT_LIMIT = 5;      // 表示する乗換経路の数の最大
+        final int RESULT_LIMIT = 5;      // 表示する乗換経路の最大
+        final int WALK_RADIUS_M = 1000;   // 乗り換えの許容距離
+        final int NEAR_LIMIT = 30;       // 探索する乗換経路の最大
         // -------------------
 
-        Integer fromId = null; // Integer 型で null 許容
-        Integer toId   = null; // Integer 型で null 許容
+        Integer fromid = null; // Integer 型で null 許容
+        Integer toid   = null; // Integer 型で null 許容
 
-        // fromIDStr/toIdStr を fromId/toId (Integer型) に変換
+        // fromidStr/toidStr を fromid/toid (Integer型) に変換
         if (fromstopidstr != null && !fromstopidstr.trim().isEmpty()) {
             try {
-                fromId = Integer.valueOf(fromstopidstr);
+                fromid = Integer.valueOf(fromstopidstr);
             } catch (NumberFormatException e) {
-                fromId = null;
+                fromid = null;
             }
         }
         if (tostopidstr != null && !tostopidstr.trim().isEmpty()) {
             try {
-                toId = Integer.valueOf(tostopidstr);
+                toid = Integer.valueOf(tostopidstr);
             } catch (NumberFormatException e) {
-                toId = null;
+                toid = null;
             }
         }
         
@@ -153,6 +156,18 @@ public class RouteSearchServlet extends HttpServlet {
         out.println(".cand-item:hover{background:#fbfdff;}");
         out.println(".cand-name{font-weight:600;}");
         out.println(".cand-type{color:var(--muted);font-size:12px;}");
+        out.println(".detail-row td{background:#fcfcff;}");
+        out.println(".legs{display:flex;flex-wrap:wrap;gap:8px;margin:6px 0 0 0;padding:0;list-style:none;}");
+        out.println(".leg{border:1px solid var(--border);border-radius:10px;padding:8px 10px;background:#fff;font-size:13px;}");
+        out.println(".leg .t{font-weight:700;margin-right:6px;}");
+        out.println(".leg .s{color:var(--muted);}");
+        out.println(".steps{display:flex;flex-direction:column;gap:8px;margin-top:8px;}");
+        out.println(".step{display:grid;grid-template-columns: 52px 1fr auto;gap:10px;padding:10px 12px;border:1px solid var(--border);border-radius:12px;background:#fff;}");
+        out.println(".step .kind{font-weight:800;}");
+        out.println(".step .main{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}");
+        out.println(".step .meta{white-space:nowrap;color:var(--muted);font-size:12px;}");
+        out.println("details.summary{margin-top:6px;}");
+        out.println("details.summary > summary{cursor:pointer;color:var(--primary);font-weight:700;}");
         out.println("</style>");
         // CSS ここまで
 
@@ -252,83 +267,89 @@ public class RouteSearchServlet extends HttpServlet {
 
         // -----------------------------------------------------------------------------------------------
         
-            // 地点候補 => 一つに選定
-            //
+            // 地点候補 => 1つに選定
             List<StopCandidate> fromCandidates = new ArrayList<>();
             List<StopCandidate> toCandidates   = new ArrayList<>();
 
-            if (fromId == null) {
+            // 決まっていないなら候補を探索 => 件数に応じて次の探索へ
+            if (fromid == null) {
                 fromCandidates = searchStopCandidates(conn, fromstop, 10);
             }
-            if (toId == null) {
+            if (toid == null) {
                 toCandidates = searchStopCandidates(conn, tostop, 10);
             }
 
-            // 0件なら終了（HTMLも閉じる）
-            if ((fromId == null && fromCandidates.isEmpty()) || (toId == null && toCandidates.isEmpty())) {
+            // 0件なら終了
+            if ((fromid == null && fromCandidates.isEmpty()) || (toid == null && toCandidates.isEmpty())) {
                 out.println("<p class=\"alert\">出発/到着地点が見つかりませんでした。</p>");
                 out.println("</div></div></body></html>"); // card/app/body/html を閉じる
                 return;
             }
 
             // 1件なら自動確定
-            if (fromId == null && fromCandidates.size() == 1) {
-                fromId = fromCandidates.get(0).stop_id;
+            if (fromid == null && fromCandidates.size() == 1) {
+                fromid = fromCandidates.get(0).stop_id;
             }
-            if (toId == null && toCandidates.size() == 1) {
-                toId = toCandidates.get(0).stop_id;
+            if (toid == null && toCandidates.size() == 1) {
+                toid = toCandidates.get(0).stop_id;
             }
 
-            // まだ未確定（=複数候補）なら、候補を選ばせる画面を出す
-            if (fromId == null || toId == null) {
+            // 複数件 (少なくともどちらかが) なら、候補を選ばせる画面を出す
+            if (fromid == null || toid == null) {
                 out.println("<div class=\"alert\">候補が複数あります。下から選んでください。</div>");
-
                 out.println("<form class=\"form\" action=\"routesearch\" method=\"GET\">");
 
-                // 元の入力値も引き継ぐ（これがないと条件が消える）(フォームの上部分)
+                // 元の入力値も引き継ぐ（これがないと条件が消える）
                 out.println("<input type=\"hidden\" name=\"from_stop\" value=\"" + esc(fromstop) + "\"/>");
                 out.println("<input type=\"hidden\" name=\"to_stop\" value=\"" + esc(tostop) + "\"/>");
                 out.println("<input type=\"hidden\" name=\"day\" value=\"" + esc(day) + "\"/>");
                 out.println("<input type=\"hidden\" name=\"time_mode\" value=\"" + esc(timemode) + "\"/>");
                 out.println("<input type=\"hidden\" name=\"time_val\" value=\"" + esc(timevalue) + "\"/>");
 
-                // 出発候補
-                out.println("<div class=\"field\">");
-                out.println("<label class=\"label\" for=\"from_id\">出発（候補）</label>");
-                out.println("<select class=\"select\" id=\"from_id\" name=\"from_id\">");
-                if (fromId != null) {
-                    LatLon fixed = getStopById(conn, fromId); // 既にID確定してる側
-                    if (fixed != null) {
-                        out.println("<option value=\"" + fixed.stopid + "\" selected>" + esc(fixed.name) + "</option>");
-                    }
-                } else {
-                    for (StopCandidate c : fromCandidates) {
-                        out.println("<option value=\"" + c.stop_id + "\">"
-                                + esc(c.stop_name) + "</option>");
-                    }
-                }
-                out.println("</select>");
-                out.println("</div>");
+                // 出発地
+                if (fromid != null) {
+                    out.println("<input type=\"hidden\" name=\"from_id\" value=\"" + fromid + "\"/>");
 
-  
-                // 到着地候補
-                out.println("<div class=\"field\">");
-                out.println("<label class=\"label\" for=\"to_id\">到着（候補）</label>");
-                out.println("<select class=\"select\" id=\"to_id\" name=\"to_id\">");
-                if (toId != null) {
-                    LatLon fixed = getStopById(conn, toId);
+                    LatLon fixed = getStopById(conn, fromid);
                     if (fixed != null) {
-                        out.println("<option value=\"" + fixed.stopid + "\" selected>" + esc(fixed.name) + "</option>");
+                        out.println("<div class=\"field\">");
+                        out.println("<label class=\"label\">出発 (確定)</label>");
+                        out.println("<div class=\"fixed\">" + esc(fixed.name) + "</div>");
+                        out.println("</div>");
                     }
                 } else {
-                    for (StopCandidate c : toCandidates) {
-                        out.println("<option value=\"" + c.stop_id + "\">"
-                                + esc(c.stop_name) + "</option>");
+                    // 選択画面
+                    out.println("<div class=\"field\">");
+                    out.println("<label class=\"label\" for=\"from_id\">出発 (候補)</label>");
+                    out.println("<select class=\"select\" id=\"from_id\" name=\"from_id\">");
+                    for (StopCandidate c : fromCandidates) {
+                        out.println("<option value=\"" + c.stop_id + "\">" + esc(c.stop_name) + "</option>");
                     }
+                    out.println("</select>");
+                    out.println("</div>");
                 }
-                out.println("</select>");
-                out.println("</div>");
-                
+
+                // 到着地
+                if (toid != null) {
+                    out.println("<input type=\"hidden\" name=\"to_id\" value=\"" + toid + "\"/>");
+
+                    LatLon fixed = getStopById(conn, toid);
+                    if (fixed != null) {
+                        out.println("<div class=\"field\">");
+                        out.println("<label class=\"label\">到着 (確定)</label>");
+                        out.println("<div class=\"fixed\">" + esc(fixed.name) + "</div>");
+                        out.println("</div>");
+                    }
+                } else {
+                    out.println("<div class=\"field\">");
+                    out.println("<label class=\"label\" for=\"to_id\">到着 (候補)</label>");
+                    out.println("<select class=\"select\" id=\"to_id\" name=\"to_id\">");
+                    for (StopCandidate c : toCandidates) {
+                        out.println("<option value=\"" + c.stop_id + "\">" + esc(c.stop_name) + "</option>");
+                    }
+                    out.println("</select>");
+                    out.println("</div>");
+                }
 
                 // 再検索表示
                 out.println("<div class=\"actions\">");
@@ -337,18 +358,16 @@ public class RouteSearchServlet extends HttpServlet {
                 out.println("</div>");
 
                 out.println("</form>");
-
-                // ここでページ終了（下の検索SQLへ行かない）
-                out.println("</div></div></body></html>");
                 return;
             }
+
+            // -----------------------------------------------------------------------------------------------
             
             // 出発地/到着地 を確定 -> その検索に入る
-            LatLon fromll = getStopById(conn, fromId);
-            LatLon toll   = getStopById(conn, toId);
+            LatLon fromll = getStopById(conn, fromid);
+            LatLon toll   = getStopById(conn, toid);        
             
-            
-            // 問い合わせ文
+            // ---- 問い合わせ文 ----
             String sql = ""
                     + "SELECT "
                     + "  r.route_name, "
@@ -372,34 +391,37 @@ public class RouteSearchServlet extends HttpServlet {
                     + "  AND sa_from.arrival_order < sa_to.arrival_order "
                     + "  AND sa_from.departure_time >= ?::time ";
 
-            // 平日だけ絞る（休日専用便を落とす）
+            // 平日だけ絞るオプション (休日専用などないが)
             if ("平日".equals(day)) {
                 sql += " AND t.trip_datetime IN ('全日', '平日') ";
             } else {
             	sql += " AND t.trip_datetime IN ('全日', '休日') ";
             }
 
-            // 最短＝到着時刻が一番早い順（同着なら出発が早い方）
+            // 最短 = 到着時刻が一番早い順 (同着なら出発が早い方)
             sql += " ORDER BY sa_to.arrival_time ASC, sa_from.departure_time ASC ";
             sql += " LIMIT 3 ";
 
-            // ？に対応する部分の変数を入れる
+            // --------------------
+
+            // ? に対応する部分の変数を入れるためのクエリ
             ps = conn.prepareStatement(sql);
 
             int idx = 1;
-            ps.setInt(idx++, fromll.stopid);
-            ps.setInt(idx++, toll.stopid);
-            ps.setString(idx++, baseTime);
+            ps.setInt(idx++, fromll.stopid); // 出発地の stop_id
+            ps.setInt(idx++, toll.stopid);   // 到着地の stop_id
+            ps.setString(idx++, baseTime);   // 時間は HH:mm 以降
 
             // DB取得を実行
             rs = ps.executeQuery();
             
-            
-            // ----------
+            // --------------------
+
             // 結果を HTML で表示
             out.println("<h3 class=\"result-title\">結果</h3>");
             out.println("<p class=\"muted\">（指定時刻以降に出発する便から、到着が早い順に表示）</p>");
 
+            // 表を表示するためのフォーマット
             out.println("<div class=\"table-wrap\">");
             out.println("<table>");
             out.println("<tr>"
@@ -411,65 +433,79 @@ public class RouteSearchServlet extends HttpServlet {
                     + "<th>所要時間</th>"
                     + "</tr>");
 
+            // 経路探索 (最重要)
 
+            // 出発地 / 目的地 の近くの停留所を探索
+            List<NearbyStop> nearFromStop = nearbyStops(conn, fromid, WALK_RADIUS_M, NEAR_LIMIT);
+            List<NearbyStop> nearToStop = nearbyStops(conn, toid, WALK_RADIUS_M, NEAR_LIMIT);
 
-            final int WALK_RADIUS_M = 500;
-            final int NEAR_LIMIT = 30;
-
-            List<NearbyStop> fromNearby = nearbyStops(conn, fromId, WALK_RADIUS_M, NEAR_LIMIT);
-
-            // ★(重要) もし nearbyStops が自分自身(fromId)を含まない実装なら、ここで追加しておく
-            // fromNearby.add(0, new NearbyStop(fromId, 0.0, /*name*/ null));
-
+            // 乗り換え経路全体を保存
+            java.util.Set<String> seen = new java.util.HashSet<>();
             List<TransferPath> transfers = new ArrayList<>();
 
-            for (NearbyStop fs : fromNearby) {
+            for (NearbyStop nsfrom : nearFromStop) {
+                // walk0
+                int walk0Min = walkingminutes(nsfrom.distance);
+                String walk0End = addMinutes(baseTime, walk0Min);
+                WalkPath w0 = new WalkPath(fromll.name, nsfrom.name, nsfrom.distance, walk0Min, baseTime, walk0End);
 
-                // (A) 出発地(fromId)→ fs.stopId まで歩く時間をまず足す
-                int walk0 = (fs.distance <= 1e-9) ? 0 : walkingminutes(fs.distance);
-                String base1 = addMinutes(baseTime, walk0);
+                String base1 = walk0End;
 
-                // ★(重要) fromId じゃなく fs.stopId を起点にする
-                List<OutgoingOption> mids = listTransferCandidates(conn, fs.stopId, base1, day, MID_LIMIT);
+                List<GoingOption> mids = listTransferCandidates(conn, nsfrom.stopId, base1, day, MID_LIMIT);
+                for (GoingOption mid : mids) {
 
-                for (OutgoingOption mid : mids) {
-                    List<NearbyStop> nearMid = nearbyStops(conn, mid.midStopId, WALK_RADIUS_M, NEAR_LIMIT);
+                    // まず leg1 を確定（この時点で "実際の到着時刻" が確定する）
+                    List<DirectPath> leg1list = searchDirect(conn, nsfrom.stopId, mid.midStopId, base1, day, 1);
+                    if (leg1list.isEmpty()) continue;
+                    DirectPath leg1 = leg1list.get(0);
 
-                    for (NearbyStop ns : nearMid) {
+                    List<NearbyStop> nearMidStop = nearbyStops(conn, mid.midStopId, WALK_RADIUS_M, NEAR_LIMIT);
+                    for (NearbyStop nsmid : nearMidStop) {
 
-                        // (B) mid→ns まで歩く時間（同一停留所なら0分にする）
-                        int walk1 = (ns.stopId == mid.midStopId || ns.distance <= 1e-9) ? 0 : walkingminutes(ns.distance);
+                        int walk1Min = walkingminutes(nsmid.distance);
+                        String walk1End = addMinutes(leg1.arrTime, walk1Min);
+                        WalkPath w1 = new WalkPath(mid.midStopName, nsmid.name, nsmid.distance, walk1Min, leg1.arrTime, walk1End);
 
-                        // 2本目に乗れる最短時刻 = mid到着 + 乗換最低時間 + 徒歩時間
-                        String base2 = addMinutes(mid.arrTime, TRANSFER_MIN + walk1);
+                        // 2本目探索の基準時刻（徒歩 + 乗換猶予）
+                        String base2 = addMinutes(leg1.arrTime, TRANSFER_MIN + walk1Min);
 
-                        // 2本目: ns.stopId -> toId
-                        List<DirectPath> leg2list = searchDirect(conn, ns.stopId, toId, base2, day, 1);
-                        if (leg2list.isEmpty()) continue;
-                        DirectPath leg2 = leg2list.get(0);
+                        for (NearbyStop nsto : nearToStop) {
+                            int walk2Min = walkingminutes(nsto.distance);
 
-                        // 1本目: fs.stopId -> mid.midStopId （★ここも fs.stopId）
-                        List<DirectPath> leg1list = searchDirect(conn, fs.stopId, mid.midStopId, base1, day, 1);
-                        if (leg1list.isEmpty()) continue;
-                        DirectPath leg1 = leg1list.get(0);
+                            List<DirectPath> leg2list = searchDirect(conn, nsmid.stopId, nsto.stopId, base2, day, 1);
+                            if (leg2list.isEmpty()) continue;
+                            DirectPath leg2 = leg2list.get(0);
 
-                        // 総所要時間は「最初に検索した baseTime から最終到着まで」で計算すると自然
-                        int totalMin = (int) java.time.Duration.between(
-                            java.time.LocalTime.parse(baseTime),
-                            java.time.LocalTime.parse(leg2.arrTime)
-                        ).toMinutes();
+                            String walk2End = addMinutes(leg2.arrTime, walk2Min);
+                            WalkPath w2 = new WalkPath(nsto.name, toll.name, nsto.distance, walk2Min, leg2.arrTime, walk2End);
 
-                        transfers.add(new TransferPath(leg1, leg2, totalMin));
+                            int totalMin = (int) java.time.Duration.between(
+                                java.time.LocalTime.parse(baseTime),
+                                java.time.LocalTime.parse(walk2End)
+                            ).toMinutes();
 
-                        break; // このmidは1件見つかったら次
+                            String key = leg1.tripId + ":" + leg1.fromStopId + ":" + leg1.toStopId
+                                    + "|" + leg2.tripId + ":" + leg2.fromStopId + ":" + leg2.toStopId;
+
+                            if (seen.add(key)) {
+                                transfers.add(new TransferPath(w0, leg1, w1, leg2, w2, totalMin, baseTime, walk2End));
+                                break;
+                            }
+
+                        }
+                        if (transfers.size() >= RESULT_LIMIT) break;
                     }
-
                     if (transfers.size() >= RESULT_LIMIT) break;
                 }
-
                 if (transfers.size() >= RESULT_LIMIT) break;
             }
 
+            // 到着時間が速い順でソート
+            transfers.sort(
+                Comparator.comparing((TransferPath tp) -> LocalTime.parse(tp.endTime))
+            );
+
+            // 一列として表示
             for (TransferPath tp : transfers) {
                 printTransferRow(out, tp);
             }
@@ -478,31 +514,21 @@ public class RouteSearchServlet extends HttpServlet {
             // -----------------------------------------------------------------------------------------------
 
             // 徒歩関係
-            
-            if(fromll == null || toll  == null) {
-            	out.println("<tr>");
-            	out.println("<td>徒歩</td><td>-</td><td>-</td>");
-                out.println("<td colspan=\"4\">徒歩計算できません（場所が見つかりません）</td>");
-                out.println("</tr>");
-            } else {           	
+           	
             	double distance = distanceMeters(fromll.lat, fromll.lon, toll.lat, toll.lon);
             	int walkmin = walkingminutes(distance);
-                // baseTime は "HH:mm:ss" なのでそれで parse する
-                LocalTime dep = LocalTime.parse(baseTime, DateTimeFormatter.ofPattern("HH:mm"));
-                LocalTime arr = dep.plusMinutes(walkmin);
-                String depstr = dep.format(DateTimeFormatter.ofPattern("HH:mm"));
-                String arrstr = arr.format(DateTimeFormatter.ofPattern("HH:mm"));
+                String arriveTime = addMinutes(baseTime, walkmin);
             
-            out.println("<tr>");
-            out.println("<td>" + "徒歩" + "</td>");
-            out.println("<td>" + "-" + "</td>");
-            out.println("<td>" + esc(fromll.name) + "</td>");
-            out.println("<td>" + esc(toll.name) + "</td>");
-            out.println("<td>" + esc(depstr) + " → " + esc(arrstr)  + "</td>");
-            out.println("<td>" + walkmin + "分 (約" + (int)distance + "m)" + "</td>");
-            out.println("</tr>");
+                out.println("<tr>");
+                out.println("<td>" + "徒歩のみ" + "</td>");
+                out.println("<td>" + "-" + "</td>");
+                out.println("<td>" + esc(fromll.name) + "</td>");
+                out.println("<td>" + esc(toll.name) + "</td>");
+                out.println("<td>" + esc(baseTime) + " → " + esc(arriveTime)  + "</td>");
+                out.println("<td>" + walkmin + "分 (約" + (int)distance + "m)" + "</td>");
+                out.println("</tr>");
 
-            }
+            // -----------------------------------------------------------------------------------------------            
 
             
             // 結果まとめ
@@ -527,17 +553,16 @@ public class RouteSearchServlet extends HttpServlet {
         out.println("</html>");
     }
 
+    // その他
     protected void doPost(HttpServletRequest request,
             HttpServletResponse response) throws ServletException, IOException {
         doGet(request, response);
     }
-
     public void destroy() {
     }
 
-    // =================
-    // 便利関数
-    // =================
+
+    // --------------------- 便利関数系 -------------------
 
     // 文字エラー対策1
     private String esc(String s) {
@@ -558,6 +583,13 @@ public class RouteSearchServlet extends HttpServlet {
         return time.plusMinutes(minutes).format(DateTimeFormatter.ofPattern("HH:mm"));
     }
     
+    // HH:mm 統一
+    private String hhmm(String t){
+        if (t == null) return "";
+        return (t.length() >= 5) ? t.substring(0, 5) : t;
+    }
+    // --------------------- 候補検索系 --------------------
+
     // 緯度経度を渡すためのクラス
     private static class LatLon {
     	final int stopid;
@@ -584,7 +616,7 @@ public class RouteSearchServlet extends HttpServlet {
     	
     	try (PreparedStatement ps = conn.prepareStatement(sql)) {
     		int idx = 1;
-    		ps.setInt(idx++, stop_id);             // 完全一致
+    		ps.setInt(idx++, stop_id);
     		
     		try (ResultSet rs = ps.executeQuery()) {
     			if(!rs.next()) return null;
@@ -614,19 +646,17 @@ public class RouteSearchServlet extends HttpServlet {
     	double meter_correction = 1.25; // 直線 -> 道のり は 1.25倍
     	double meter_per_minutes = 80;  // 歩く速さは分速80m
     	int minutes = (int) Math.ceil( r * meter_correction / meter_per_minutes);
-        return Math.max(1,	 minutes);
+        return Math.max(0,	 minutes);
     }
     
     // 出発地/目的地 の候補
     private static class StopCandidate {
     	final int stop_id;
     	final String stop_name;
-    	final String stop_type;
     	
-    	StopCandidate(int stop_id, String stop_name, String stop_type) {
+    	StopCandidate(int stop_id, String stop_name) {
     		this.stop_id = stop_id;
     		this.stop_name = stop_name;
-    		this.stop_type = stop_type;
     	}
     }
     
@@ -656,14 +686,15 @@ public class RouteSearchServlet extends HttpServlet {
     	        while (rs.next()) {
     	          int stopId = rs.getInt("stop_id");
     	          String name = rs.getString("stop_name");
-    	          String type = rs.getString("stop_type");
-    	          list.add(new StopCandidate(stopId, name, type));
+    	          list.add(new StopCandidate(stopId, name));
     	        }
     	    }
     	}
 
     return list;
     }
+
+    // --------------------- 経路探索系 --------------------
 
     // 移動一回を返すためのクラス
     private static class DirectPath {
@@ -672,10 +703,10 @@ public class RouteSearchServlet extends HttpServlet {
         final String tripName;
         final int fromStopId;
         final String fromStopName;
-        final String depTime; // "HH:MM"
+        final String depTime; // "HH:mm"
         final int toStopId;
         final String toStopName;
-        final String arrTime; // "HH:MM"
+        final String arrTime; // "HH:mm"
 
         DirectPath (int tripId, String routeName, String tripName,
                    int fromStopId, String fromStopName, String depTime,
@@ -713,7 +744,7 @@ public class RouteSearchServlet extends HttpServlet {
             + "JOIN stop_information st ON st.stop_id = sa_to.stop_id "
             + "JOIN trip_information t ON t.trip_id = sa_from.trip_id "
             + "JOIN route_trip rt ON rt.trip_id = t.trip_id "
-            + "JOIN route_information r ON r.route_id = rt.route_id "   // ←ここがroute_id問題の場所
+            + "JOIN route_information r ON r.route_id = rt.route_id "
             + "WHERE sa_from.stop_id = ? "
             + "  AND sa_to.stop_id = ? "
             + "  AND sa_from.arrival_order < sa_to.arrival_order "
@@ -744,34 +775,49 @@ public class RouteSearchServlet extends HttpServlet {
                         rs.getString("trip_name"),
                         rs.getInt("from_stop_id"),
                         rs.getString("from_stop_name"),
-                        rs.getString("dep_time"),
+                        hhmm(rs.getString("dep_time")),
                         rs.getInt("to_stop_id"),
                         rs.getString("to_stop_name"),
-                        rs.getString("arr_time")
+                        hhmm(rs.getString("arr_time"))
                     ));
                 }
             }
         }
         return list;
     }
-	
+
+    // 直通の徒歩検索
+    private static class WalkPath {
+        final String fromName;
+        final String toName;
+        final int distanceM;
+        final int minutes;
+        final String startTime; // "HH:mm"
+        final String endTime;   // "HH:mm"
+
+        WalkPath(String fromName, String toName, int distanceM, int minutes, String startTime, String endTime) {
+            this.fromName = fromName;
+            this.toName = toName;
+            this.distanceM = distanceM;
+            this.minutes = minutes;
+            this.startTime = startTime;
+            this.endTime = endTime;
+        }
+    }
+
     // 乗換一回の前半の移動
-    private static class OutgoingOption {
-        final int tripId;
+    private static class GoingOption {
         final int midStopId;
         final String midStopName;
-        final String arrTime; // mid到着時刻
 
-        OutgoingOption(int tripId, int midStopId, String midStopName, String arrTime) {
-            this.tripId = tripId;
+        GoingOption(int midStopId, String midStopName) {
             this.midStopId = midStopId;
             this.midStopName = midStopName;
-            this.arrTime = arrTime;
         }
     }
 
     // 出発地からいける停留所を全部調べる
-    private List<OutgoingOption> listTransferCandidates(
+    private List<GoingOption> listTransferCandidates(
             Connection conn, int fromStopId, String baseTime, String day, int limit
     ) throws SQLException {
 
@@ -797,7 +843,7 @@ public class RouteSearchServlet extends HttpServlet {
 
         sql += " ORDER BY sa_to.arrival_time ASC LIMIT ?";
 
-        List<OutgoingOption> list = new ArrayList<>();
+        List<GoingOption> list = new ArrayList<>();
         try (PreparedStatement ps = conn.prepareStatement(sql)) {
             int idx = 1;
             ps.setInt(idx++, fromStopId);
@@ -806,11 +852,9 @@ public class RouteSearchServlet extends HttpServlet {
 
             try (ResultSet rs = ps.executeQuery()) {
                 while (rs.next()) {
-                    list.add(new OutgoingOption(
-                        rs.getInt("trip_id"),
+                    list.add(new GoingOption(
                         rs.getInt("mid_stop_id"),
-                        rs.getString("mid_stop_name"),
-                        rs.getString("arr_time")
+                        rs.getString("mid_stop_name")
                     ));
                 }
             }
@@ -820,14 +864,25 @@ public class RouteSearchServlet extends HttpServlet {
     
     // 乗換の前後を保持
     private static class TransferPath {
-        final DirectPath leg1;  // from -> mid
-        final DirectPath leg2;  // mid  -> to
+        final WalkPath walk0;    // 出発地 -> 1本目乗車停留所
+        final DirectPath leg1;  // 乗り物1
+        final WalkPath walk1;    // 乗換徒歩
+        final DirectPath leg2;  // 乗り物2
+        final WalkPath walk2;    // 最後の徒歩
         final int totalMinutes;
+        final String startTime; // baseTime
+        final String endTime;   // 最終到着(徒歩後)
 
-        TransferPath(DirectPath leg1, DirectPath leg2, int totalMinutes) {
+        TransferPath(WalkPath walk0, DirectPath leg1, WalkPath walk1, DirectPath leg2, WalkPath walk2,
+                    int totalMinutes, String startTime, String endTime) {
+            this.walk0 = walk0;
             this.leg1 = leg1;
+            this.walk1 = walk1;
             this.leg2 = leg2;
+            this.walk2 = walk2;
             this.totalMinutes = totalMinutes;
+            this.startTime = startTime;
+            this.endTime = endTime;
         }
     }
 
@@ -839,8 +894,8 @@ public class RouteSearchServlet extends HttpServlet {
 
         NearbyStop(int stopId, String name, int distance) {
         	this.stopId = stopId;
-            this.distance = distance;
             this.name = name;
+            this.distance = distance;
         }
     }
 
@@ -886,33 +941,95 @@ public class RouteSearchServlet extends HttpServlet {
         // 近い順
         tmp.sort((a,b) -> Integer.compare(a.distance, b.distance));
 
-        // 自分自身(0m)も先頭に入れておくと「徒歩なし」も同じ枠組みで扱える
-        // ただしSQL結果に自分が含まれるので、重複するなら除去してもOK
-        // ここは簡単に「先頭が自分じゃなければ足す」にしておく
         if (tmp.isEmpty() || tmp.get(0).stopId != centerStopId) {
-          tmp.add(0, new NearbyStop(centerStopId, centerstop.name, 1));
+          tmp.add(0, new NearbyStop(centerStopId, centerstop.name, 0));
         }
 
         if (tmp.size() > limit) return new ArrayList<>(tmp.subList(0, limit));
         return tmp;
       }
     
-    // 結果の表を一列表示する関数
-    private void printTransferRow(PrintWriter out, TransferPath tp) {
-        String route = esc(tp.leg1.routeName) + " → " + esc(tp.leg2.routeName);
-        String trip  = esc(tp.leg1.tripName) + " → " + esc(tp.leg2.tripName);
-        String from  = esc(tp.leg1.fromStopName);
-        String to    = esc(tp.leg2.toStopName);
-        String time  = esc(tp.leg1.depTime) + " → " + esc(tp.leg2.arrTime);
-        String dur   = tp.totalMinutes + "分";
-
-        out.println("<tr>");
-        out.println("<td>" + route + "</td>");
-        out.println("<td>" + trip  + "</td>");
-        out.println("<td>" + from  + "</td>");
-        out.println("<td>" + to    + "</td>");
-        out.println("<td>" + time  + "</td>");
-        out.println("<td>" + dur   + "</td>");
-        out.println("</tr>");
+    // HTML表示の簡略化
+    private void printStep(PrintWriter out, String kind, String main, String meta) {
+    out.println("<div class=\"step\">"
+        + "<span class=\"kind\">" + esc(kind) + "</span>"
+        + "<span class=\"main\">" + esc(main) + "</span>"
+        + "<span class=\"meta\">" + esc(meta) + "</span>"
+        + "</div>");
     }
+
+    // 乗り換えが同一地点かどうかを判断する関数
+    private boolean isZeroWalk(WalkPath w) {
+    if (w == null) return true;
+    boolean same = (w.fromName != null && w.toName != null && w.fromName.equals(w.toName));
+    return same && w.minutes == 0 && w.distanceM == 0;
+    }
+
+    // 結果の表を一列表示する関数    
+    private void printTransferRow(PrintWriter out, TransferPath tp) {
+
+    // --- 1行目: いままで通りのサマリ行（表の行） ---
+    String route = "徒歩 → " + tp.leg1.routeName + " → 徒歩 → " + tp.leg2.routeName + " → 徒歩";
+    String trips = tp.leg1.tripName + " → " + tp.leg2.tripName;
+
+    out.println("<tr>");
+    out.println("<td>" + esc(route) + "</td>");
+    out.println("<td>" + esc(trips) + "</td>");
+    out.println("<td>" + esc(tp.walk0.fromName) + "</td>");
+    out.println("<td>" + esc(tp.walk2.toName) + "</td>");
+    out.println("<td>" + esc(hhmm(tp.startTime)) + " → " + esc(hhmm(tp.endTime)) + "</td>");
+    out.println("<td>" + tp.totalMinutes + "分</td>");
+    out.println("</tr>");
+
+    // --- 2行目: 詳細行（折りたたみ＋縦リスト） ---
+    out.println("<tr class=\"detail-row\"><td colspan=\"6\">");
+    out.println("<details class=\"summary\">");
+    out.println("<summary>経路詳細</summary>");
+    out.println("<div class=\"steps\">");
+
+    // 徒歩0(出発 -> 1本目乗車停留所) は 0m/0分なら消す
+    if (!isZeroWalk(tp.walk0)) {
+        printStep(out,
+            "徒歩",
+            tp.walk0.fromName + " → " + tp.walk0.toName,
+            tp.walk0.minutes + "分 / 約" + tp.walk0.distanceM + "m, " + hhmm(tp.walk0.startTime) + "→" + hhmm(tp.walk0.endTime));
+    }
+
+    // 乗車1
+    printStep(out,
+        "乗車",
+        tp.leg1.routeName + " " + tp.leg1.tripName,
+        tp.leg1.fromStopName + " " + hhmm(tp.leg1.depTime) + " → " + tp.leg1.toStopName + " " + hhmm(tp.leg1.arrTime));
+
+    // 徒歩1(乗換)
+    if (!isZeroWalk(tp.walk1)) {
+        printStep(out,
+            "徒歩",
+            tp.walk1.fromName + " → " + tp.walk1.toName,
+            tp.walk1.minutes + "分 / 約" + tp.walk1.distanceM + "m");
+    } else {
+        // 0分徒歩なら「乗換」として軽く出す（いらなければこの2行ごと消してOK）
+        printStep(out, "乗換", "同一駅で乗換", "");
+    }
+
+    // 乗車2
+    printStep(out,
+        "乗車",
+        tp.leg2.routeName + " " + tp.leg2.tripName,
+        tp.leg2.fromStopName + " " + hhmm(tp.leg2.depTime) + " → " + tp.leg2.toStopName + " " + hhmm(tp.leg2.arrTime));
+
+    // 徒歩2(最後)
+    if (!isZeroWalk(tp.walk2)) {
+        printStep(out,
+            "徒歩",
+            tp.walk2.fromName + " → " + tp.walk2.toName,
+            tp.walk2.minutes + "分 / 約" + tp.walk2.distanceM + "m, " + hhmm(tp.walk2.startTime) + "→" + hhmm(tp.walk2.endTime));
+    }
+
+    out.println("</div>");
+    out.println("</details>");
+    out.println("</td></tr>");
+    }
+
+
 }
