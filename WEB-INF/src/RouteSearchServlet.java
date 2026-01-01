@@ -461,7 +461,7 @@ public class RouteSearchServlet extends HttpServlet {
             for (NearbyStop nsfrom : nearFromStop) {
                 int walk0Min = walkingminutes(nsfrom.distance);
                 String walk0End = addMinutes(baseTime, walk0Min);
-                WalkPath w0 = new WalkPath(fromll.name, nsfrom.name, nsfrom.distance, walk0Min, baseTime, walk0End);
+                WalkPath w0 = new WalkPath(fromll.name, nsfrom.name, nsfrom.distance, walk0Min);
 
                 String base1 = walk0End;
 
@@ -472,7 +472,7 @@ public class RouteSearchServlet extends HttpServlet {
 
                     int walk2Min = walkingminutes(nsto.distance);
                     String walk2End = addMinutes(leg.arrTime, walk2Min);
-                    WalkPath w2 = new WalkPath(nsto.name, toll.name, nsto.distance, walk2Min, leg.arrTime, walk2End);
+                    WalkPath w2 = new WalkPath(nsto.name, toll.name, nsto.distance, walk2Min);
 
                     int totalMin = (int) java.time.Duration.between(
                             java.time.LocalTime.parse(baseTime),
@@ -505,7 +505,7 @@ public class RouteSearchServlet extends HttpServlet {
             for (NearbyStop nsfrom : nearFromStop) {
                 int walk0Min = walkingminutes(nsfrom.distance);
                 String walk0End2 = addMinutes(baseTime, walk0Min);
-                WalkPath w0 = new WalkPath(fromll.name, nsfrom.name, nsfrom.distance, walk0Min, baseTime, walk0End2);
+                WalkPath w0 = new WalkPath(fromll.name, nsfrom.name, nsfrom.distance, walk0Min);
 
                 String base1 = walk0End2;
                 List<GoingOption> mids = listTransferCandidates(conn, nsfrom.stopId, base1, day, MID_LIMIT);
@@ -519,8 +519,7 @@ public class RouteSearchServlet extends HttpServlet {
                     for (NearbyStop nsmid : nearMidStop) {
 
                         int walk1Min = walkingminutes(nsmid.distance);
-                        String walk1End = addMinutes(leg1.arrTime, walk1Min);
-                        WalkPath w1 = new WalkPath(mid.midStopName, nsmid.name, nsmid.distance, walk1Min, leg1.arrTime, walk1End);
+                        WalkPath w1 = new WalkPath(mid.midStopName, nsmid.name, nsmid.distance, walk1Min);
 
                         String base2 = addMinutes(leg1.arrTime, TRANSFER_MIN + walk1Min);
 
@@ -534,7 +533,7 @@ public class RouteSearchServlet extends HttpServlet {
                             DirectPath leg2 = leg2list.get(0);
 
                             String walk2End = addMinutes(leg2.arrTime, walk2Min);
-                            WalkPath w2 = new WalkPath(nsto.name, toll.name, nsto.distance, walk2Min, leg2.arrTime, walk2End);
+                            WalkPath w2 = new WalkPath(nsto.name, toll.name, nsto.distance, walk2Min);
 
                             int totalMin = (int) java.time.Duration.between(
                                     java.time.LocalTime.parse(baseTime),
@@ -862,16 +861,12 @@ public class RouteSearchServlet extends HttpServlet {
         final String toName;
         final int distanceM;
         final int minutes;
-        final String startTime; // "HH:mm"
-        final String endTime;   // "HH:mm"
 
-        WalkPath(String fromName, String toName, int distanceM, int minutes, String startTime, String endTime) {
+        WalkPath(String fromName, String toName, int distanceM, int minutes) {
             this.fromName = fromName;
             this.toName = toName;
             this.distanceM = distanceM;
             this.minutes = minutes;
-            this.startTime = startTime;
-            this.endTime = endTime;
         }
     }
 
@@ -1142,7 +1137,7 @@ public class RouteSearchServlet extends HttpServlet {
     if (!isZeroWalk(dp.walk0)) {
         printStep(out, "徒歩",
                 dp.walk0.fromName + " → " + dp.walk0.toName,
-                dp.walk0.minutes + "分 / 約" + dp.walk0.distanceM + "m, " + hhmm(dp.walk0.startTime) + "→" + hhmm(dp.walk0.endTime));
+                dp.walk0.minutes + "分 / 約" + dp.walk0.distanceM + "m");
     }
 
     printStep(out, "乗車",
@@ -1152,7 +1147,7 @@ public class RouteSearchServlet extends HttpServlet {
     if (!isZeroWalk(dp.walk2)) {
         printStep(out, "徒歩",
                 dp.walk2.fromName + " → " + dp.walk2.toName,
-                dp.walk2.minutes + "分 / 約" + dp.walk2.distanceM + "m, " + hhmm(dp.walk2.startTime) + "→" + hhmm(dp.walk2.endTime));
+                dp.walk2.minutes + "分 / 約" + dp.walk2.distanceM + "m");
     }
 
     out.println("</div>");
@@ -1194,7 +1189,7 @@ public class RouteSearchServlet extends HttpServlet {
         printStep(out,
             "徒歩",
             tp.walk0.fromName + " → " + tp.walk0.toName,
-            tp.walk0.minutes + "分 / 約" + tp.walk0.distanceM + "m, " + hhmm(tp.walk0.startTime) + "→" + hhmm(tp.walk0.endTime));
+            tp.walk0.minutes + "分 / 約" + tp.walk0.distanceM + "m");
     }
 
     // 乗車1
@@ -1225,7 +1220,7 @@ public class RouteSearchServlet extends HttpServlet {
         printStep(out,
             "徒歩",
             tp.walk2.fromName + " → " + tp.walk2.toName,
-            tp.walk2.minutes + "分 / 約" + tp.walk2.distanceM + "m, " + hhmm(tp.walk2.startTime) + "→" + hhmm(tp.walk2.endTime));
+            tp.walk2.minutes + "分 / 約" + tp.walk2.distanceM + "m");
     }
 
     out.println("</div>");
