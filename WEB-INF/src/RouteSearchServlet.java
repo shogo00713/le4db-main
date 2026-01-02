@@ -367,56 +367,6 @@ public class RouteSearchServlet extends HttpServlet {
             LatLon fromll = getStopById(conn, fromid);
             LatLon toll   = getStopById(conn, toid);        
             
-            // ---- 問い合わせ文 ----
-            String sql = ""
-                    + "SELECT "
-                    + "  r.route_name, "
-                    + "  t.trip_name, "
-                    + "  t.trip_datetime, "
-                    + "  sf.stop_name AS from_stop, "
-                    + "  st.stop_name AS to_stop, "
-                    + "  sa_from.departure_time AS dep_time, "
-                    + "  sa_to.arrival_time AS arr_time, "
-                    + "  sa_from.arrival_order AS from_order, "
-                    + "  sa_to.arrival_order AS to_order "
-                    + "FROM stop_at sa_from "
-                    + "JOIN stop_information sf ON sf.stop_id = sa_from.stop_id "
-                    + "JOIN stop_at sa_to ON sa_to.trip_id = sa_from.trip_id "
-                    + "JOIN stop_information st ON st.stop_id = sa_to.stop_id "
-                    + "JOIN trip_information t ON t.trip_id = sa_from.trip_id "
-                    + "JOIN route_trip rt ON rt.trip_id = t.trip_id "
-                    + "JOIN route_information r ON r.route_id = rt.route_id "
-                    + "WHERE sa_from.stop_id = ? "
-                    + "  AND sa_to.stop_id = ? "
-                    + "  AND sa_from.arrival_order < sa_to.arrival_order "
-                    + "  AND sa_from.departure_time >= ?::time ";
-
-            // 平日だけ絞るオプション (休日専用などないが)
-            if ("平日".equals(day)) {
-                sql += " AND t.trip_datetime IN ('全日', '平日') ";
-            } else {
-            	sql += " AND t.trip_datetime IN ('全日', '休日') ";
-            }
-
-            // 最短 = 到着時刻が一番早い順 (同着なら出発が早い方)
-            sql += " ORDER BY sa_to.arrival_time ASC, sa_from.departure_time ASC ";
-            sql += " LIMIT 3 ";
-
-            // --------------------
-
-            // ? に対応する部分の変数を入れるためのクエリ
-            ps = conn.prepareStatement(sql);
-
-            int idx = 1;
-            ps.setInt(idx++, fromll.stopid); // 出発地の stop_id
-            ps.setInt(idx++, toll.stopid);   // 到着地の stop_id
-            ps.setString(idx++, baseTime);   // 時間は HH:mm 以降
-
-            // DB取得を実行
-            rs = ps.executeQuery();
-            
-            // --------------------
-
             // 結果を HTML で表示
             out.println("<h3 class=\"result-title\">結果</h3>");
             out.println("<p class=\"muted\">（指定時刻以降に出発する便から、到着が早い順に表示）</p>");
@@ -661,13 +611,11 @@ public class RouteSearchServlet extends HttpServlet {
 
     // 緯度経度を渡すためのクラス
     private static class LatLon {
-    	final int stopid;
     	final double lat;
     	final double lon;
     	final String name;
     	
-    	LatLon(int stopid, double lat, double lon, String name) {
-    		this.stopid = stopid;
+    	LatLon(double lat, double lon, String name) {
     		this.lat = lat;
     		this.lon = lon;
     		this.name = name;
@@ -690,11 +638,10 @@ public class RouteSearchServlet extends HttpServlet {
     		try (ResultSet rs = ps.executeQuery()) {
     			if(!rs.next()) return null;
     			
-    			int stopid = rs.getInt("stop_id");
     			String name = rs.getString("stop_name");
     			double lat = rs.getDouble("stop_latitude");
     			double lon = rs.getDouble("stop_longitude");
-    			return new LatLon (stopid,lat, lon, name);
+    			return new LatLon (lat, lon, name);
     		}
     	}
     }
@@ -1094,11 +1041,11 @@ public class RouteSearchServlet extends HttpServlet {
     private void printWalkOnlyRow(PrintWriter out, WalkOnlyPlan wp) {
         out.println("<tr>");
         out.println("<td>徒歩のみ</td>");
-        out.println("<td>-</td>");
+        out.println("<td>約" + wp.distanceM + "m</td>");
         out.println("<td>" + esc(wp.fromName) + "</td>");
         out.println("<td>" + esc(wp.toName) + "</td>");
         out.println("<td>" + esc(hhmm(wp.startTime)) + " → " + esc(hhmm(wp.endTime)) + "</td>");
-        out.println("<td>" + wp.minutes + "分 (約" + wp.distanceM + "m)</td>");
+        out.println("<td>" + wp.minutes + "分</td>");
         out.println("</tr>");
 
         out.println("<tr class=\"detail-row\"><td colspan=\"6\">");
@@ -1141,8 +1088,8 @@ public class RouteSearchServlet extends HttpServlet {
     }
 
     printStep(out, "乗車",
-            dp.leg.routeName + " " + dp.leg.tripName,
-            dp.leg.fromStopName + " " + hhmm(dp.leg.depTime) + " → " + dp.leg.toStopName + " " + hhmm(dp.leg.arrTime));
+            dp.leg.fromStopName + " " + hhmm(dp.leg.depTime) + " 発 → " + dp.leg.toStopName + " " + hhmm(dp.leg.arrTime) + " 着",
+            dp.leg.routeName + " " + dp.leg.tripName);
 
     if (!isZeroWalk(dp.walk2)) {
         printStep(out, "徒歩",
@@ -1195,8 +1142,8 @@ public class RouteSearchServlet extends HttpServlet {
     // 乗車1
     printStep(out,
         "乗車",
-        tp.leg1.routeName + " " + tp.leg1.tripName,
-        tp.leg1.fromStopName + " " + hhmm(tp.leg1.depTime) + " → " + tp.leg1.toStopName + " " + hhmm(tp.leg1.arrTime));
+        tp.leg1.fromStopName + " " + hhmm(tp.leg1.depTime) + " 発 → " + tp.leg1.toStopName + " " + hhmm(tp.leg1.arrTime) + " 着",
+        tp.leg1.routeName + " " + tp.leg1.tripName);
 
     // 徒歩1(乗換)
     if (!isZeroWalk(tp.walk1)) {
@@ -1212,8 +1159,8 @@ public class RouteSearchServlet extends HttpServlet {
     // 乗車2
     printStep(out,
         "乗車",
-        tp.leg2.routeName + " " + tp.leg2.tripName,
-        tp.leg2.fromStopName + " " + hhmm(tp.leg2.depTime) + " → " + tp.leg2.toStopName + " " + hhmm(tp.leg2.arrTime));
+        tp.leg2.fromStopName + " " + hhmm(tp.leg2.depTime) + " 発 → " + tp.leg2.toStopName + " " + hhmm(tp.leg2.arrTime) + " 着",
+        tp.leg2.routeName + " " + tp.leg2.tripName);
 
     // 徒歩2(最後)
     if (!isZeroWalk(tp.walk2)) {
