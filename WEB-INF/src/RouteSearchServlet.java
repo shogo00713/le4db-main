@@ -66,7 +66,9 @@ public class RouteSearchServlet extends HttpServlet {
         final int TRANSFER_MIN = 2;      // 乗換猶予時間 (分)
         final int MID_LIMIT = 30;        // mid候補の探索上限
         final int RESULT_LIMIT = 5;      // 表示する乗換経路の最大
-        final int WALK_RADIUS_M = 1000;   // 乗り換えの許容距離
+        final int FROM_RADIUS_M = 1000;   // 出発地周り
+        final int TO_RADIUS_M   = 1000;   // 到着地周り
+        final int TRANSFER_RADIUS_M = 300;  // 乗換徒歩
         final int NEAR_LIMIT = 50;       // 探索する乗換経路の最大
         // -------------------
 
@@ -386,8 +388,8 @@ public class RouteSearchServlet extends HttpServlet {
             // 経路探索 (最重要)
 
             // 出発地 / 目的地 の近くの停留所を探索
-            List<NearbyStop> nearFromStop = nearbyStops(conn, fromid, WALK_RADIUS_M, NEAR_LIMIT);
-            List<NearbyStop> nearToStop   = nearbyStops(conn, toid,   WALK_RADIUS_M, NEAR_LIMIT);
+            List<NearbyStop> nearFromStop = nearbyStops(conn, fromid, FROM_RADIUS_M, NEAR_LIMIT);
+            List<NearbyStop> nearToStop   = nearbyStops(conn, toid,   TO_RADIUS_M, NEAR_LIMIT);
 
             // ★ここから「徒歩/直通/乗換」をまとめる
             final int TRANSFER_CANDIDATE_LIMIT = RESULT_LIMIT * 30; // 候補を多めに集めてから絞る
@@ -405,8 +407,7 @@ public class RouteSearchServlet extends HttpServlet {
             ));
 
             // 1) 直通(乗車1回) ＝ 「近くの乗車停留所」→「近くの降車停留所」を1本で結ぶ
-            java.util.Set<String> seenDirect = new java.util.HashSet<>();
-            List<DirectPlan> directPlans = new ArrayList<>();
+            java.util.Map<Integer, DirectPlan> bestDirectByTrip = new java.util.HashMap<>();
 
             for (NearbyStop nsfrom : nearFromStop) {
                 int walk0Min = walkingminutes(nsfrom.distance);
@@ -431,18 +432,26 @@ public class RouteSearchServlet extends HttpServlet {
 
                     DirectPlan dp = new DirectPlan(w0, leg, w2, totalMin, baseTime, walk2End);
 
-                    String key = leg.tripId + ":" + leg.fromStopId + ":" + leg.toStopId + "|" + nsfrom.stopId + "->" + nsto.stopId;
-                    if (seenDirect.add(key)) {
-                        directPlans.add(dp);
+                    // ★同じ便(trip_id)なら、最良の1個だけ残す
+                    DirectPlan cur = bestDirectByTrip.get(leg.tripId);
+                    if (cur == null || betterDirect(dp, cur)) {
+                        bestDirectByTrip.put(leg.tripId, dp);
+                    }
 
-                        // 候補が増えすぎたら早いものだけ残す（軽量化）
-                        if (directPlans.size() > DIRECT_CANDIDATE_LIMIT) {
-                            directPlans.sort(Comparator.comparing(p -> LocalTime.parse(p.endTime)));
-                            directPlans.subList(DIRECT_CANDIDATE_LIMIT, directPlans.size()).clear();
-                        }
+                    // （任意）増えすぎたら早いものだけ残す
+                    if (bestDirectByTrip.size() > DIRECT_CANDIDATE_LIMIT) {
+                        java.util.List<DirectPlan> tmp = new java.util.ArrayList<>(bestDirectByTrip.values());
+                        tmp.sort(java.util.Comparator.comparing(p -> LocalTime.parse(p.endTime)));
+                        tmp.subList(DIRECT_CANDIDATE_LIMIT, tmp.size()).clear();
+                        bestDirectByTrip.clear();
+                        for (DirectPlan p : tmp) bestDirectByTrip.put(p.leg.tripId, p);
                     }
                 }
             }
+
+            // results へ追加
+            List<DirectPlan> directPlans = new ArrayList<>(bestDirectByTrip.values());
+            directPlans.sort(Comparator.comparing(p -> LocalTime.parse(p.endTime)));
             for (DirectPlan dp : directPlans) {
                 results.add(new ResultItem(1, dp.endTime, dp.totalMinutes, "", dp));
             }
@@ -465,7 +474,7 @@ public class RouteSearchServlet extends HttpServlet {
                     if (leg1list.isEmpty()) continue;
                     DirectPath leg1 = leg1list.get(0);
 
-                    List<NearbyStop> nearMidStop = nearbyStops(conn, mid.midStopId, WALK_RADIUS_M, NEAR_LIMIT);
+                    List<NearbyStop> nearMidStop = nearbyStops(conn, mid.midStopId, TRANSFER_RADIUS_M, NEAR_LIMIT);
                     for (NearbyStop nsmid : nearMidStop) {
 
                         int walk1Min = walkingminutes(nsmid.distance);
@@ -502,6 +511,9 @@ public class RouteSearchServlet extends HttpServlet {
                         }
 
                         if (best != null) {
+                            if (best.leg1.routeName != null && best.leg1.routeName.equals(best.leg2.routeName)) {
+                                continue;
+                            }
                             transferCandidates.add(best);
                             if (transferCandidates.size() >= TRANSFER_CANDIDATE_LIMIT) break outer;
                         }
@@ -872,6 +884,23 @@ public class RouteSearchServlet extends HttpServlet {
             }
         }
         return list;
+    }
+
+    // より良い乗換か調べる
+    private boolean betterDirect(DirectPlan a, DirectPlan b) {
+        LocalTime ea = LocalTime.parse(a.endTime);
+        LocalTime eb = LocalTime.parse(b.endTime);
+
+        if (ea.isBefore(eb)) return true;
+        if (ea.isAfter(eb))  return false;
+
+        // 同着なら「最後の徒歩が短い方」を優先（＝手前下車のゴミを落とす）
+        int wa = (a.walk2 == null) ? 0 : a.walk2.distanceM;
+        int wb = (b.walk2 == null) ? 0 : b.walk2.distanceM;
+        if (wa != wb) return wa < wb;
+
+        // さらに同じなら所要時間が短い方
+        return a.totalMinutes < b.totalMinutes;
     }
 
     // 停留所感のID,距離,時間を持つ
