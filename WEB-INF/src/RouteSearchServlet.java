@@ -22,6 +22,7 @@ import javax.servlet.http.HttpServletResponse;
 
 public class RouteSearchServlet extends HttpServlet {
 
+
     // サーバ接続の変数定義
     private String _hostname = null;
     private String _dbname = null;
@@ -146,7 +147,7 @@ public class RouteSearchServlet extends HttpServlet {
         out.println("body{margin:0;background:var(--bg);color:var(--text);"
                 + "font-family:system-ui,-apple-system,\"Segoe UI\",Roboto,\"Noto Sans JP\",\"Hiragino Kaku Gothic ProN\",Meiryo,sans-serif;"
                 + "}");
-        out.println(".app{max-width:920px;margin:28px auto;padding:0 16px;}");
+        out.println(".app{max-width:1300px;margin:28px auto;padding:0 16px;}");
         out.println(".header{margin-bottom:14px;}");
         out.println(".title{font-size:22px;margin:0 0 6px 0;}");
         out.println(".subtitle{margin:0;color:var(--muted);font-size:13px;}");
@@ -335,7 +336,7 @@ public class RouteSearchServlet extends HttpServlet {
                     if (fixed != null) {
                         out.println("<div class=\"field\">");
                         out.println("<label class=\"label\">出発 (確定)</label>");
-                        out.println("<div class=\"fixed\">" + esc(fixed.name) + "</div>");
+                        out.println("<div class=\"fixed\">" + esc(fixed.name) + " (" + esc(fixed.type) + ")</div>");
                         out.println("</div>");
                     }
                 } else {
@@ -344,7 +345,7 @@ public class RouteSearchServlet extends HttpServlet {
                     out.println("<label class=\"label\" for=\"from_id\">出発 (候補)</label>");
                     out.println("<select class=\"select\" id=\"from_id\" name=\"from_id\">");
                     for (StopCandidate c : fromCandidates) {
-                        out.println("<option value=\"" + c.stop_id + "\">" + esc(c.stop_name) + "</option>");
+                        out.println("<option value=\"" + c.stop_id + "\">" + esc(c.stop_name) + " (" + esc(c.stop_type) + ")</option>");
                     }
                     out.println("</select>");
                     out.println("</div>");
@@ -358,7 +359,7 @@ public class RouteSearchServlet extends HttpServlet {
                     if (fixed != null) {
                         out.println("<div class=\"field\">");
                         out.println("<label class=\"label\">到着 (確定)</label>");
-                        out.println("<div class=\"fixed\">" + esc(fixed.name) + "</div>");
+                        out.println("<div class=\"fixed\">" + esc(fixed.name) + " (" + esc(fixed.type) + ")</div>");
                         out.println("</div>");
                     }
                 } else {
@@ -366,7 +367,7 @@ public class RouteSearchServlet extends HttpServlet {
                     out.println("<label class=\"label\" for=\"to_id\">到着 (候補)</label>");
                     out.println("<select class=\"select\" id=\"to_id\" name=\"to_id\">");
                     for (StopCandidate c : toCandidates) {
-                        out.println("<option value=\"" + c.stop_id + "\">" + esc(c.stop_name) + "</option>");
+                        out.println("<option value=\"" + c.stop_id + "\">" + esc(c.stop_name) + " (" + esc(c.stop_type) + ")</option>");
                     }
                     out.println("</select>");
                     out.println("</div>");
@@ -446,39 +447,39 @@ public class RouteSearchServlet extends HttpServlet {
 
             java.util.Map<String, BikeDirectPlan> bestBike = new java.util.HashMap<>();
 
-            for (PortCandidate fromp : fromPorts) {
+            // 出発地近くのポートに対して
+            for (PortCandidate fromport : fromPorts) {
 
-                int walk0Min = walkingminutes(fromp.distance, meter_correction, meter_per_minutes);
-                WalkPath w0 = new WalkPath(fromll.name, fromp.portName, fromp.distance, walk0Min);
+                int walk0Minutes = walkingminutes(fromport.distance, meter_correction, meter_per_minutes);
+                WalkPath w0 = new WalkPath(fromll.name, fromport.portName, fromport.distance, walk0Minutes);
+                String bikeStartMinutes = addMinutes(addMinutes(baseTime, walk0Minutes), BIKE_UNLOCK_MIN);
 
-                String t0 = addMinutes(baseTime, walk0Min);
-                String bikeStart_M = addMinutes(t0, BIKE_UNLOCK_MIN);
+                // 目的地近くのポートに対して
+                for (PortCandidate toport : toPorts) {
+                    if (fromport.operatorId != toport.operatorId) continue;
+                    if (fromport.portId == toport.portId) continue;
 
-                for (PortCandidate top : toPorts) {
-                    if (fromp.operatorId != top.operatorId) continue;
-                    if (fromp.portId == top.portId) continue;
+                    int rideDistance = (int)distanceMeters(fromport.lat, fromport.lon, toport.lat, toport.lon);
+                    if (rideDistance > BIKE_MAX_RIDE_M) continue;
 
-                    int rideDist = (int)Math.round(distanceMeters(fromp.lat, fromp.lon, top.lat, top.lon));
-                    if (rideDist > BIKE_MAX_RIDE_M) continue;
-
-                    int rideMin = cyclingminutes(rideDist, bike_meter_correction, BIKE_M_PER_MIN);
-                    String bikeEnd = addMinutes(bikeStart_M, rideMin);
+                    int rideMin = cyclingminutes(rideDistance, bike_meter_correction, BIKE_M_PER_MIN);
+                    String bikeEnd = addMinutes(bikeStartMinutes, rideMin);
                     String afterDock = addMinutes(bikeEnd, BIKE_LOCK_MIN);
 
-                    int walk2Dist = (int)Math.round(distanceMeters(top.lat, top.lon, toll.lat, toll.lon));
+                    int walk2Dist = (int)Math.round(distanceMeters(toport.lat, toport.lon, toll.lat, toll.lon));
                     int walk2Min = walkingminutes(walk2Dist, meter_correction, meter_per_minutes);
-                    WalkPath w2 = new WalkPath(top.portName, toll.name, walk2Dist, walk2Min);
+                    WalkPath w2 = new WalkPath(toport.portName, toll.name, walk2Dist, walk2Min);
 
                     String endTime = addMinutes(afterDock, walk2Min);
                     int totalMin = minutesBetween(baseTime, endTime);
 
-                    BikeLeg bike = new BikeLeg(fromp.operatorId, fromp.operatorName,
-                            fromp.portId, fromp.portName, top.portId, top.portName,
-                            rideDist, rideMin, bikeStart_M, bikeEnd);
+                    BikeLeg bike = new BikeLeg(fromport.operatorId, fromport.operatorName,
+                            fromport.portId, fromport.portName, toport.portId, toport.portName,
+                            rideDistance, rideMin, bikeStartMinutes, bikeEnd);
 
                     BikeDirectPlan plan = new BikeDirectPlan(w0, bike, w2, totalMin, baseTime, endTime);
 
-                    String key = fromp.operatorId + ":" + fromp.portId + "->" + top.portId;
+                    String key = fromport.operatorId + ":" + fromport.portId + "->" + toport.portId;
                     BikeDirectPlan cur = bestBike.get(key);
                     if (cur == null || LocalTime.parse(plan.endTime).isBefore(LocalTime.parse(cur.endTime))) {
                         bestBike.put(key, plan);
@@ -854,6 +855,8 @@ public class RouteSearchServlet extends HttpServlet {
     public void destroy() {
     }
 
+    // -----------------------------------------------------------------------------------------------
+    
 
     // --------------------- 便利関数系 -------------------
 
@@ -882,6 +885,7 @@ public class RouteSearchServlet extends HttpServlet {
         return (t.length() >= 5) ? t.substring(0, 5) : t;
     }
 
+    // 時刻の間を返す
     private int minutesBetween(String startHHmm, String endHHmm) {
         LocalTime s = LocalTime.parse(startHHmm);
         LocalTime e = LocalTime.parse(endHHmm);
@@ -890,10 +894,31 @@ public class RouteSearchServlet extends HttpServlet {
         return (int)m;
     }
 
-    private int cyclingminutes(int meters, double bike_meter_correction, double BIKE_M_PER_MIN) {
+    // --------------------- 基本系 --------------------
+
+    // 緯度経度 -> 距離 (メートル)
+    private double distanceMeters (double lat1, double lon1, double lat2, double lon2) {
+    	double R = 6371000.0;
+    	double diflat = Math.toRadians(lat2 - lat1);
+    	double diflon = Math.toRadians(lon2 - lon1);
+    	double a      = Math.sin(diflat / 2) * Math.sin (diflat / 2) 
+    			      + Math.cos(Math.toRadians(lat1)) * Math.cos(Math.toRadians(lat2)) * Math.sin(diflon / 2) * Math.sin(diflon / 2);
+    	double c      = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+    	return R * c;
+    }
+    
+    // 距離 -> 徒歩時間
+    private int walkingminutes(double meters, double meter_correction, double walk_meter_per_minutes) {
         if (meters <= 0) return 0;
-    	int minutes = (int) Math.ceil( meters * bike_meter_correction / BIKE_M_PER_MIN);
-        return Math.max(0,minutes);
+    	int minutes = (int) Math.ceil( meters * meter_correction / walk_meter_per_minutes);
+        return Math.max(0, minutes);
+    }
+    
+    // 距離 -> 自転車時間
+    private int cyclingminutes(int meters, double bike_meter_correction, double bike_meter_per_minutes) {
+        if (meters <= 0) return 0;
+    	int minutes = (int) Math.ceil( meters * bike_meter_correction / bike_meter_per_minutes);
+        return Math.max(0, minutes);
     }
 
 
@@ -904,19 +929,20 @@ public class RouteSearchServlet extends HttpServlet {
     	final double lat;
     	final double lon;
     	final String name;
+        final String type;
     	
-    	LatLon(double lat, double lon, String name) {
+    	LatLon(double lat, double lon, String name, String type) {
     		this.lat = lat;
     		this.lon = lon;
     		this.name = name;
-
+            this.type = type;
     	}
     }
    
     // getLatLon の stop_id 版
     private LatLon getStopById (Connection conn, int stop_id) throws SQLException {
     	String sql =
-    			"SELECT stop_id, stop_name, stop_latitude, stop_longitude "
+    			"SELECT stop_id, stop_name, stop_latitude, stop_longitude, stop_type "
     		  + "FROM stop_information "
     		  + "WHERE stop_id = ? "
     		  + "LIMIT 1";
@@ -931,36 +957,22 @@ public class RouteSearchServlet extends HttpServlet {
     			String name = rs.getString("stop_name");
     			double lat = rs.getDouble("stop_latitude");
     			double lon = rs.getDouble("stop_longitude");
-    			return new LatLon (lat, lon, name);
+                String type = rs.getString("stop_type");
+    			return new LatLon (lat, lon, name, type);
     		}
     	}
-    }
-    
-    // 緯度経度から距離(メートル)を計算
-    private double distanceMeters (double lat1, double lon1, double lat2, double lon2) {
-    	double R = 6371000.0;
-    	double diflat = Math.toRadians(lat2 - lat1);
-    	double diflon = Math.toRadians(lon2 - lon1);
-    	double a      = Math.sin(diflat / 2) * Math.sin (diflat / 2) 
-    			      + Math.cos(Math.toRadians(lat1)) * Math.cos(Math.toRadians(lat2)) * Math.sin(diflon / 2) * Math.sin(diflon / 2);
-    	double c      = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
-    	return R * c;
-    }
-    
-    // 距離から徒歩時間を算出
-    private int walkingminutes(double r, double meter_correction, double meter_per_minutes) {
-    	int minutes = (int) Math.ceil( r * meter_correction / meter_per_minutes);
-        return Math.max(0,	 minutes);
     }
     
     // 出発地/目的地 の候補
     private static class StopCandidate {
     	final int stop_id;
     	final String stop_name;
+        final String stop_type;
     	
-    	StopCandidate(int stop_id, String stop_name) {
+    	StopCandidate(int stop_id, String stop_name, String stop_type) {
     		this.stop_id = stop_id;
     		this.stop_name = stop_name;
+            this.stop_type = stop_type;
     	}
     }
     
@@ -990,7 +1002,8 @@ public class RouteSearchServlet extends HttpServlet {
     	        while (rs.next()) {
     	          int stopId = rs.getInt("stop_id");
     	          String name = rs.getString("stop_name");
-    	          list.add(new StopCandidate(stopId, name));
+                  String type = rs.getString("stop_type");
+    	          list.add(new StopCandidate(stopId, name, type));
     	        }
     	    }
     	}
@@ -1090,7 +1103,7 @@ public class RouteSearchServlet extends HttpServlet {
         return list;
     }
 
-    // 直通の徒歩検索
+    // 徒歩移動のクラス (出発地, 目的地, 距離, 分)
     private static class WalkPath {
         final String fromName;
         final String toName;
