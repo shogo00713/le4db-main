@@ -47,8 +47,7 @@ public class RouteSearchServlet extends HttpServlet {
     }
 
     // メインの関数 (doGet)
-    protected void doGet(HttpServletRequest request, HttpServletResponse response)
-            throws ServletException, IOException {
+    protected void doGet(HttpServletRequest request, HttpServletResponse response) throws ServletException, IOException {
 
         response.setContentType("text/html;charset=UTF-8");
         PrintWriter out = response.getWriter();
@@ -62,20 +61,41 @@ public class RouteSearchServlet extends HttpServlet {
         String fromstopidstr   = request.getParameter("from_id");   // 出発地候補ID (選択された後)
         String tostopidstr     = request.getParameter("to_id");     // 目的地候補ID (選択された後)
         
+
         // ---- いじる定数 ----
-        final int TRANSFER_MIN = 2;      // 乗換猶予時間 (分)
-        final int MID_LIMIT = 30;        // mid候補の探索上限
-        final int RESULT_LIMIT = 5;      // 表示する乗換経路の最大
-        final int FROM_RADIUS_M = 1000;   // 出発地周り
-        final int TO_RADIUS_M   = 1000;   // 到着地周り
-        final int TRANSFER_RADIUS_M = 300;  // 乗換徒歩
-        final int NEAR_LIMIT = 50;       // 探索する乗換経路の最大
+
+        // 時間関係定数
+        final int TRANSFER_MIN = 2;                // 乗り換えするのに必要な最低時間
+        final int BIKE_UNLOCK_MIN = 1;             // 借りる / 解錠 の最低時間
+        final int BIKE_LOCK_MIN   = 1;             // 返す   / 施錠 の最低時間
+
+        // 距離関係定数
+        final int FROM_RADIUS_M = 1000;            // 出発地周りの徒歩圏最大
+        final int TO_RADIUS_M   = 1000;            // 到着地周りの徒歩圏最大
+        final int TRANSFER_RADIUS_M = 300;         // 乗換の徒歩圏最大
+        final int BIKE_PORT_RADIUS_M = 400;        // 停留所 と ポート間の徒歩圏最大
+        final int BIKE_MAX_RIDE_M = 6000;          // 自転車移動の最大距離（暴走防止）
+
+        // 探索関係定数
+        final int MID_LIMIT = 30;                  // 乗り換え地点候補の探索数上限
+        final int NEAR_LIMIT = 50;                 // 乗換経路探索数上限
+        final int PORT_LIMIT = 5;                  // 近隣ポートの探索数上限
+        final int RESULT_LIMIT = 5;                // 表示する乗換経路の最大
+    
+        // 徒歩/自転車速度関係定数
+        final double meter_correction = 1.25;      // 徒歩距離補正係数 (直線 -> 道のり)
+        final double meter_per_minutes = 80.0;     // 徒歩の速さは 80m/分
+        final double bike_meter_correction = 1.5;  // 自転車距離補正係数 (直線 -> 自転車通行可能な道のり)
+        final double BIKE_M_PER_MIN = 250.0;       // 自転車の速さは 250m/分
+
         // -------------------
+
+        // -----------------------------------------------------------------------------------------------
 
         Integer fromid = null; // Integer 型で null 許容
         Integer toid   = null; // Integer 型で null 許容
 
-        // fromidStr/toidStr を fromid/toid (Integer型) に変換
+        // fromidStr/toidStr (String型) を fromid/toid (Integer型) に変換
         if (fromstopidstr != null && !fromstopidstr.trim().isEmpty()) {
             try {
                 fromid = Integer.valueOf(fromstopidstr);
@@ -91,13 +111,12 @@ public class RouteSearchServlet extends HttpServlet {
             }
         }
         
-        // NULL => 空文字列 に変換
+        // NULL => 空文字列 に変換 (エラー対策)
         if (fromstop == null) fromstop = "";
         if (tostop == null) tostop = "";
         if (day == null || day.isEmpty()) day = "平日";
         if (timemode == null) timemode = "now";
         if (timevalue == null)  timevalue = "";
-
 
         // -----------------------------------------------------------------------------------------------
 
@@ -208,7 +227,6 @@ public class RouteSearchServlet extends HttpServlet {
         out.println("</select>");
         out.println("</div>");
 
-
         // 時刻指定選択 => time_mode
         out.println("<div class=\"field\">");
         out.println("<label class=\"label\" for=\"time_mode\">時刻条件</label>");
@@ -232,6 +250,7 @@ public class RouteSearchServlet extends HttpServlet {
 
         out.println("</form>");
         out.println("<div class=\"hr\"></div>");
+
 
         // 入力が揃っているかチェック
         if (fromstop.equals("") || tostop.equals("")) {
@@ -384,33 +403,103 @@ public class RouteSearchServlet extends HttpServlet {
                     + "<th>時刻</th>"
                     + "<th>所要時間</th>"
                     + "</tr>");
-
+               
             // 経路探索 (最重要)
+
+            // ---- part 0 (前情報整理) ----
 
             // 出発地 / 目的地 の近くの停留所を探索
             List<NearbyStop> nearFromStop = nearbyStops(conn, fromid, FROM_RADIUS_M, NEAR_LIMIT);
             List<NearbyStop> nearToStop   = nearbyStops(conn, toid,   TO_RADIUS_M, NEAR_LIMIT);
 
-            // ★ここから「徒歩/直通/乗換」をまとめる
-            final int TRANSFER_CANDIDATE_LIMIT = RESULT_LIMIT * 30; // 候補を多めに集めてから絞る
+            // 出発地 / 目的地 の近くのポートを探索
+            List<PortCandidate> fromPorts = nearbyPorts(conn, fromll.lat, fromll.lon, FROM_RADIUS_M, PORT_LIMIT, true, false);  // 借りれる自転車がある
+            List<PortCandidate> toPorts   = nearbyPorts(conn, toll.lat,   toll.lon,   TO_RADIUS_M,   PORT_LIMIT, false, true);  // 返せるポートが空いている
+
+            // 探索する候補数の上限
+            final int TRANSFER_CANDIDATE_LIMIT = RESULT_LIMIT * 30;
             final int DIRECT_CANDIDATE_LIMIT   = RESULT_LIMIT * 30;
 
+            // 結果全体を入れるリスト
             List<ResultItem> results = new ArrayList<>();
+        
+            // -------------------------
 
-            // 0) 徒歩のみ
+
+
+            // ---- part 1 (徒歩のみ) ----
+
             double dist = distanceMeters(fromll.lat, fromll.lon, toll.lat, toll.lon);
-            int walkOnlyMin = walkingminutes(dist);
+            int walkOnlyMin = walkingminutes(dist, meter_correction, meter_per_minutes);
             String walkOnlyEnd = addMinutes(baseTime, walkOnlyMin);
+
             results.add(new ResultItem(
                     0, walkOnlyEnd, walkOnlyMin, "",
                     new WalkOnlyPlan(fromll.name, toll.name, (int)Math.round(dist), walkOnlyMin, baseTime, walkOnlyEnd)
             ));
 
-            // 1) 直通(乗車1回) ＝ 「近くの乗車停留所」→「近くの降車停留所」を1本で結ぶ
+            // -------------------------
+
+            
+
+            // ---- part 2 (自転車のみ) ----
+
+            java.util.Map<String, BikeDirectPlan> bestBike = new java.util.HashMap<>();
+
+            for (PortCandidate fromp : fromPorts) {
+
+                int walk0Min = walkingminutes(fromp.distance, meter_correction, meter_per_minutes);
+                WalkPath w0 = new WalkPath(fromll.name, fromp.portName, fromp.distance, walk0Min);
+
+                String t0 = addMinutes(baseTime, walk0Min);
+                String bikeStart_M = addMinutes(t0, BIKE_UNLOCK_MIN);
+
+                for (PortCandidate top : toPorts) {
+                    if (fromp.operatorId != top.operatorId) continue;
+                    if (fromp.portId == top.portId) continue;
+
+                    int rideDist = (int)Math.round(distanceMeters(fromp.lat, fromp.lon, top.lat, top.lon));
+                    if (rideDist > BIKE_MAX_RIDE_M) continue;
+
+                    int rideMin = cyclingminutes(rideDist, bike_meter_correction, BIKE_M_PER_MIN);
+                    String bikeEnd = addMinutes(bikeStart_M, rideMin);
+                    String afterDock = addMinutes(bikeEnd, BIKE_LOCK_MIN);
+
+                    int walk2Dist = (int)Math.round(distanceMeters(top.lat, top.lon, toll.lat, toll.lon));
+                    int walk2Min = walkingminutes(walk2Dist, meter_correction, meter_per_minutes);
+                    WalkPath w2 = new WalkPath(top.portName, toll.name, walk2Dist, walk2Min);
+
+                    String endTime = addMinutes(afterDock, walk2Min);
+                    int totalMin = minutesBetween(baseTime, endTime);
+
+                    BikeLeg bike = new BikeLeg(fromp.operatorId, fromp.operatorName,
+                            fromp.portId, fromp.portName, top.portId, top.portName,
+                            rideDist, rideMin, bikeStart_M, bikeEnd);
+
+                    BikeDirectPlan plan = new BikeDirectPlan(w0, bike, w2, totalMin, baseTime, endTime);
+
+                    String key = fromp.operatorId + ":" + fromp.portId + "->" + top.portId;
+                    BikeDirectPlan cur = bestBike.get(key);
+                    if (cur == null || LocalTime.parse(plan.endTime).isBefore(LocalTime.parse(cur.endTime))) {
+                        bestBike.put(key, plan);
+                    }
+                }
+            }
+
+            for (BikeDirectPlan p : bestBike.values()) {
+                results.add(new ResultItem(1, p.endTime, p.totalMinutes, "", p));
+            }
+
+            // ----------------------------
+
+
+
+            // ---- part 3 (公共交通 直通) ----
+
             java.util.Map<Integer, DirectPlan> bestDirectByTrip = new java.util.HashMap<>();
 
             for (NearbyStop nsfrom : nearFromStop) {
-                int walk0Min = walkingminutes(nsfrom.distance);
+                int walk0Min = walkingminutes(nsfrom.distance, meter_correction, meter_per_minutes);
                 String walk0End = addMinutes(baseTime, walk0Min);
                 WalkPath w0 = new WalkPath(fromll.name, nsfrom.name, nsfrom.distance, walk0Min);
 
@@ -421,7 +510,7 @@ public class RouteSearchServlet extends HttpServlet {
                     if (dlist.isEmpty()) continue;
                     DirectPath leg = dlist.get(0);
 
-                    int walk2Min = walkingminutes(nsto.distance);
+                    int walk2Min = walkingminutes(nsto.distance, meter_correction, meter_per_minutes);
                     String walk2End = addMinutes(leg.arrTime, walk2Min);
                     WalkPath w2 = new WalkPath(nsto.name, toll.name, nsto.distance, walk2Min);
 
@@ -456,13 +545,19 @@ public class RouteSearchServlet extends HttpServlet {
                 results.add(new ResultItem(1, dp.endTime, dp.totalMinutes, "", dp));
             }
 
+            // ----------------------------
+
+
+
+            // ---- part 4 (公共交通 乗換1回) ----
+
             // 2) 乗換(2本) ＝ 既存のロジックを「候補多めに集める」＆「nstoは全部見て最良を選ぶ」に調整
             java.util.Set<String> seenTransfer = new java.util.HashSet<>();
             List<TransferPath> transferCandidates = new ArrayList<>();
 
             outer:
             for (NearbyStop nsfrom : nearFromStop) {
-                int walk0Min = walkingminutes(nsfrom.distance);
+                int walk0Min = walkingminutes(nsfrom.distance, meter_correction, meter_per_minutes);
                 String walk0End2 = addMinutes(baseTime, walk0Min);
                 WalkPath w0 = new WalkPath(fromll.name, nsfrom.name, nsfrom.distance, walk0Min);
 
@@ -477,7 +572,7 @@ public class RouteSearchServlet extends HttpServlet {
                     List<NearbyStop> nearMidStop = nearbyStops(conn, mid.midStopId, TRANSFER_RADIUS_M, NEAR_LIMIT);
                     for (NearbyStop nsmid : nearMidStop) {
 
-                        int walk1Min = walkingminutes(nsmid.distance);
+                        int walk1Min = walkingminutes(nsmid.distance, meter_correction, meter_per_minutes);
                         WalkPath w1 = new WalkPath(mid.midStopName, nsmid.name, nsmid.distance, walk1Min);
 
                         String base2 = addMinutes(leg1.arrTime, TRANSFER_MIN + walk1Min);
@@ -485,7 +580,7 @@ public class RouteSearchServlet extends HttpServlet {
                         TransferPath best = null;
 
                         for (NearbyStop nsto : nearToStop) {
-                            int walk2Min = walkingminutes(nsto.distance);
+                            int walk2Min = walkingminutes(nsto.distance, meter_correction, meter_per_minutes);
 
                             List<DirectPath> leg2list = searchDirect(conn, nsmid.stopId, nsto.stopId, base2, day, 1);
                             if (leg2list.isEmpty()) continue;
@@ -526,6 +621,162 @@ public class RouteSearchServlet extends HttpServlet {
                 results.add(new ResultItem(2, tp.endTime, tp.totalMinutes, tp.leg1.routeName, tp));
             }
 
+            java.util.Set<String> seenTB = new java.util.HashSet<>();
+
+            // 目的地側の「返却可能ポート」を事業者ごとにまとめると速い
+            java.util.Map<Integer, java.util.List<PortCandidate>> toPortsByOp = new java.util.HashMap<>();
+            for (PortCandidate p : toPorts) {
+                toPortsByOp.computeIfAbsent(p.operatorId, k -> new java.util.ArrayList<>()).add(p);
+            }
+
+            int addedTB = 0;
+
+            outerTB:
+            for (NearbyStop nsfrom : nearFromStop) {
+                int walk0Min = walkingminutes(nsfrom.distance, meter_correction, meter_per_minutes);
+                WalkPath w0 = new WalkPath(fromll.name, nsfrom.name, nsfrom.distance, walk0Min);
+                String base1 = addMinutes(baseTime, walk0Min);
+
+                List<GoingOption> mids = listTransferCandidates(conn, nsfrom.stopId, base1, day, MID_LIMIT);
+
+                for (GoingOption mid : mids) {
+                    List<DirectPath> leg1list = searchDirect(conn, nsfrom.stopId, mid.midStopId, base1, day, 1);
+                    if (leg1list.isEmpty()) continue;
+                    DirectPath leg1 = leg1list.get(0);
+
+                    LatLon midLL = getStopById(conn, mid.midStopId);
+                    if (midLL == null) continue;
+
+                    // 乗換停留所の近くで「借りれるポート」
+                    List<PortCandidate> startPorts = nearbyPorts(conn, midLL.lat, midLL.lon, BIKE_PORT_RADIUS_M, PORT_LIMIT, true, false);
+
+                    for (PortCandidate pStart : startPorts) {
+                        java.util.List<PortCandidate> destList = toPortsByOp.get(pStart.operatorId);
+                        if (destList == null) continue;
+
+                        int walk1Dist = (int)Math.round(distanceMeters(midLL.lat, midLL.lon, pStart.lat, pStart.lon));
+                        int walk1Min = walkingminutes(walk1Dist, meter_correction, meter_per_minutes);
+                        WalkPath w1 = new WalkPath(mid.midStopName, pStart.portName, walk1Dist, walk1Min);
+
+                        String bikeStart = addMinutes(addMinutes(leg1.arrTime, TRANSFER_MIN + walk1Min), BIKE_UNLOCK_MIN);
+
+                        for (PortCandidate pEnd : destList) {
+                            if (pStart.portId == pEnd.portId) continue;
+
+                            int rideDist = (int)Math.round(distanceMeters(pStart.lat, pStart.lon, pEnd.lat, pEnd.lon));
+                            if (rideDist > BIKE_MAX_RIDE_M) continue;
+
+                            int rideMin = cyclingminutes(rideDist, bike_meter_correction, BIKE_M_PER_MIN);
+                            String bikeEnd = addMinutes(bikeStart, rideMin);
+                            String afterDock = addMinutes(bikeEnd, BIKE_LOCK_MIN);
+
+                            int walk2Dist = (int)Math.round(distanceMeters(pEnd.lat, pEnd.lon, toll.lat, toll.lon));
+                            int walk2Min = walkingminutes(walk2Dist, meter_correction, meter_per_minutes);
+                            WalkPath w2 = new WalkPath(pEnd.portName, toll.name, walk2Dist, walk2Min);
+
+                            String endTime = addMinutes(afterDock, walk2Min);
+                            int totalMin = minutesBetween(baseTime, endTime);
+
+                            String key = "TB:" + leg1.tripId + "|" + pStart.operatorId + ":" + pStart.portId + "->" + pEnd.portId;
+                            if (!seenTB.add(key)) continue;
+
+                            BikeLeg bike = new BikeLeg(pStart.operatorId, pStart.operatorName,
+                                    pStart.portId, pStart.portName, pEnd.portId, pEnd.portName,
+                                    rideDist, rideMin, bikeStart, bikeEnd);
+
+                            TransferTransitBike plan = new TransferTransitBike(w0, leg1, w1, bike, w2, totalMin, baseTime, endTime);
+
+                            // firstRoute は「1本目(公共交通)」でOK（既存の重複抑制と相性が良い）
+                            results.add(new ResultItem(2, endTime, totalMin, leg1.routeName, plan));
+
+                            if (++addedTB >= TRANSFER_CANDIDATE_LIMIT) break outerTB;
+                        }
+                    }
+                }
+            }
+
+            java.util.Set<String> seenBT = new java.util.HashSet<>();
+
+            // 中間で返却できるポート（出発地の近くを広めに）
+            List<PortCandidate> midPorts = nearbyPorts(conn, fromll.lat, fromll.lon, BIKE_MAX_RIDE_M, 30, false, true);
+
+            int addedBT = 0;
+
+            outerBT:
+            for (PortCandidate pStart : fromPorts) { // 借りれる
+                int walk0Min = walkingminutes(pStart.distance, meter_correction, meter_per_minutes);
+                WalkPath w0 = new WalkPath(fromll.name, pStart.portName, pStart.distance, walk0Min);
+
+                String t0 = addMinutes(baseTime, walk0Min);
+                String bikeStart = addMinutes(t0, BIKE_UNLOCK_MIN);
+
+                for (PortCandidate pEnd : midPorts) { // 返却できる
+                    if (pStart.operatorId != pEnd.operatorId) continue;
+                    if (pStart.portId == pEnd.portId) continue;
+
+                    int rideDist = (int)Math.round(distanceMeters(pStart.lat, pStart.lon, pEnd.lat, pEnd.lon));
+                    if (rideDist > BIKE_MAX_RIDE_M) continue;
+
+                    int rideMin = cyclingminutes(rideDist, bike_meter_correction, BIKE_M_PER_MIN);
+                    String bikeEnd = addMinutes(bikeStart, rideMin);
+                    String afterDock = addMinutes(bikeEnd, BIKE_LOCK_MIN);
+
+                    // 返却ポートの近くの停留所から公共交通へ
+                    List<NearbyStop> boardStops = nearbyStopsByLatLon(conn, pEnd.lat, pEnd.lon, TRANSFER_RADIUS_M, 10);
+
+                    for (NearbyStop board : boardStops) {
+                        int walk1Min = walkingminutes(board.distance, meter_correction, meter_per_minutes);
+                        WalkPath w1 = new WalkPath(pEnd.portName, board.name, board.distance, walk1Min);
+                        String base2 = addMinutes(afterDock, TRANSFER_MIN + walk1Min);
+
+                        // board -> nearToStop の直通を探して最良を1個
+                        DirectPath bestLeg2 = null;
+                        WalkPath bestWalk2 = null;
+                        String bestEnd = null;
+                        int bestTotal = Integer.MAX_VALUE;
+
+                        for (NearbyStop nsto : nearToStop) {
+                            List<DirectPath> leg2list = searchDirect(conn, board.stopId, nsto.stopId, base2, day, 1);
+                            if (leg2list.isEmpty()) continue;
+                            DirectPath leg2 = leg2list.get(0);
+
+                            int walk2Min = walkingminutes(nsto.distance, meter_correction, meter_per_minutes);
+                            WalkPath w2 = new WalkPath(nsto.name, toll.name, nsto.distance, walk2Min);
+
+                            String endTime = addMinutes(leg2.arrTime, walk2Min);
+                            int totalMin = minutesBetween(baseTime, endTime);
+
+                            if (bestEnd == null || LocalTime.parse(endTime).isBefore(LocalTime.parse(bestEnd))) {
+                                bestEnd = endTime;
+                                bestTotal = totalMin;
+                                bestLeg2 = leg2;
+                                bestWalk2 = w2;
+                            }
+                        }
+
+                        if (bestLeg2 == null) continue;
+
+                        String key = "BT:" + pStart.operatorId + ":" + pStart.portId + "->" + pEnd.portId + "|" + bestLeg2.tripId;
+                        if (!seenBT.add(key)) continue;
+
+                        BikeLeg bike = new BikeLeg(pStart.operatorId, pStart.operatorName,
+                                pStart.portId, pStart.portName, pEnd.portId, pEnd.portName,
+                                rideDist, rideMin, bikeStart, bikeEnd);
+
+                        TransferBikeTransit plan = new TransferBikeTransit(w0, bike, w1, bestLeg2, bestWalk2, bestTotal, baseTime, bestEnd);
+
+                        // firstRoute は「公共交通側の路線名」にすると結果がバラけて見やすい
+                        results.add(new ResultItem(2, bestEnd, bestTotal, bestLeg2.routeName, plan));
+
+                        if (++addedBT >= TRANSFER_CANDIDATE_LIMIT) break outerBT;
+                    }
+                }
+            }
+
+
+
+    
+
             // 3) 最終ソート（到着が早い順。タイは所要時間→徒歩/直通を少し優先）
             results.sort(
                     Comparator.comparing((ResultItem r) -> r.end)
@@ -551,10 +802,21 @@ public class RouteSearchServlet extends HttpServlet {
 
                 if (ri.payload instanceof WalkOnlyPlan) {
                     printWalkOnlyRow(out, (WalkOnlyPlan) ri.payload);
+
                 } else if (ri.payload instanceof DirectPlan) {
                     printDirectRow(out, (DirectPlan) ri.payload);
+
+                } else if (ri.payload instanceof BikeDirectPlan) {
+                    printBikeDirectRow(out, (BikeDirectPlan) ri.payload);
+
+                } else if (ri.payload instanceof TransferTransitBike) {
+                    printTransitBikeRow(out, (TransferTransitBike) ri.payload);
+
+                } else if (ri.payload instanceof TransferBikeTransit) {
+                    printBikeTransitRow(out, (TransferBikeTransit) ri.payload);
+
                 } else {
-                    printTransferRow(out, (TransferPath) ri.payload);
+                    printTransferRow(out, (TransferPath) ri.payload); // 既存の公共→公共
                 }
                 shown++;
             }
@@ -619,6 +881,22 @@ public class RouteSearchServlet extends HttpServlet {
         if (t == null) return "";
         return (t.length() >= 5) ? t.substring(0, 5) : t;
     }
+
+    private int minutesBetween(String startHHmm, String endHHmm) {
+        LocalTime s = LocalTime.parse(startHHmm);
+        LocalTime e = LocalTime.parse(endHHmm);
+        long m = java.time.Duration.between(s, e).toMinutes();
+        if (m < 0) m += 24 * 60;
+        return (int)m;
+    }
+
+    private int cyclingminutes(int meters, double bike_meter_correction, double BIKE_M_PER_MIN) {
+        if (meters <= 0) return 0;
+    	int minutes = (int) Math.ceil( meters * bike_meter_correction / BIKE_M_PER_MIN);
+        return Math.max(0,minutes);
+    }
+
+
     // --------------------- 候補検索系 --------------------
 
     // 緯度経度を渡すためのクラス
@@ -670,9 +948,7 @@ public class RouteSearchServlet extends HttpServlet {
     }
     
     // 距離から徒歩時間を算出
-    private int walkingminutes(double r) {
-    	double meter_correction = 1.25; // 直線 -> 道のり は 1.25倍
-    	double meter_per_minutes = 80;  // 歩く速さは分速80m
+    private int walkingminutes(double r, double meter_correction, double meter_per_minutes) {
     	int minutes = (int) Math.ceil( r * meter_correction / meter_per_minutes);
         return Math.max(0,	 minutes);
     }
@@ -1089,6 +1365,47 @@ public class RouteSearchServlet extends HttpServlet {
         out.println("</td></tr>");
     }
 
+    private void printBikeDirectRow(PrintWriter out, BikeDirectPlan bp) {
+        StringBuilder route = new StringBuilder();
+        if (!isZeroWalk(bp.walk0)) route.append("徒歩 → ");
+        route.append("シェアサイクル(").append(bp.bike.operatorName).append(")");
+        if (!isZeroWalk(bp.walk2)) route.append(" → 徒歩");
+
+        out.println("<tr>");
+        out.println("<td>" + esc(route.toString()) + "</td>");
+        out.println("<td>" + esc(bp.bike.fromPortName + " → " + bp.bike.toPortName) + "</td>");
+        out.println("<td>" + esc(bp.walk0.fromName) + "</td>");
+        out.println("<td>" + esc(bp.walk2.toName) + "</td>");
+        out.println("<td>" + esc(hhmm(bp.startTime)) + " → " + esc(hhmm(bp.endTime)) + "</td>");
+        out.println("<td>" + bp.totalMinutes + "分</td>");
+        out.println("</tr>");
+
+        out.println("<tr class=\"detail-row\"><td colspan=\"6\">");
+        out.println("<details class=\"summary\">");
+        out.println("<summary>経路詳細</summary>");
+        out.println("<div class=\"steps\">");
+
+        if (!isZeroWalk(bp.walk0)) {
+            printStep(out, "徒歩",
+                    bp.walk0.fromName + " → " + bp.walk0.toName,
+                    bp.walk0.minutes + "分 / 約" + bp.walk0.distanceM + "m");
+        }
+
+        printStep(out, "自転車",
+                bp.bike.fromPortName + " " + hhmm(bp.bike.startTime) + " → " + bp.bike.toPortName + " " + hhmm(bp.bike.endTime),
+                "シェアサイクル(" + bp.bike.operatorName + "), " + bp.bike.rideMinutes + "分 / 約" + bp.bike.distanceM + "m");
+
+        if (!isZeroWalk(bp.walk2)) {
+            printStep(out, "徒歩",
+                    bp.walk2.fromName + " → " + bp.walk2.toName,
+                    bp.walk2.minutes + "分 / 約" + bp.walk2.distanceM + "m");
+        }
+
+        out.println("</div>");
+        out.println("</details>");
+        out.println("</td></tr>");
+    }
+
     // 乗換なしの結果を表示
     private void printDirectRow(PrintWriter out, DirectPlan dp) {
     StringBuilder route = new StringBuilder();
@@ -1202,6 +1519,302 @@ public class RouteSearchServlet extends HttpServlet {
     out.println("</div>");
     out.println("</details>");
     out.println("</td></tr>");
+    }
+
+    private void printTransitBikeRow(PrintWriter out, TransferTransitBike tp) {
+        String route = "徒歩 → " + tp.leg1.routeName + " → 徒歩 → シェアサイクル(" + tp.bike.operatorName + ") → 徒歩";
+
+        out.println("<tr>");
+        out.println("<td>" + esc(route) + "</td>");
+        out.println("<td>" + esc(tp.leg1.tripName + " → " + tp.bike.fromPortName + "→" + tp.bike.toPortName) + "</td>");
+        out.println("<td>" + esc(tp.walk0.fromName) + "</td>");
+        out.println("<td>" + esc(tp.walk2.toName) + "</td>");
+        out.println("<td>" + esc(hhmm(tp.startTime)) + " → " + esc(hhmm(tp.endTime)) + "</td>");
+        out.println("<td>" + tp.totalMinutes + "分</td>");
+        out.println("</tr>");
+
+        out.println("<tr class=\"detail-row\"><td colspan=\"6\">");
+        out.println("<details class=\"summary\">");
+        out.println("<summary>経路詳細</summary>");
+        out.println("<div class=\"steps\">");
+
+        if (!isZeroWalk(tp.walk0)) {
+            printStep(out, "徒歩", tp.walk0.fromName + " → " + tp.walk0.toName,
+                    tp.walk0.minutes + "分 / 約" + tp.walk0.distanceM + "m");
+        }
+
+        printStep(out, "乗車",
+                tp.leg1.fromStopName + " " + hhmm(tp.leg1.depTime) + " 発 → " + tp.leg1.toStopName + " " + hhmm(tp.leg1.arrTime) + " 着",
+                tp.leg1.routeName + " " + tp.leg1.tripName);
+
+        if (!isZeroWalk(tp.walk1)) {
+            printStep(out, "徒歩", tp.walk1.fromName + " → " + tp.walk1.toName,
+                    tp.walk1.minutes + "分 / 約" + tp.walk1.distanceM + "m");
+        }
+
+        printStep(out, "自転車",
+                tp.bike.fromPortName + " " + hhmm(tp.bike.startTime) + " → " + tp.bike.toPortName + " " + hhmm(tp.bike.endTime),
+                "シェアサイクル(" + tp.bike.operatorName + "), " + tp.bike.rideMinutes + "分 / 約" + tp.bike.distanceM + "m");
+
+        if (!isZeroWalk(tp.walk2)) {
+            printStep(out, "徒歩", tp.walk2.fromName + " → " + tp.walk2.toName,
+                    tp.walk2.minutes + "分 / 約" + tp.walk2.distanceM + "m");
+        }
+
+        out.println("</div></details></td></tr>");
+    }
+
+    private void printBikeTransitRow(PrintWriter out, TransferBikeTransit tp) {
+    String route = "徒歩 → シェアサイクル(" + tp.bike.operatorName + ") → 徒歩 → " + tp.leg2.routeName + " → 徒歩";
+
+    out.println("<tr>");
+    out.println("<td>" + esc(route) + "</td>");
+    out.println("<td>" + esc(tp.bike.fromPortName + "→" + tp.bike.toPortName + " → " + tp.leg2.tripName) + "</td>");
+    out.println("<td>" + esc(tp.walk0.fromName) + "</td>");
+    out.println("<td>" + esc(tp.walk2.toName) + "</td>");
+    out.println("<td>" + esc(hhmm(tp.startTime)) + " → " + esc(hhmm(tp.endTime)) + "</td>");
+    out.println("<td>" + tp.totalMinutes + "分</td>");
+    out.println("</tr>");
+
+    out.println("<tr class=\"detail-row\"><td colspan=\"6\">");
+    out.println("<details class=\"summary\">");
+    out.println("<summary>経路詳細</summary>");
+    out.println("<div class=\"steps\">");
+
+    if (!isZeroWalk(tp.walk0)) {
+        printStep(out, "徒歩", tp.walk0.fromName + " → " + tp.walk0.toName,
+                tp.walk0.minutes + "分 / 約" + tp.walk0.distanceM + "m");
+    }
+
+    printStep(out, "自転車",
+            tp.bike.fromPortName + " " + hhmm(tp.bike.startTime) + " → " + tp.bike.toPortName + " " + hhmm(tp.bike.endTime),
+            "シェアサイクル(" + tp.bike.operatorName + "), " + tp.bike.rideMinutes + "分 / 約" + tp.bike.distanceM + "m");
+
+    if (!isZeroWalk(tp.walk1)) {
+        printStep(out, "徒歩", tp.walk1.fromName + " → " + tp.walk1.toName,
+                tp.walk1.minutes + "分 / 約" + tp.walk1.distanceM + "m");
+    }
+
+    printStep(out, "乗車",
+            tp.leg2.fromStopName + " " + hhmm(tp.leg2.depTime) + " 発 → " + tp.leg2.toStopName + " " + hhmm(tp.leg2.arrTime) + " 着",
+            tp.leg2.routeName + " " + tp.leg2.tripName);
+
+    if (!isZeroWalk(tp.walk2)) {
+        printStep(out, "徒歩", tp.walk2.fromName + " → " + tp.walk2.toName,
+                tp.walk2.minutes + "分 / 約" + tp.walk2.distanceM + "m");
+    }
+
+    out.println("</div></details></td></tr>");
+}
+
+
+    // -------------------- 自転車系 --------------------
+
+    private static class PortCandidate {
+        final int portId;
+        final int operatorId;
+        final String operatorName;
+        final String portName;
+        final double lat;
+        final double lon;
+        final int bikes;
+        final int freeDocks;
+        final int distance; // centerからの直線距離m
+
+        PortCandidate(int portId, int operatorId, String operatorName, String portName,
+                    double lat, double lon, int bikes, int freeDocks, int distance) {
+            this.portId = portId;
+            this.operatorId = operatorId;
+            this.operatorName = operatorName;
+            this.portName = portName;
+            this.lat = lat;
+            this.lon = lon;
+            this.bikes = bikes;
+            this.freeDocks = freeDocks;
+            this.distance = distance;
+        }
+    }
+
+    private List<PortCandidate> nearbyPorts(Connection conn, double centerLat, double centerLon,
+            int radiusM, int limit, boolean needBikes, boolean needFreeDocks) throws SQLException {
+
+        double dLat = radiusM / 111000.0;
+        double dLon = radiusM / (111000.0 * Math.cos(Math.toRadians(centerLat)));
+
+        String sql =
+            "SELECT port_id, operator_id, operator_name, port_name, port_latitude, port_longitude, bikes, free_docks " +
+            "FROM port_status " +
+            "WHERE port_latitude BETWEEN ? AND ? " +
+            "  AND port_longitude BETWEEN ? AND ? ";
+
+        if (needBikes)      sql += " AND bikes > 0 ";
+        if (needFreeDocks)  sql += " AND free_docks > 0 ";
+
+        List<PortCandidate> tmp = new ArrayList<>();
+        try (PreparedStatement ps = conn.prepareStatement(sql)) {
+            int idx = 1;
+            ps.setDouble(idx++, centerLat - dLat);
+            ps.setDouble(idx++, centerLat + dLat);
+            ps.setDouble(idx++, centerLon - dLon);
+            ps.setDouble(idx++, centerLon + dLon);
+
+            try (ResultSet rs = ps.executeQuery()) {
+                while (rs.next()) {
+                    int pid = rs.getInt("port_id");
+                    int opid = rs.getInt("operator_id");
+                    String opn = rs.getString("operator_name");
+                    String pn = rs.getString("port_name");
+                    double lat = rs.getDouble("port_latitude");
+                    double lon = rs.getDouble("port_longitude");
+                    int bikes = rs.getInt("bikes");
+                    int free = rs.getInt("free_docks");
+
+                    int dist = (int)Math.round(distanceMeters(centerLat, centerLon, lat, lon));
+                    if (dist <= radiusM) {
+                        tmp.add(new PortCandidate(pid, opid, opn, pn, lat, lon, bikes, free, dist));
+                    }
+                }
+            }
+        }
+
+        tmp.sort((a,b) -> Integer.compare(a.distance, b.distance));
+        if (tmp.size() > limit) return new ArrayList<>(tmp.subList(0, limit));
+        return tmp;
+    }
+
+    private List<NearbyStop> nearbyStopsByLatLon(Connection conn, double centerLat, double centerLon,
+        int radiusM, int limit) throws SQLException {
+
+    double dLat = radiusM / 111000.0;
+    double dLon = radiusM / (111000.0 * Math.cos(Math.toRadians(centerLat)));
+
+    String sql =
+        "SELECT stop_id, stop_name, stop_latitude, stop_longitude " +
+        "FROM stop_information " +
+        "WHERE stop_latitude BETWEEN ? AND ? " +
+        "  AND stop_longitude BETWEEN ? AND ?";
+
+    List<NearbyStop> tmp = new ArrayList<>();
+    try (PreparedStatement ps = conn.prepareStatement(sql)) {
+        int idx = 1;
+        ps.setDouble(idx++, centerLat - dLat);
+        ps.setDouble(idx++, centerLat + dLat);
+        ps.setDouble(idx++, centerLon - dLon);
+        ps.setDouble(idx++, centerLon + dLon);
+
+        try (ResultSet rs = ps.executeQuery()) {
+            while (rs.next()) {
+                int sid = rs.getInt("stop_id");
+                String name = rs.getString("stop_name");
+                double lat = rs.getDouble("stop_latitude");
+                double lon = rs.getDouble("stop_longitude");
+
+                int meters = (int)Math.round(distanceMeters(centerLat, centerLon, lat, lon));
+                if (meters <= radiusM) tmp.add(new NearbyStop(sid, name, meters));
+            }
+        }
+    }
+
+    tmp.sort((a,b) -> Integer.compare(a.distance, b.distance));
+    if (tmp.size() > limit) return new ArrayList<>(tmp.subList(0, limit));
+    return tmp;
+}
+
+    private static class BikeLeg {
+        final int operatorId;
+        final String operatorName;
+        final int fromPortId;
+        final String fromPortName;
+        final int toPortId;
+        final String toPortName;
+        final int distanceM;
+        final int rideMinutes;
+        final String startTime; // "HH:mm" (解錠後)
+        final String endTime;   // "HH:mm" (到着)
+
+        BikeLeg(int operatorId, String operatorName,
+                int fromPortId, String fromPortName,
+                int toPortId, String toPortName,
+                int distanceM, int rideMinutes,
+                String startTime, String endTime) {
+            this.operatorId = operatorId;
+            this.operatorName = operatorName;
+            this.fromPortId = fromPortId;
+            this.fromPortName = fromPortName;
+            this.toPortId = toPortId;
+            this.toPortName = toPortName;
+            this.distanceM = distanceM;
+            this.rideMinutes = rideMinutes;
+            this.startTime = startTime;
+            this.endTime = endTime;
+        }
+    }
+
+    private static class BikeDirectPlan {
+        final WalkPath walk0;
+        final BikeLeg bike;
+        final WalkPath walk2;
+        final int totalMinutes;
+        final String startTime;
+        final String endTime;
+
+        BikeDirectPlan(WalkPath walk0, BikeLeg bike, WalkPath walk2,
+                    int totalMinutes, String startTime, String endTime) {
+            this.walk0 = walk0;
+            this.bike = bike;
+            this.walk2 = walk2;
+            this.totalMinutes = totalMinutes;
+            this.startTime = startTime;
+            this.endTime = endTime;
+        }
+    }
+
+    // 2レッグ（公共→自転車）
+    private static class TransferTransitBike {
+        final WalkPath walk0;
+        final DirectPath leg1;
+        final WalkPath walk1; // 停留所→ポート
+        final BikeLeg bike;
+        final WalkPath walk2; // ポート→目的地
+        final int totalMinutes;
+        final String startTime;
+        final String endTime;
+
+        TransferTransitBike(WalkPath walk0, DirectPath leg1, WalkPath walk1, BikeLeg bike, WalkPath walk2,
+                            int totalMinutes, String startTime, String endTime) {
+            this.walk0 = walk0;
+            this.leg1 = leg1;
+            this.walk1 = walk1;
+            this.bike = bike;
+            this.walk2 = walk2;
+            this.totalMinutes = totalMinutes;
+            this.startTime = startTime;
+            this.endTime = endTime;
+        }
+    }
+
+    // 2レッグ（自転車→公共）
+    private static class TransferBikeTransit {
+        final WalkPath walk0; // 出発地→ポート
+        final BikeLeg bike;
+        final WalkPath walk1; // ポート→停留所
+        final DirectPath leg2;
+        final WalkPath walk2; // 最後の徒歩
+        final int totalMinutes;
+        final String startTime;
+        final String endTime;
+
+        TransferBikeTransit(WalkPath walk0, BikeLeg bike, WalkPath walk1, DirectPath leg2, WalkPath walk2,
+                            int totalMinutes, String startTime, String endTime) {
+            this.walk0 = walk0;
+            this.bike = bike;
+            this.walk1 = walk1;
+            this.leg2 = leg2;
+            this.walk2 = walk2;
+            this.totalMinutes = totalMinutes;
+            this.startTime = startTime;
+            this.endTime = endTime;
+        }
     }
 
 
