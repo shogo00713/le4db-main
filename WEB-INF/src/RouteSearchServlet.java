@@ -16,6 +16,7 @@ import javax.servlet.ServletException;
 import javax.servlet.http.HttpServlet;
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
+import javax.servlet.http.HttpSession;
 
 @SuppressWarnings("serial")
 
@@ -50,6 +51,14 @@ public class RouteSearchServlet extends HttpServlet {
     // メインの関数 (doGet)
     protected void doGet(HttpServletRequest request, HttpServletResponse response) throws ServletException, IOException {
 
+        String view = request.getParameter("view");
+        if ("detail".equals(view)) {
+            renderDetailPage(request, response);
+            return;
+        }
+
+
+
         response.setContentType("text/html;charset=UTF-8");
         PrintWriter out = response.getWriter();
 
@@ -78,8 +87,8 @@ public class RouteSearchServlet extends HttpServlet {
         final int BIKE_MAX_RIDE_M = 6000;          // 自転車移動の最大距離（暴走防止）
 
         // 探索関係定数
-        final int MID_LIMIT = 30;                  // 乗り換え地点候補の探索数上限
-        final int NEAR_LIMIT = 50;                 // 乗換経路探索数上限
+        final int MID_LIMIT = 10;                  // 乗り換え地点候補の探索数上限
+        final int NEAR_LIMIT = 30;                 // 乗換経路探索数上限
         final int PORT_LIMIT = 5;                  // 近隣ポートの探索数上限
         final int RESULT_LIMIT = 5;                // 表示する乗換経路の最大
     
@@ -132,133 +141,70 @@ public class RouteSearchServlet extends HttpServlet {
         // CSS 直書き (外部ファイルに変更予定)
         out.println("<style>");
         out.println(":root{"
-                + "--bg:#f5f5f7;"
-                + "--panel:rgba(255,255,255,.92);"
-                + "--panelSolid:#ffffff;"
-                + "--text:#1d1d1f;"
-                + "--muted:#6e6e73;"
-                + "--border:rgba(0,0,0,.10);"
-                + "--hairline:rgba(0,0,0,.06);"
-                + "--shadow:0 10px 28px rgba(0,0,0,.08);"
-                + "--shadow2:0 6px 18px rgba(0,0,0,.06);"
-                + "--radius:16px;"
-                + "--gap:12px;"
-                + "--primary:#0071e3;"
-                + "--primary2:#0066cc;"
-                + "--ring:rgba(0,113,227,.22);"
-                + "}");
+            + "--bg:#f3f6fa;"
+            + "--panel:#fff;"
+            + "--panelSolid:#fff;"
+            + "--text:#222;"
+            + "--muted:#7a869a;"
+            + "--border:#e3e8ee;"
+            + "--hairline:#e3e8ee;"
+            + "--shadow:0 8px 32px rgba(60,80,120,.10);"
+            + "--shadow2:0 2px 8px rgba(60,80,120,.08);"
+            + "--radius:18px;"
+            + "--gap:18px;"
+            + "--primary:#3b82f6;"
+            + "--primary2:#2563eb;"
+            + "--ring:rgba(59,130,246,.18);"
+            + "--accent:#fbbf24;"
+            + "}");
         out.println("*{box-sizing:border-box;}");
         out.println("html,body{height:100%;}");
-        out.println("body{margin:0;background:var(--bg);color:var(--text);"
-                + "font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Noto Sans JP','Hiragino Kaku Gothic ProN',Meiryo,sans-serif;"
-                + "-webkit-font-smoothing:antialiased;moz-osx-font-smoothing:grayscale;"
-                + "}");
-        out.println(".app{max-width:1180px;margin:26px auto;padding:0 16px;}");
-        out.println(".header{margin-bottom:14px;display:flex;align-items:flex-end;justify-content:space-between;gap:12px;}");
-        out.println(".title{font-size:22px;line-height:1.2;margin:0;letter-spacing:-.01em;}");
-        out.println(".subtitle{margin:0;color:var(--muted);font-size:13px;}");
-        out.println(".card{"
-                + "background:var(--panel);"
-                + "border:1px solid var(--border);"
-                + "border-radius:var(--radius);"
-                + "box-shadow:var(--shadow);"
-                + "padding:16px;"
-                + "backdrop-filter: blur(10px);"
-                + "}");
+        out.println("body{margin:0;background:var(--bg);color:var(--text);font-family:'Segoe UI',Roboto,'Noto Sans JP',Meiryo,sans-serif;-webkit-font-smoothing:antialiased;moz-osx-font-smoothing:grayscale;}");
+        out.println(".app{max-width:1150px;margin:32px auto;padding:0 18px;}");
+        out.println(".header{margin-bottom:18px;display:flex;align-items:flex-end;justify-content:space-between;gap:18px;}");
+        out.println(".title{font-size:26px;line-height:1.2;margin:0;letter-spacing:-.01em;font-weight:700;}");
+        out.println(".subtitle{margin:0;color:var(--muted);font-size:15px;}");
+        out.println(".card{background:var(--panel);border:1px solid var(--border);border-radius:var(--radius);box-shadow:var(--shadow);padding:22px 24px 18px 24px;backdrop-filter: blur(10px);}");
         out.println(".form{display:grid;grid-template-columns:1fr 1fr;gap:var(--gap);align-items:end;}");
         out.println("@media (max-width: 820px){.form{grid-template-columns:1fr;}}");
-        out.println(".field{display:flex;flex-direction:column;gap:6px;}");
-        out.println(".label{font-size:12px;color:var(--muted);}");
-        out.println(".input,.select{"
-                + "width:100%;"
-                + "padding:11px 12px;"
-                + "border:1px solid var(--hairline);"
-                + "border-radius:12px;"
-                + "background:rgba(255,255,255,.98);"
-                + "font-size:14px;"
-                + "outline:none;"
-                + "transition:border-color .15s ease, box-shadow .15s ease;"
-                + "}");
-        out.println(".input:focus,.select:focus{border-color:rgba(0,113,227,.45);box-shadow:0 0 0 5px var(--ring);}");
+        out.println(".field{display:flex;flex-direction:column;gap:8px;}");
+        out.println(".label{font-size:13px;color:var(--muted);font-weight:500;}");
+        out.println(".input,.select{width:100%;padding:13px 14px;border:1px solid var(--hairline);border-radius:14px;background:rgba(255,255,255,.98);font-size:15px;outline:none;transition:border-color .15s ease, box-shadow .15s ease;}");
+        out.println(".input:focus,.select:focus{border-color:var(--primary);box-shadow:0 0 0 5px var(--ring);}");
         out.println(".input::placeholder{color:rgba(110,110,115,.85);}");
-        out.println(".actions{grid-column:1/-1;display:flex;flex-wrap:wrap;gap:10px;align-items:center;}");
-        out.println(".btn{"
-                + "appearance:none;border:1px solid rgba(0,0,0,.06);"
-                + "border-radius:999px;"
-                + "padding:10px 16px;"
-                + "font-weight:700;"
-                + "background:linear-gradient(180deg, #0a84ff, var(--primary));"
-                + "color:#fff;cursor:pointer;"
-                + "box-shadow:0 10px 18px rgba(0,113,227,.18);"
-                + "transition:transform .12s ease, box-shadow .12s ease, filter .12s ease;"
-                + "}");
-        out.println(".btn:hover{filter:saturate(1.03);box-shadow:0 14px 22px rgba(0,113,227,.22);}");
-        out.println(".btn:active{transform:translateY(1px);box-shadow:0 8px 16px rgba(0,113,227,.18);}");
-        out.println(".hr{height:1px;background:rgba(0,0,0,.08);margin:14px 0;}");
-        out.println(".alert{"
-                + "padding:10px 12px;border-radius:14px;"
-                + "background:#fff7ed;"
-                + "border:1px solid rgba(245,158,11,.28);"
-                + "color:#92400e;"
-                + "}");
-        out.println(".fixed{"
-                + "padding:10px 12px;border-radius:12px;"
-                + "background:rgba(0,0,0,.03);"
-                + "border:1px solid rgba(0,0,0,.06);"
-                + "font-size:14px;"
-                + "}");
-        out.println(".muted{color:var(--muted);font-size:13px;}");
-        out.println(".result-title{font-size:16px;margin:0 0 8px 0;letter-spacing:-.01em;}");
-        out.println(".route-banner{font-size:20px;font-weight:900;margin:8px 0 10px 0;letter-spacing:-.01em;}");
+        out.println(".actions{grid-column:1/-1;display:flex;flex-wrap:wrap;gap:12px;align-items:center;}");
+        out.println(".btn{appearance:none;border:none;border-radius:999px;padding:12px 24px;font-weight:700;background:linear-gradient(90deg, var(--primary), var(--primary2));color:#fff;cursor:pointer;box-shadow:0 6px 16px rgba(59,130,246,.12);transition:transform .12s, box-shadow .12s, filter .12s;}");
+        out.println(".btn:hover{filter:saturate(1.08);box-shadow:0 10px 24px rgba(59,130,246,.18);}");
+        out.println(".btn:active{transform:translateY(1px);box-shadow:0 4px 12px rgba(59,130,246,.12);}");
+        out.println(".hr{height:1px;background:var(--border);margin:18px 0;}");
+        out.println(".alert{padding:12px 16px;border-radius:16px;background:#fffbe6;border:1px solid var(--accent);color:#92400e;font-size:15px;}");
+        out.println(".fixed{padding:12px 16px;border-radius:14px;background:rgba(0,0,0,.03);border:1px solid var(--border);font-size:15px;}");
+        out.println(".muted{color:var(--muted);font-size:14px;}");
+        out.println(".result-title{font-size:18px;margin:0 0 10px 0;letter-spacing:-.01em;font-weight:600;}");
+        out.println(".route-banner{font-size:22px;font-weight:900;margin:10px 0 14px 0;letter-spacing:-.01em;color:var(--primary2);}");
         out.println(".route-banner .arrow{color:var(--muted);padding:0 10px;}");
-        out.println(".table-wrap{overflow:auto;border:1px solid rgba(0,0,0,.08);border-radius:14px;background:var(--panelSolid);box-shadow:var(--shadow2);}");
+        out.println(".table-wrap{overflow:auto;border:1px solid var(--border);border-radius:16px;background:var(--panelSolid);box-shadow:var(--shadow2);margin-bottom:18px;}");
         out.println("table{width:100%;border-collapse:separate;border-spacing:0;min-width:720px;}");
-        out.println("th,td{padding:11px 12px;border-bottom:1px solid rgba(0,0,0,.06);text-align:left;font-size:14px;white-space:nowrap;}");
-        out.println("th{background:rgba(250,250,252,.98);font-size:12px;color:#3a3a3c;position:sticky;top:0;z-index:2;}");
-        out.println("tr:hover td{background:rgba(0,113,227,.04);}");
-        out.println(".detail-row td{background:rgba(0,0,0,.015);}");
-        out.println(".steps{display:flex;flex-direction:column;gap:10px;margin-top:10px;}");
-        out.println(".step{"
-                + "display:grid;grid-template-columns: 56px 1fr auto;"
-                + "gap:10px;padding:12px 12px;"
-                + "border:1px solid rgba(0,0,0,.08);"
-                + "border-radius:14px;"
-                + "background:#fff;"
-                + "box-shadow:0 6px 14px rgba(0,0,0,.05);"
-                + "}");
-        out.println(".step .kind{"
-                + "font-weight:800;font-size:12px;"
-                + "letter-spacing:.04em;"
-                + "align-self:center;"
-                + "padding:6px 8px;border-radius:999px;"
-                + "background:rgba(0,113,227,.10);"
-                + "color:var(--primary);"
-                + "text-align:center;"
-                + "}");
-        out.println(".step .main{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}");
-        out.println(".step .meta{white-space:nowrap;color:var(--muted);font-size:12px;}");
-        out.println("details.summary{margin-top:8px;}");
-        out.println("details.summary > summary{cursor:pointer;color:var(--primary);font-weight:700;display:inline-flex;align-items:center;gap:8px;user-select:none;}");
-        out.println("details.summary > summary::-webkit-details-marker{display:none;}");
-        out.println("details.summary > summary:before{content:'›';display:inline-block;transform:rotate(0deg);transition:transform .15s ease;font-size:18px;}");
-        out.println("details[open].summary > summary:before{transform:rotate(90deg);}");
-        out.println(".cand{grid-column:1/-1;margin-top:10px;}");
-        out.println(".cand-list{max-height:220px;overflow:auto;border:1px solid rgba(0,0,0,.08);border-radius:14px;background:#fff;}");
-        out.println(".cand-item{display:flex;gap:10px;align-items:center;padding:10px 12px;border-bottom:1px solid rgba(0,0,0,.06);}");
-        out.println(".cand-item:last-child{border-bottom:none;}");
-        out.println(".cand-item:hover{background:rgba(0,113,227,.04);}");
-        out.println(".cand-name{font-weight:600;}");
-        out.println(".cand-type{color:var(--muted);font-size:12px;}");
-        out.println("@media (prefers-reduced-motion: reduce){*{transition:none!important;}}");
-        out.println(".adminbtn{"
-            + "display:inline-flex;align-items:center;gap:8px;"
-            + "padding:10px 14px;border-radius:999px;"
-            + "border:1px solid rgba(0,0,0,.10);"
-            + "background:#fff;color:var(--text);"
-            + "font-weight:800;text-decoration:none;"
-            + "box-shadow:0 6px 14px rgba(0,0,0,.06);"
-            + "}");
-        out.println(".adminbtn:hover{background:rgba(0,0,0,.03);}");
+        out.println("th,td{padding:13px 14px;border-bottom:1px solid var(--hairline);text-align:left;font-size:15px;white-space:nowrap;}");
+        out.println("th{background:rgba(250,250,252,.98);font-size:13px;color:#3a3a3c;position:sticky;top:0;z-index:2;}");
+        out.println("tr:hover td{background:rgba(59,130,246,.04);}");
+        out.println(".detail-row td{background:rgba(59,130,246,.02);}");
+        out.println(".steps{display:flex;flex-direction:column;gap:14px;margin-top:14px;}");
+        out.println(".step{display:grid;grid-template-columns: 60px 1fr auto;gap:14px;padding:14px 14px;border:1px solid var(--border);border-radius:16px;background:#fff;box-shadow:0 2px 8px rgba(60,80,120,.08);}");
+        out.println(".step .kind{font-weight:800;font-size:13px;letter-spacing:.04em;align-self:center;padding:7px 10px;border-radius:999px;background:rgba(59,130,246,.10);color:var(--primary2);text-align:center;}");
+        out.println(".step .main{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-size:15px;}");
+        out.println(".step .meta{white-space:nowrap;color:var(--muted);font-size:13px;}");
+        out.println(".detail-card{max-width:700px;margin:32px auto;padding:28px 32px;background:var(--panel);border-radius:20px;box-shadow:var(--shadow);border:1px solid var(--border);}");
+        out.println(".detail-header{font-size:22px;font-weight:700;margin-bottom:10px;color:var(--primary2);}");
+        out.println(".detail-summary{font-size:16px;color:var(--muted);margin-bottom:18px;}");
+        out.println(".back-btn{display:inline-block;margin-bottom:18px;padding:10px 22px;background:linear-gradient(90deg, var(--primary), var(--primary2));color:#fff;border-radius:999px;font-weight:700;text-decoration:none;box-shadow:0 4px 12px rgba(59,130,246,.10);transition:filter .12s, box-shadow .12s;}");
+        out.println(".back-btn:hover{filter:saturate(1.08);box-shadow:0 8px 24px rgba(59,130,246,.18);}");
+        out.println(".back-btn:active{filter:brightness(.98);}");
+        out.println(".steps{display:flex;flex-direction:column;gap:14px;margin-top:14px;}");
+        out.println(".step{display:grid;grid-template-columns: 60px 1fr auto;gap:14px;padding:14px 14px;border:1px solid var(--border);border-radius:16px;background:#fff;box-shadow:0 2px 8px rgba(60,80,120,.08);}");
+        out.println(".step .kind{font-weight:800;font-size:13px;letter-spacing:.04em;align-self:center;padding:7px 10px;border-radius:999px;background:rgba(59,130,246,.10);color:var(--primary2);text-align:center;}");
+        out.println(".step .main{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-size:15px;}");
+        out.println(".step .meta{white-space:nowrap;color:var(--muted);font-size:13px;}");
         out.println("</style>");
         // CSS ここまで
 
@@ -281,6 +227,7 @@ public class RouteSearchServlet extends HttpServlet {
 
         // フォーム形式
         out.println("<form class=\"form\" action=\"" + request.getContextPath() + "/routesearch\" method=\"GET\">");
+
 
         // 出発地 / 目的地 => from_stop / to_stop
         out.println("<div class=\"field\">");
@@ -907,48 +854,57 @@ public class RouteSearchServlet extends HttpServlet {
             out.println("<div class=\"table-wrap\">");
             out.println("<table>");
             out.println("<tr>"
-                    + "<th>経路</th>"
-                    + "<th>便 / 区間</th>"
-                    + "<th>時刻</th>"
-                    + "<th>所要時間</th>"
-                    + "</tr>");
+                + "<th>経路</th>"
+                + "<th>便 / 区間</th>"
+                + "<th>時刻</th>"
+                + "<th>所要時間</th>"
+                + "<th>詳細</th>"
+                + "</tr>");
+
 
             // 表示
             java.util.Set<String> usedFirstRoute = new java.util.HashSet<>();
             int shown = 0;
             
+            
+            HttpSession session = request.getSession();
+            List<ResultItem> displayed = new ArrayList<>();
+            session.setAttribute("lastSearchQuery", request.getQueryString());
+
 
             for (ResultItem resultItem : results) {
                 if (shown >= RESULT_LIMIT) break;
 
                 if (resultItem.kind == 2) {
-                    // 乗換のみ適用
                     if (resultItem.firstRoute != null && !resultItem.firstRoute.isEmpty()) {
-                        if (!usedFirstRoute.add(resultItem.firstRoute)) {
-                            continue; // 1本目が同じ路線はスキップ
-                        }
+                        if (!usedFirstRoute.add(resultItem.firstRoute)) continue;
                     }
                 }
 
+                int rid = displayed.size();
+                displayed.add(resultItem);
+
+                String detailUrl = request.getContextPath() + "/routesearch?view=detail&rid=" + rid;
+
                 if (resultItem.payload instanceof WalkOnlyPlan) {
-                    printWalkOnlyRow(out, (WalkOnlyPlan) resultItem.payload);
-
+                    printWalkOnlyRow(out, (WalkOnlyPlan) resultItem.payload, detailUrl);
                 } else if (resultItem.payload instanceof DirectPlan) {
-                    printDirectRow(out, (DirectPlan) resultItem.payload);   
+                    printDirectRow(out, (DirectPlan) resultItem.payload, detailUrl);
                 } else if (resultItem.payload instanceof BikeDirectPlan) {
-                    printBikeDirectRow(out, (BikeDirectPlan) resultItem.payload);
-
+                    printBikeDirectRow(out, (BikeDirectPlan) resultItem.payload, detailUrl);
                 } else if (resultItem.payload instanceof TransferTransitBike) {
-                    printTransitBikeRow(out, (TransferTransitBike) resultItem.payload);
-
+                    printTransitBikeRow(out, (TransferTransitBike) resultItem.payload, detailUrl);
                 } else if (resultItem.payload instanceof TransferBikeTransit) {
-                    printBikeTransitRow(out, (TransferBikeTransit) resultItem.payload);
-
+                    printBikeTransitRow(out, (TransferBikeTransit) resultItem.payload, detailUrl);
                 } else {
-                    printTransferRow(out, (TransferPath) resultItem.payload);
+                    printTransferRow(out, (TransferPath) resultItem.payload, detailUrl);
                 }
+
                 shown++;
             }
+
+
+            session.setAttribute("lastDisplayedResults", displayed);
 
             // -----------------------------------------------------------------------------------------------            
 
@@ -987,6 +943,138 @@ public class RouteSearchServlet extends HttpServlet {
     
 
     // --------------------- 便利関数系 -------------------
+
+
+    // 詳細ページの表示
+    private void renderDetailPage(HttpServletRequest req, HttpServletResponse resp) throws IOException {
+        resp.setContentType("text/html; charset=UTF-8");
+        PrintWriter out = resp.getWriter();
+
+        HttpSession session = req.getSession(false);
+        if (session == null) { out.println("セッション切れ"); return; }
+
+        @SuppressWarnings("unchecked")
+        List<ResultItem> displayed = (List<ResultItem>) session.getAttribute("lastDisplayedResults");
+        if (displayed == null) { out.println("検索結果がありません"); return; }
+
+        int rid;
+        try {
+            rid = Integer.parseInt(req.getParameter("rid"));
+        } catch (Exception e) {
+            out.println("ridが不正"); return;
+        }
+        if (rid < 0 || rid >= displayed.size()) { out.println("不正なrid"); return; }
+
+        ResultItem item = displayed.get(rid);
+
+        // 戻るリンク（条件保持）
+        String q = (String) session.getAttribute("lastSearchQuery");
+        String backUrl = req.getContextPath() + "/routesearch" + (q != null ? ("?" + q) : "");
+
+        // --- HTML（おしゃれなカードUI＋タイムライン表示）---
+        out.println("<!DOCTYPE html><html lang='ja'><head>");
+        out.println("<meta charset='UTF-8'><meta name='viewport' content='width=device-width, initial-scale=1'>");
+        out.println("<title>Route Detail</title>");
+        // 共通CSS
+        out.println("<style>");
+        out.println(":root{--bg:#f3f6fa;--panel:#fff;--panelSolid:#fff;--text:#222;--muted:#7a869a;--border:#e3e8ee;--hairline:#e3e8ee;--shadow:0 8px 32px rgba(60,80,120,.10);--shadow2:0 2px 8px rgba(60,80,120,.08);--radius:18px;--gap:18px;--primary:#3b82f6;--primary2:#2563eb;--ring:rgba(59,130,246,.18);--accent:#fbbf24;}");
+        out.println("body{margin:0;background:var(--bg);color:var(--text);font-family:'Segoe UI',Roboto,'Noto Sans JP',Meiryo,sans-serif;-webkit-font-smoothing:antialiased;moz-osx-font-smoothing:grayscale;}");
+        out.println(".detail-card{max-width:900px;margin:32px auto;padding:28px 32px;background:var(--panel);border-radius:20px;box-shadow:var(--shadow);border:1px solid var(--border);}");
+        out.println(".detail-header{font-size:22px;font-weight:700;margin-bottom:10px;color:var(--primary2);}");
+        out.println(".detail-summary{font-size:16px;color:var(--muted);margin-bottom:18px;}");
+        out.println(".back-btn{display:inline-block;margin-bottom:18px;padding:10px 22px;background:linear-gradient(90deg, var(--primary), var(--primary2));color:#fff;border-radius:999px;font-weight:700;text-decoration:none;box-shadow:0 4px 12px rgba(59,130,246,.10);transition:filter .12s, box-shadow .12s;}");
+        out.println(".back-btn:hover{filter:saturate(1.08);box-shadow:0 8px 24px rgba(59,130,246,.18);}");
+        out.println(".back-btn:active{filter:brightness(.98);}");
+        out.println(".steps{display:flex;flex-direction:column;gap:14px;margin-top:14px;}");
+        out.println(".step{display:grid;grid-template-columns: 60px 1fr auto;gap:14px;padding:14px 14px;border:1px solid var(--border);border-radius:16px;background:#fff;box-shadow:0 2px 8px rgba(60,80,120,.08);}");
+        out.println(".step .kind{font-weight:800;font-size:13px;letter-spacing:.04em;align-self:center;padding:7px 10px;border-radius:999px;background:rgba(59,130,246,.10);color:var(--primary2);text-align:center;}");
+        out.println(".step .main{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-size:15px;}");
+        out.println(".step .meta{white-space:nowrap;color:var(--muted);font-size:13px;}");
+        out.println("</style>");
+        out.println("</head><body>");
+
+        out.println("<div class='detail-card'>");
+        out.println("<a href='" + esc(backUrl) + "' class='back-btn'>← 戻る</a>");
+        out.println("<div class='detail-header'>ルート詳細</div>");
+
+        // ルート概要
+        out.println("<div class='detail-summary'>");
+        String origin = "", dest = "";
+        if (item.payload instanceof WalkOnlyPlan) {
+            WalkOnlyPlan wp = (WalkOnlyPlan) item.payload;
+            origin = wp.fromName;
+            dest = wp.toName;
+        } else if (item.payload instanceof DirectPlan) {
+            DirectPlan dp = (DirectPlan) item.payload;
+            origin = dp.walk0.fromName != null ? dp.walk0.fromName : dp.leg.fromStopName;
+            dest = dp.walk2.toName != null ? dp.walk2.toName : dp.leg.toStopName;
+        } else if (item.payload instanceof TransferPath) {
+            TransferPath tp = (TransferPath) item.payload;
+            origin = tp.walk0.fromName != null ? tp.walk0.fromName : tp.leg1.fromStopName;
+            dest = tp.walk2.toName != null ? tp.walk2.toName : tp.leg2.toStopName;
+        } else if (item.payload instanceof BikeDirectPlan) {
+            BikeDirectPlan bp = (BikeDirectPlan) item.payload;
+            origin = bp.walk0.fromName != null ? bp.walk0.fromName : bp.bike.fromPortName;
+            dest = bp.walk2.toName != null ? bp.walk2.toName : bp.bike.toPortName;
+        } else if (item.payload instanceof TransferTransitBike) {
+            TransferTransitBike tp = (TransferTransitBike) item.payload;
+            origin = tp.walk0.fromName != null ? tp.walk0.fromName : tp.leg1.fromStopName;
+            dest = tp.walk2.toName != null ? tp.walk2.toName : tp.bike.toPortName;
+        } else if (item.payload instanceof TransferBikeTransit) {
+            TransferBikeTransit tp = (TransferBikeTransit) item.payload;
+            origin = tp.walk0.fromName != null ? tp.walk0.fromName : tp.bike.fromPortName;
+            dest = tp.walk2.toName != null ? tp.walk2.toName : tp.leg2.toStopName;
+        }
+        out.println("出発地: " + esc(origin) + "<br>");
+        out.println("目的地: " + esc(dest) + "<br>");
+        out.println("所要時間: " + item.totalMinutes + "分<br>");
+        out.println("到着時刻: " + esc(item.end != null ? hhmm(item.end.toString()) : "") + "<br>");
+        out.println("</div>");
+
+        // タイムライン表示
+        out.println("<div class='steps'>");
+        if (item.payload instanceof WalkOnlyPlan) {
+            WalkOnlyPlan wp = (WalkOnlyPlan) item.payload;
+            printStep(out, "徒歩", wp.fromName + " → " + wp.toName, wp.minutes + "分 / 約" + wp.distanceM + "m, " + hhmm(wp.startTime) + "→" + hhmm(wp.endTime));
+        } else if (item.payload instanceof DirectPlan) {
+            DirectPlan dp = (DirectPlan) item.payload;
+            if (!isZeroWalk(dp.walk0)) printStep(out, "徒歩", dp.walk0.fromName + " → " + dp.walk0.toName, dp.walk0.min + "分 / 約" + dp.walk0.dist + "m");
+            printStep(out, "乗車", dp.leg.fromStopName + " " + hhmm(dp.leg.depTime) + " 発 → " + dp.leg.toStopName + " " + hhmm(dp.leg.arrTime) + " 着", dp.leg.routeName + " " + dp.leg.tripName);
+            if (!isZeroWalk(dp.walk2)) printStep(out, "徒歩", dp.walk2.fromName + " → " + dp.walk2.toName, dp.walk2.min + "分 / 約" + dp.walk2.dist + "m");
+        } else if (item.payload instanceof TransferPath) {
+            TransferPath tp = (TransferPath) item.payload;
+            if (!isZeroWalk(tp.walk0)) printStep(out, "徒歩", tp.walk0.fromName + " → " + tp.walk0.toName, tp.walk0.min + "分 / 約" + tp.walk0.dist + "m");
+            printStep(out, "乗車", tp.leg1.fromStopName + " " + hhmm(tp.leg1.depTime) + " → " + tp.leg1.toStopName + " " + hhmm(tp.leg1.arrTime), tp.leg1.routeName + " " + tp.leg1.tripName);
+            if (!isZeroWalk(tp.walk1)) printStep(out, "徒歩", tp.walk1.fromName + " → " + tp.walk1.toName, tp.walk1.min + "分 / 約" + tp.walk1.dist + "m");
+            else printStep(out, "乗換", "同一駅で乗換", "");
+            printStep(out, "乗車", tp.leg2.fromStopName + " " + hhmm(tp.leg2.depTime) + " → " + tp.leg2.toStopName + " " + hhmm(tp.leg2.arrTime), tp.leg2.routeName + " " + tp.leg2.tripName);
+            if (!isZeroWalk(tp.walk2)) printStep(out, "徒歩", tp.walk2.fromName + " → " + tp.walk2.toName, tp.walk2.min + "分 / 約" + tp.walk2.dist + "m");
+        } else if (item.payload instanceof BikeDirectPlan) {
+            BikeDirectPlan bp = (BikeDirectPlan) item.payload;
+            if (!isZeroWalk(bp.walk0)) printStep(out, "徒歩", bp.walk0.fromName + " → " + bp.walk0.toName, bp.walk0.min + "分 / 約" + bp.walk0.dist + "m");
+            printStep(out, "自転車", bp.bike.fromPortName + " " + hhmm(bp.bike.startTime) + " → " + bp.bike.toPortName + " " + hhmm(bp.bike.endTime), "シェアサイクル(" + bp.bike.operatorName + "), " + bp.bike.rideMinutes + "分 / 約" + bp.bike.distanceM + "m");
+            if (!isZeroWalk(bp.walk2)) printStep(out, "徒歩", bp.walk2.fromName + " → " + bp.walk2.toName, bp.walk2.min + "分 / 約" + bp.walk2.dist + "m");
+        } else if (item.payload instanceof TransferTransitBike) {
+            TransferTransitBike tp = (TransferTransitBike) item.payload;
+            if (!isZeroWalk(tp.walk0)) printStep(out, "徒歩", tp.walk0.fromName + " → " + tp.walk0.toName, tp.walk0.min + "分 / 約" + tp.walk0.dist + "m");
+            printStep(out, "乗車", tp.leg1.fromStopName + " " + hhmm(tp.leg1.depTime) + " → " + tp.leg1.toStopName + " " + hhmm(tp.leg1.arrTime), tp.leg1.routeName + " " + tp.leg1.tripName);
+            if (!isZeroWalk(tp.walk1)) printStep(out, "徒歩", tp.walk1.fromName + " → " + tp.walk1.toName, tp.walk1.min + "分 / 約" + tp.walk1.dist + "m");
+            printStep(out, "自転車", tp.bike.fromPortName + " " + hhmm(tp.bike.startTime) + " → " + tp.bike.toPortName + " " + hhmm(tp.bike.endTime), "シェアサイクル(" + tp.bike.operatorName + "), " + tp.bike.rideMinutes + "分 / 約" + tp.bike.distanceM + "m");
+            if (!isZeroWalk(tp.walk2)) printStep(out, "徒歩", tp.walk2.fromName + " → " + tp.walk2.toName, tp.walk2.min + "分 / 約" + tp.walk2.dist + "m");
+        } else if (item.payload instanceof TransferBikeTransit) {
+            TransferBikeTransit tp = (TransferBikeTransit) item.payload;
+            if (!isZeroWalk(tp.walk0)) printStep(out, "徒歩", tp.walk0.fromName + " → " + tp.walk0.toName, tp.walk0.min + "分 / 約" + tp.walk0.dist + "m");
+            printStep(out, "自転車", tp.bike.fromPortName + " " + hhmm(tp.bike.startTime) + " → " + tp.bike.toPortName + " " + hhmm(tp.bike.endTime), "シェアサイクル(" + tp.bike.operatorName + "), " + tp.bike.rideMinutes + "分 / 約" + tp.bike.distanceM + "m");
+            if (!isZeroWalk(tp.walk1)) printStep(out, "徒歩", tp.walk1.fromName + " → " + tp.walk1.toName, tp.walk1.min + "分 / 約" + tp.walk1.dist + "m");
+            printStep(out, "乗車", tp.leg2.fromStopName + " " + hhmm(tp.leg2.depTime) + " → " + tp.leg2.toStopName + " " + hhmm(tp.leg2.arrTime), tp.leg2.routeName + " " + tp.leg2.tripName);
+            if (!isZeroWalk(tp.walk2)) printStep(out, "徒歩", tp.walk2.fromName + " → " + tp.walk2.toName, tp.walk2.min + "分 / 約" + tp.walk2.dist + "m");
+        }
+        out.println("</div>");
+        out.println("</div>");
+        out.println("</body></html>");
+    }
+
+
 
     // 文字エラー対策1
     private String esc(String s) {
@@ -1298,6 +1386,7 @@ public class RouteSearchServlet extends HttpServlet {
 
             try (ResultSet rs = ps.executeQuery()) {
                 while (rs.next()) {
+                   
                     list.add(new AlightStopCandidate(
                         rs.getInt("mid_stop_id"),
                         rs.getString("mid_stop_name"),
@@ -1720,28 +1809,18 @@ public class RouteSearchServlet extends HttpServlet {
     }
 
     // 徒歩のみ の結果を表示
-    private void printWalkOnlyRow(PrintWriter out, WalkOnlyPlan wp) {
+    private void printWalkOnlyRow(PrintWriter out, WalkOnlyPlan wp, String detailUrl) {
         out.println("<tr>");
         out.println("<td>徒歩のみ</td>");
         out.println("<td>約" + wp.distanceM + "m</td>");
         out.println("<td>" + esc(hhmm(wp.startTime)) + " → " + esc(hhmm(wp.endTime)) + "</td>");
         out.println("<td>" + wp.minutes + "分</td>");
+        out.println("<td><a class=\"detailbtn\" href=\"" + esc(detailUrl) + "\">詳細</a></td>");
         out.println("</tr>");
-
-        out.println("<tr class=\"detail-row\"><td colspan=\"4\">");
-        out.println("<details class=\"summary\">");
-        out.println("<summary>経路詳細</summary>");
-        out.println("<div class=\"steps\">");
-        printStep(out, "徒歩",
-                wp.fromName + " → " + wp.toName,
-                wp.minutes + "分 / 約" + wp.distanceM + "m, " + hhmm(wp.startTime) + "→" + hhmm(wp.endTime));
-        out.println("</div>");
-        out.println("</details>");
-        out.println("</td></tr>");
     }
 
     // 自転車のみ の結果を表示
-    private void printBikeDirectRow(PrintWriter out, BikeDirectPlan bp) {
+    private void printBikeDirectRow(PrintWriter out, BikeDirectPlan bp, String detailUrl) {
         StringBuilder route = new StringBuilder();
         if (!isZeroWalk(bp.walk0)) route.append("徒歩 → ");
         route.append("シェアサイクル(").append(bp.bike.operatorName).append(")");
@@ -1752,76 +1831,30 @@ public class RouteSearchServlet extends HttpServlet {
         out.println("<td>" + esc(bp.bike.fromPortName + " → " + bp.bike.toPortName) + "</td>");
         out.println("<td>" + esc(hhmm(bp.startTime)) + " → " + esc(hhmm(bp.endTime)) + "</td>");
         out.println("<td>" + bp.totalMinutes + "分</td>");
+        out.println("<td><a class=\"detailbtn\" href=\"" + esc(detailUrl) + "\">詳細</a></td>");
         out.println("</tr>");
 
-        out.println("<tr class=\"detail-row\"><td colspan=\"6\">");
-        out.println("<details class=\"summary\">");
-        out.println("<summary>経路詳細</summary>");
-        out.println("<div class=\"steps\">");
-
-        if (!isZeroWalk(bp.walk0)) {
-            printStep(out, "徒歩",
-                    bp.walk0.fromName + " → " + bp.walk0.toName,
-                    bp.walk0.min + "分 / 約" + bp.walk0.dist + "m");
-        }
-
-        printStep(out, "自転車",
-                bp.bike.fromPortName + " " + hhmm(bp.bike.startTime) + " → " + bp.bike.toPortName + " " + hhmm(bp.bike.endTime),
-                "シェアサイクル(" + bp.bike.operatorName + "), " + bp.bike.rideMinutes + "分 / 約" + bp.bike.distanceM + "m");
-
-        if (!isZeroWalk(bp.walk2)) {
-            printStep(out, "徒歩",
-                    bp.walk2.fromName + " → " + bp.walk2.toName,
-                    bp.walk2.min + "分 / 約" + bp.walk2.dist + "m");
-        }
-
-        out.println("</div>");
-        out.println("</details>");
-        out.println("</td></tr>");
     }
 
     // 直通 の結果を表示
-    private void printDirectRow(PrintWriter out, DirectPlan dp) {
-    StringBuilder route = new StringBuilder();
-    if (!isZeroWalk(dp.walk0)) route.append("徒歩 → ");
-    route.append(dp.leg.routeName);
-    if (!isZeroWalk(dp.walk2)) route.append(" → 徒歩");
+    private void printDirectRow(PrintWriter out, DirectPlan dp, String detailUrl) {
+        StringBuilder route = new StringBuilder();
+        if (!isZeroWalk(dp.walk0)) route.append("徒歩 → ");
+        route.append(dp.leg.routeName);
+        if (!isZeroWalk(dp.walk2)) route.append(" → 徒歩");
 
-    out.println("<tr>");
-    out.println("<td>" + esc(route.toString()) + "</td>");
-    out.println("<td>" + esc(dp.leg.tripName) + "</td>");
-    out.println("<td>" + esc(hhmm(dp.startTime)) + " → " + esc(hhmm(dp.endTime)) + "</td>");
-    out.println("<td>" + dp.totalMinutes + "分</td>");
-    out.println("</tr>");
+        out.println("<tr>");
+        out.println("<td>" + esc(route.toString()) + "</td>");
+        out.println("<td>" + esc(dp.leg.tripName) + "</td>");
+        out.println("<td>" + esc(hhmm(dp.startTime)) + " → " + esc(hhmm(dp.endTime)) + "</td>");
+        out.println("<td>" + dp.totalMinutes + "分</td>");
+        out.println("<td><a class=\"detailbtn\" href=\"" + esc(detailUrl) + "\">詳細</a></td>");
+        out.println("</tr>");
 
-    out.println("<tr class=\"detail-row\"><td colspan=\"6\">");
-    out.println("<details class=\"summary\">");
-    out.println("<summary>経路詳細</summary>");
-    out.println("<div class=\"steps\">");
-
-    if (!isZeroWalk(dp.walk0)) {
-        printStep(out, "徒歩",
-                dp.walk0.fromName + " → " + dp.walk0.toName,
-                dp.walk0.min + "分 / 約" + dp.walk0.dist + "m");
     }
-
-    printStep(out, "乗車",
-            dp.leg.fromStopName + " " + hhmm(dp.leg.depTime) + " 発 → " + dp.leg.toStopName + " " + hhmm(dp.leg.arrTime) + " 着",
-            dp.leg.routeName + " " + dp.leg.tripName);
-
-    if (!isZeroWalk(dp.walk2)) {
-        printStep(out, "徒歩",
-                dp.walk2.fromName + " → " + dp.walk2.toName,
-                dp.walk2.min + "分 / 約" + dp.walk2.dist + "m");
-    }
-
-    out.println("</div>");
-    out.println("</details>");
-    out.println("</td></tr>");
-}
 
     // 乗換あり の結果表示    
-    private void printTransferRow(PrintWriter out, TransferPath tp) {
+    private void printTransferRow(PrintWriter out, TransferPath tp, String detailUrl) {
 
         // --- 1行目: いままで通りのサマリ行（表の行） ---
         StringBuilder sb = new StringBuilder();
@@ -1839,60 +1872,14 @@ public class RouteSearchServlet extends HttpServlet {
         out.println("<td>" + esc(trips) + "</td>");
         out.println("<td>" + esc(hhmm(tp.startTime)) + " → " + esc(hhmm(tp.endTime)) + "</td>");
         out.println("<td>" + tp.totalMinutes + "分</td>");
+        out.println("<td><a class=\"detailbtn\" href=\"" + esc(detailUrl) + "\">詳細</a></td>");
         out.println("</tr>");
 
-        // --- 2行目: 詳細行（折りたたみ＋縦リスト） ---
-        out.println("<tr class=\"detail-row\"><td colspan=\"6\">");
-        out.println("<details class=\"summary\">");
-        out.println("<summary>経路詳細</summary>");
-        out.println("<div class=\"steps\">");
 
-        // 徒歩0(出発 -> 1本目乗車停留所) は 0m/0分なら消す
-        if (!isZeroWalk(tp.walk0)) {
-            printStep(out,
-                "徒歩",
-                tp.walk0.fromName + " → " + tp.walk0.toName,
-                tp.walk0.min + "分 / 約" + tp.walk0.dist + "m");
-        }
-
-        // 乗車1
-        printStep(out,
-            "乗車",
-            tp.leg1.fromStopName + " " + hhmm(tp.leg1.depTime) + " 発 → " + tp.leg1.toStopName + " " + hhmm(tp.leg1.arrTime) + " 着",
-            tp.leg1.routeName + " " + tp.leg1.tripName);
-
-        // 徒歩1(乗換)
-        if (!isZeroWalk(tp.walk1)) {
-            printStep(out,
-                "徒歩",
-                tp.walk1.fromName + " → " + tp.walk1.toName,
-                tp.walk1.min + "分 / 約" + tp.walk1.dist + "m");
-        } else {
-            // 0分徒歩なら「乗換」として軽く出す（いらなければこの2行ごと消してOK）
-            printStep(out, "乗換", "同一駅で乗換", "");
-        }
-
-        // 乗車2
-        printStep(out,
-            "乗車",
-            tp.leg2.fromStopName + " " + hhmm(tp.leg2.depTime) + " 発 → " + tp.leg2.toStopName + " " + hhmm(tp.leg2.arrTime) + " 着",
-            tp.leg2.routeName + " " + tp.leg2.tripName);
-
-        // 徒歩2(最後)
-        if (!isZeroWalk(tp.walk2)) {
-            printStep(out,
-                "徒歩",
-                tp.walk2.fromName + " → " + tp.walk2.toName,
-                tp.walk2.min + "分 / 約" + tp.walk2.dist + "m");
-        }
-
-        out.println("</div>");
-        out.println("</details>");
-        out.println("</td></tr>");
     }
 
     // 公共交通 -> 自転車 の結果を表示
-    private void printTransitBikeRow(PrintWriter out, TransferTransitBike tp) {
+    private void printTransitBikeRow(PrintWriter out, TransferTransitBike tp, String detailUrl) {
         StringBuilder sb = new StringBuilder();
         if (!isZeroWalk(tp.walk0)) sb.append("徒歩 → ");
         sb.append(tp.leg1.routeName);
@@ -1906,39 +1893,11 @@ public class RouteSearchServlet extends HttpServlet {
         out.println("<td>" + tp.totalMinutes + "分</td>");
         out.println("</tr>");
 
-        out.println("<tr class=\"detail-row\"><td colspan=\"6\">");
-        out.println("<details class=\"summary\">");
-        out.println("<summary>経路詳細</summary>");
-        out.println("<div class=\"steps\">");
 
-        if (!isZeroWalk(tp.walk0)) {
-            printStep(out, "徒歩", tp.walk0.fromName + " → " + tp.walk0.toName,
-                    tp.walk0.min + "分 / 約" + tp.walk0.dist + "m");
-        }
-
-        printStep(out, "乗車",
-                tp.leg1.fromStopName + " " + hhmm(tp.leg1.depTime) + " 発 → " + tp.leg1.toStopName + " " + hhmm(tp.leg1.arrTime) + " 着",
-                tp.leg1.routeName + " " + tp.leg1.tripName);
-
-        if (!isZeroWalk(tp.walk1)) {
-            printStep(out, "徒歩", tp.walk1.fromName + " → " + tp.walk1.toName,
-                    tp.walk1.min + "分 / 約" + tp.walk1.dist + "m");
-        }
-
-        printStep(out, "自転車",
-                tp.bike.fromPortName + " " + hhmm(tp.bike.startTime) + " → " + tp.bike.toPortName + " " + hhmm(tp.bike.endTime),
-                "シェアサイクル(" + tp.bike.operatorName + "), " + tp.bike.rideMinutes + "分 / 約" + tp.bike.distanceM + "m");
-
-        if (!isZeroWalk(tp.walk2)) {
-            printStep(out, "徒歩", tp.walk2.fromName + " → " + tp.walk2.toName,
-                    tp.walk2.min + "分 / 約" + tp.walk2.dist + "m");
-        }
-
-        out.println("</div></details></td></tr>");
     }
 
     // 自転車 -> 公共交通 の結果を表示
-    private void printBikeTransitRow(PrintWriter out, TransferBikeTransit tp) {
+    private void printBikeTransitRow(PrintWriter out, TransferBikeTransit tp, String detailUrl) {
         StringBuilder sb = new StringBuilder();
         sb.append("徒歩 → シェアサイクル(" + tp.bike.operatorName + ") → 徒歩 → ");
         sb.append(tp.leg2.routeName);
@@ -1950,37 +1909,9 @@ public class RouteSearchServlet extends HttpServlet {
         out.println("<td>" + esc(tp.bike.fromPortName + "→" + tp.bike.toPortName + " → " + tp.leg2.tripName) + "</td>");
         out.println("<td>" + esc(hhmm(tp.startTime)) + " → " + esc(hhmm(tp.endTime)) + "</td>");
         out.println("<td>" + tp.totalMinutes + "分</td>");
+        out.println("<td><a class=\"detailbtn\" href=\"" + esc(detailUrl) + "\">詳細</a></td>");
         out.println("</tr>");
 
-        out.println("<tr class=\"detail-row\"><td colspan=\"6\">");
-        out.println("<details class=\"summary\">");
-        out.println("<summary>経路詳細</summary>");
-        out.println("<div class=\"steps\">");
-
-        if (!isZeroWalk(tp.walk0)) {
-            printStep(out, "徒歩", tp.walk0.fromName + " → " + tp.walk0.toName,
-                    tp.walk0.min + "分 / 約" + tp.walk0.dist + "m");
-        }
-
-        printStep(out, "自転車",
-                tp.bike.fromPortName + " " + hhmm(tp.bike.startTime) + " → " + tp.bike.toPortName + " " + hhmm(tp.bike.endTime),
-                "シェアサイクル(" + tp.bike.operatorName + "), " + tp.bike.rideMinutes + "分 / 約" + tp.bike.distanceM + "m");
-
-        if (!isZeroWalk(tp.walk1)) {
-            printStep(out, "徒歩", tp.walk1.fromName + " → " + tp.walk1.toName,
-                    tp.walk1.min + "分 / 約" + tp.walk1.dist + "m");
-        }
-
-        printStep(out, "乗車",
-                tp.leg2.fromStopName + " " + hhmm(tp.leg2.depTime) + " 発 → " + tp.leg2.toStopName + " " + hhmm(tp.leg2.arrTime) + " 着",
-                tp.leg2.routeName + " " + tp.leg2.tripName);
-
-        if (!isZeroWalk(tp.walk2)) {
-            printStep(out, "徒歩", tp.walk2.fromName + " → " + tp.walk2.toName,
-                    tp.walk2.min + "分 / 約" + tp.walk2.dist + "m");
-        }
-
-        out.println("</div></details></td></tr>");
     }
 
 

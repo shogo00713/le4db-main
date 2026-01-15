@@ -329,7 +329,7 @@ public class PortAdminServlet extends HttpServlet {
 
         for (PortRow r : rows) {
             out.println("<tr>");
-            out.println("<td>" + esc(r.operatorName) + " <span class=\"mini\">(#" + r.operatorId + ")</span></td>");
+            out.println("<td>" + esc(r.operatorName) + "</td>");
             out.println("<td>" + r.portId + "</td>");
             out.println("<td>" + esc(r.portName) + "</td>");
             out.println("<td>" + r.bikes + "</td>");
