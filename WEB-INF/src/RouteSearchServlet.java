@@ -534,8 +534,8 @@ public class RouteSearchServlet extends HttpServlet {
                     int totalMin = minutesBetween(baseTime, endTime);
 
                     // 自転車移動の情報
-                    BikePath bike = new BikePath(fromPort.operatorId, fromPort.operatorName,
-                            fromPort.portId, fromPort.portName, toPort.portId, toPort.portName,
+                    BikePath bike = new BikePath(fromPort.operatorName,
+                            fromPort.portName, toPort.portName,
                             rideDistance, rideMin, bikeStartTime, bikeEndTime);
 
                     // 移動全体の情報
@@ -633,18 +633,18 @@ public class RouteSearchServlet extends HttpServlet {
                 // 乗換降車する候補の停留所に対して
                 for (AlightStopCandidate firstAlightStop : firstAlightStopCandidates) {
 
-                    List<DirectPath> leg1Candidates = searchDirect(conn, firstBoardStop.stopId, firstAlightStop.midStopId, arrivalTimeTo1BoardStop, day, 1);
+                    List<DirectPath> leg1Candidates = searchDirect(conn, firstBoardStop.stopId, firstAlightStop.StopId, arrivalTimeTo1BoardStop, day, 1);
                     if (leg1Candidates.isEmpty()) continue;
                     DirectPath leg1 = leg1Candidates.get(0); // 1個だけ取る (1個しかないはずだが)
 
                     String originDepartTime = addMinutes(leg1.depTime, -walkTo1BoardStopMin);
-                    List<NearbyStop> stopsNearFirstAlight = nearbyStopsById(conn, firstAlightStop.midStopId, TRANSFER_RADIUS_M, NEAR_LIMIT);
+                    List<NearbyStop> stopsNearFirstAlight = nearbyStopsById(conn, firstAlightStop.StopId, TRANSFER_RADIUS_M, NEAR_LIMIT);
 
                     // 乗換乗車する候補の停留所に対して
                     for (NearbyStop secondBoardStop : stopsNearFirstAlight) {
 
                         int walkTransferMin = walkingMinutes(secondBoardStop.distance, METER_CORRECTION, METER_PER_MINUTE);
-                        WalkPath walkTransfer = new WalkPath(firstAlightStop.midStopName, secondBoardStop.name, secondBoardStop.distance, walkTransferMin);
+                        WalkPath walkTransfer = new WalkPath(firstAlightStop.StopName, secondBoardStop.name, secondBoardStop.distance, walkTransferMin);
                         String reachForSecondBoard = addMinutes(leg1.arrTime, TRANSFER_MIN + walkTransferMin);
 
                         TransferPath bestTransferPathThisCase = null;
@@ -693,11 +693,8 @@ public class RouteSearchServlet extends HttpServlet {
 
             java.util.Set<String> seenTBKeys = new java.util.HashSet<>();
 
-            // 目的地側の「返却可能ポート」を事業者ごとにまとめると速い
-            java.util.Map<Integer, java.util.List<PortCandidate>> toPortsByOp = new java.util.HashMap<>();
-            for (PortCandidate p : portsNearDest) {
-                toPortsByOp.computeIfAbsent(p.operatorId, k -> new java.util.ArrayList<>()).add(p);
-            }
+            // 目的地近くのポートを運営者別にグループ分け
+            java.util.Map<Integer, java.util.List<PortCandidate>> toPortsByOp = groupPortsByOperator(portsNearDest);
 
             int addedTB = 0;
 
@@ -714,26 +711,23 @@ public class RouteSearchServlet extends HttpServlet {
                 // 乗換降車する候補の停留所に対して
                 for (AlightStopCandidate firstAlightStop : firstAlightStopCandidates) {
 
-                    List<DirectPath> leg1Candidates = searchDirect(conn, BoardStop.stopId, firstAlightStop.midStopId, arrivalTimeToBoardStop, day, 1);
+                    List<DirectPath> leg1Candidates = searchDirect(conn, BoardStop.stopId, firstAlightStop.StopId, arrivalTimeToBoardStop, day, 1);
                     if (leg1Candidates.isEmpty()) continue;
                     DirectPath leg1 = leg1Candidates.get(0);
 
                     String originDepartTime = addMinutes(leg1.depTime, -walkToBoardStopMin);
 
-                    Stop transferStopLL = getStopById(conn, firstAlightStop.midStopId);
-                    if (transferStopLL == null) continue;
-
-                    List<PortCandidate> startPortCandidates = nearbyPorts(conn, transferStopLL.lat, transferStopLL.lon, BIKE_PORT_RADIUS_M, PORT_LIMIT, true, false);
+                    List<PortCandidate> startPortCandidates = nearbyPorts(conn, firstAlightStop.lat, firstAlightStop.lon, BIKE_PORT_RADIUS_M, PORT_LIMIT, true, false);
 
                     // 出発ポートに対して
-                    for (PortCandidate startPort : startPortCandidates ) {
+                    for (PortCandidate startPort : startPortCandidates) {
 
                         java.util.List<PortCandidate> returnPortCandidates = toPortsByOp.get(startPort.operatorId);
                         if (returnPortCandidates == null) continue;
 
-                        int walkTransferDistance = distanceMeters(transferStopLL.lat, transferStopLL.lon, startPort.lat, startPort.lon);
+                        int walkTransferDistance = distanceMeters(firstAlightStop.lat, firstAlightStop.lon, startPort.lat, startPort.lon);
                         int walkTransferMin = walkingMinutes(walkTransferDistance, METER_CORRECTION, METER_PER_MINUTE);
-                        WalkPath walkTransfer = new WalkPath(firstAlightStop.midStopName, startPort.portName, walkTransferDistance, walkTransferMin);
+                        WalkPath walkTransfer = new WalkPath(firstAlightStop.StopName, startPort.portName, walkTransferDistance, walkTransferMin);
                         String bikeStartTime = addMinutes(leg1.arrTime, TRANSFER_MIN + walkTransferMin + BIKE_UNLOCK_MIN);
 
                         // 返却ポートに対して
@@ -756,8 +750,8 @@ public class RouteSearchServlet extends HttpServlet {
                             String key = "TB:" + leg1.tripId + "|" + startPort.operatorId + ":" + startPort.portId + "->" + returnPort.portId;
                             if (!seenTBKeys.add(key)) continue;
 
-                            BikePath bike = new BikePath(startPort.operatorId, startPort.operatorName,
-                                    startPort.portId, startPort.portName, returnPort.portId, returnPort.portName,
+                            BikePath bike = new BikePath(startPort.operatorName,
+                                    startPort.portName, returnPort.portName,
                                     rideDist, rideMin, bikeStartTime, bikeEndTime);
 
                             TransferTransitBike plan = new TransferTransitBike(walkToBoardStop, leg1, walkTransfer, bike, walkToDest, totalMin, originDepartTime, arrivalTimeToDest);
@@ -777,7 +771,7 @@ public class RouteSearchServlet extends HttpServlet {
 
             java.util.Set<String> seenBTKeys = new java.util.HashSet<>();
 
-            List<PortCandidate> midPorts;
+            List<PortCandidate> usePortsCandidates;
             {
                 // 出発地から自転車圏内にある停留所（候補）
                 // 件数は多いと重いので 40〜60 程度が無難
@@ -799,24 +793,11 @@ public class RouteSearchServlet extends HttpServlet {
                 }
 
                 // goodBoards の周りの「返却できるポート（free_docks>0）」を集める（portIdで重複除去）
-                java.util.Map<Integer, PortCandidate> midPortById = new java.util.HashMap<>();
-                for (NearbyStop b : goodBoards) {
-                    Stop bll = getStopById(conn, b.stopId);
-                    if (bll == null) continue;
-
-                    List<PortCandidate> ports =
-                            nearbyPorts(conn, bll.lat, bll.lon, BIKE_PORT_RADIUS_M, PORT_LIMIT, false, true);
-
-                    for (PortCandidate p : ports) {
-                        midPortById.putIfAbsent(p.portId, p);
-                    }
-                }
-
-                midPorts = new ArrayList<>(midPortById.values());
+                usePortsCandidates = collectNearbyPortsFromStops(conn, goodBoards, BIKE_PORT_RADIUS_M, PORT_LIMIT, false, true);
 
                 // フォールバック：もし0件なら従来方式（出発地から半径で拾う）も使う
-                if (midPorts.isEmpty()) {
-                    midPorts = nearbyPorts(conn, originStop.lat, originStop.lon, BIKE_MAX_RIDE_M, 30, false, true);
+                if (usePortsCandidates.isEmpty()) {
+                    usePortsCandidates = nearbyPorts(conn, originStop.lat, originStop.lon, BIKE_MAX_RIDE_M, 30, false, true);
                 }
             }
 
@@ -835,7 +816,7 @@ public class RouteSearchServlet extends HttpServlet {
                 String bikeStart = addMinutes(baseTime, walkToStartPortMin + BIKE_UNLOCK_MIN);
 
                 // 返却ポートに対して
-                for (PortCandidate returnPort : midPorts) {
+                for (PortCandidate returnPort : usePortsCandidates) {
 
                     int rideDist = distanceMeters(startPort.lat, startPort.lon, returnPort.lat, returnPort.lon);
                     if (rideDist > BIKE_MAX_RIDE_M) continue;
@@ -886,9 +867,9 @@ public class RouteSearchServlet extends HttpServlet {
                         if (!seenBTKeys.add(key)) continue;
 
                         BikePath bike = new BikePath(
-                                startPort.operatorId, startPort.operatorName,
-                                startPort.portId, startPort.portName,
-                                returnPort.portId, returnPort.portName,
+                                startPort.operatorName,
+                                startPort.portName,
+                                returnPort.portName,
                                 rideDist, rideMin, bikeStart, bikeEndTime
                         );
 
@@ -935,6 +916,7 @@ public class RouteSearchServlet extends HttpServlet {
             // 表示
             java.util.Set<String> usedFirstRoute = new java.util.HashSet<>();
             int shown = 0;
+            
 
             for (ResultItem resultItem : results) {
                 if (shown >= RESULT_LIMIT) break;
@@ -1265,12 +1247,16 @@ public class RouteSearchServlet extends HttpServlet {
 
     // 乗換降車候補の停留所
     private static class AlightStopCandidate {
-        final int midStopId;
-        final String midStopName;
+        final int StopId;
+        final String StopName;
+        final double lat;
+        final double lon;
 
-        AlightStopCandidate(int midStopId, String midStopName) {
-            this.midStopId = midStopId;
-            this.midStopName = midStopName;
+        AlightStopCandidate(int StopId, String StopName, double lat, double lon) {
+            this.StopId = StopId;
+            this.StopName = StopName;
+            this.lat = lat;
+            this.lon = lon;
         }
     }
 
@@ -1284,6 +1270,8 @@ public class RouteSearchServlet extends HttpServlet {
             + "  t.trip_id AS trip_id, "
             + "  sa_to.stop_id AS mid_stop_id, "
             + "  st.stop_name AS mid_stop_name, "
+            + "  st.stop_latitude AS mid_stop_lat, "
+            + "  st.stop_longitude AS mid_stop_lon, "
             + "  sa_to.arrival_time AS arr_time "
             + "FROM stop_at sa_from "
             + "JOIN stop_at sa_to ON sa_to.trip_id = sa_from.trip_id "
@@ -1312,7 +1300,9 @@ public class RouteSearchServlet extends HttpServlet {
                 while (rs.next()) {
                     list.add(new AlightStopCandidate(
                         rs.getInt("mid_stop_id"),
-                        rs.getString("mid_stop_name")
+                        rs.getString("mid_stop_name"),
+                        rs.getDouble("mid_stop_lat"),
+                        rs.getDouble("mid_stop_lon")
                     ));
                 }
             }
@@ -1342,11 +1332,15 @@ public class RouteSearchServlet extends HttpServlet {
         final int stopId;
         final String name;
         final int distance;
+        final double lat;
+        final double lon;
 
-        NearbyStop(int stopId, String name, int distance) {
+        NearbyStop(int stopId, String name, int distance, double lat, double lon) {
         	this.stopId = stopId;
             this.name = name;
             this.distance = distance;
+            this.lat = lat;
+            this.lon = lon;
         }
     }
 
@@ -1383,7 +1377,7 @@ public class RouteSearchServlet extends HttpServlet {
 
               int meters = (int)Math.round(distanceMeters(centerstop.lat, centerstop.lon, lat, lon));
               if (meters <= radiusM) {
-                tmp.add(new NearbyStop(sid, name, meters));
+                tmp.add(new NearbyStop(sid, name, meters, lat, lon));
               }
             }
           }
@@ -1393,7 +1387,7 @@ public class RouteSearchServlet extends HttpServlet {
         tmp.sort((a,b) -> Integer.compare(a.distance, b.distance));
 
         if (tmp.isEmpty() || tmp.get(0).stopId != centerStopId) {
-          tmp.add(0, new NearbyStop(centerStopId, centerstop.name, 0));
+          tmp.add(0, new NearbyStop(centerStopId, centerstop.name, 0, centerstop.lat, centerstop.lon));
         }
 
         if (tmp.size() > limit) return new ArrayList<>(tmp.subList(0, limit));
@@ -1429,7 +1423,7 @@ public class RouteSearchServlet extends HttpServlet {
                 double lon = rs.getDouble("stop_longitude");
 
                 int meters = (int)Math.round(distanceMeters(centerLat, centerLon, lat, lon));
-                if (meters <= radiusM) tmp.add(new NearbyStop(sid, name, meters));
+                if (meters <= radiusM) tmp.add(new NearbyStop(sid, name, meters, lat, lon));
             }
         }
     }
@@ -1439,7 +1433,29 @@ public class RouteSearchServlet extends HttpServlet {
     return tmp;
 }
 
-    // --------------------
+    // ポートを事業者ごとにグループ化
+    private java.util.Map<Integer, java.util.List<PortCandidate>> groupPortsByOperator(List<PortCandidate> ports) {
+        java.util.Map<Integer, java.util.List<PortCandidate>> portsByOperator = new java.util.HashMap<>();
+        for (PortCandidate p : ports) {
+            portsByOperator.computeIfAbsent(p.operatorId, k -> new java.util.ArrayList<>()).add(p);
+        }
+        return portsByOperator;
+    }
+
+    // 停留所リスト周辺のポートを収集（重複除去）
+    private List<PortCandidate> collectNearbyPortsFromStops(
+            Connection conn, List<NearbyStop> stops, int radiusM, int portLimit, boolean needBikes, boolean needDocks
+    ) throws SQLException {
+        java.util.Map<Integer, PortCandidate> portById = new java.util.HashMap<>();
+        for (NearbyStop stop : stops) {
+            List<PortCandidate> ports = nearbyPorts(conn, stop.lat, stop.lon, radiusM, portLimit, needBikes, needDocks);
+            for (PortCandidate p : ports) {
+                portById.putIfAbsent(p.portId, p);
+            }
+        }
+        return new ArrayList<>(portById.values());
+    }
+    // -------------------- 基本経路系 --------------------
 
     // (1) 徒歩のみの結果
     private static class WalkOnlyPlan {
@@ -1599,28 +1615,22 @@ public class RouteSearchServlet extends HttpServlet {
     }
 
     // 自転車移動のクラス (出発ポート, 到着ポート, 距離, 分, 出発時間, 到着時間)
-    private static class BikePath {
-        final int operatorId;
+    private static class BikePath{
         final String operatorName;
-        final int fromPortId;
         final String fromPortName;
-        final int toPortId;
         final String toPortName;
         final int distanceM;
         final int rideMinutes;
         final String startTime; // "HH:mm" (解錠後)
         final String endTime;   // "HH:mm" (到着)
 
-        BikePath(int operatorId, String operatorName,
-                int fromPortId, String fromPortName,
-                int toPortId, String toPortName,
+        BikePath(String operatorName,
+                String fromPortName,
+                String toPortName,
                 int distanceM, int rideMinutes,
                 String startTime, String endTime) {
-            this.operatorId = operatorId;
             this.operatorName = operatorName;
-            this.fromPortId = fromPortId;
             this.fromPortName = fromPortName;
-            this.toPortId = toPortId;
             this.toPortName = toPortName;
             this.distanceM = distanceM;
             this.rideMinutes = rideMinutes;
@@ -1698,7 +1708,7 @@ public class RouteSearchServlet extends HttpServlet {
     }
 
 
-    // --------------------
+    // -------------------- 表示系 --------------------
 
     // HTML表示の簡略化
     private void printStep(PrintWriter out, String kind, String main, String meta) {
