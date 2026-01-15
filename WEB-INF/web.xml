@@ -9,10 +9,30 @@
     <servlet-name>RouteSearch</servlet-name>
     <servlet-class>RouteSearchServlet</servlet-class>
   </servlet>
+
+  <servlet>
+    <servlet-name>PortAdmin</servlet-name>
+    <servlet-class>PortAdminServlet</servlet-class>
+  </servlet>
+
+  <servlet>
+    <servlet-name>PortLog</servlet-name>
+    <servlet-class>BikeMoveLogServlet</servlet-class>
+  </servlet>
   
   <servlet-mapping>
     <servlet-name>RouteSearch</servlet-name>
     <url-pattern>/routesearch</url-pattern>
+  </servlet-mapping>
+
+  <servlet-mapping>
+    <servlet-name>PortAdmin</servlet-name>
+    <url-pattern>/portadmin/*</url-pattern>
+  </servlet-mapping>
+
+  <servlet-mapping>
+    <servlet-name>PortLog</servlet-name>
+    <url-pattern>/portlog</url-pattern>
   </servlet-mapping>
   
 </web-app>
