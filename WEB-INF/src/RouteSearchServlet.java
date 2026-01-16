@@ -1074,8 +1074,6 @@ public class RouteSearchServlet extends HttpServlet {
         out.println("</body></html>");
     }
 
-
-
     // 文字エラー対策1
     private String esc(String s) {
         if (s == null) return "";
