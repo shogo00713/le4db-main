@@ -66,15 +66,13 @@ public class PortAdminServlet extends HttpServlet {
 
     private static class PortRow {
         final int portId;
-        final int operatorId;
         final String operatorName;
         final String portName;
         final int bikes;
         final int freeDocks;
 
-        PortRow(int portId, int operatorId, String operatorName, String portName, int bikes, int freeDocks) {
+        PortRow(int portId, String operatorName, String portName, int bikes, int freeDocks) {
             this.portId = portId;
-            this.operatorId = operatorId;
             this.operatorName = operatorName;
             this.portName = portName;
             this.bikes = bikes;
@@ -192,7 +190,6 @@ public class PortAdminServlet extends HttpServlet {
                 while (rs.next()) {
                     rows.add(new PortRow(
                         rs.getInt("port_id"),
-                        rs.getInt("operator_id"),
                         rs.getString("operator_name"),
                         rs.getString("port_name"),
                         rs.getInt("bikes"),
