@@ -15,6 +15,7 @@ import javax.servlet.ServletException;
 import javax.servlet.http.HttpServlet;
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
+import javax.servlet.http.HttpSession;
 
 @SuppressWarnings("serial")
 
@@ -119,6 +120,16 @@ public class PortAdminServlet extends HttpServlet {
     protected void doGet(HttpServletRequest request, HttpServletResponse response)
             throws ServletException, IOException {
 
+        // ===== セッション認証チェック =====
+        HttpSession session = request.getSession(false);
+        if (session == null || session.getAttribute("operatorId") == null) {
+            response.sendRedirect(request.getContextPath() + "/adminlogin");
+            return;
+        }
+
+        Integer sessionOperatorId = (Integer) session.getAttribute("operatorId");
+        String sessionOperatorName = (String) session.getAttribute("operatorName");
+
         response.setContentType("text/html;charset=UTF-8");
         PrintWriter out = response.getWriter();
 
@@ -132,6 +143,14 @@ public class PortAdminServlet extends HttpServlet {
             String s = path.replace("/", "");
             if (s.matches("\\d+")) opId = Integer.valueOf(s);
         }
+
+        // ★★★ セッションユーザが特定の事業者に絞っている場合の検証
+        if (opId != null && !opId.equals(sessionOperatorId)) {
+            // 他の事業者にアクセスしようとしているので、セッションの事業者に強制
+            opId = sessionOperatorId;
+        }
+        // セッション有効な場合は、必ずセッションの事業者を使用
+        opId = sessionOperatorId;
 
         String ctx = request.getContextPath();
         String basePath = ctx + "/portadmin" + (opId != null ? ("/" + opId) : "");
@@ -229,10 +248,12 @@ public class PortAdminServlet extends HttpServlet {
         out.println("<div class=\"header\">");
         out.println("<div class=\"header-left\">");
         out.println("<h1 class=\"title\">シェアサイクル管理（ポート一覧）</h1>");
+        out.println("<p class=\"muted\">事業者: " + esc(sessionOperatorName) + "</p>");
         out.println("<p class=\"muted\">各ポートの自転車台数 (bikes) と空き (free_docks)</p>");
         out.println("</div>");
 
         out.println("<div class=\"header-actions\">");
+        out.println("<a class=\"btn2\" href=\"" + ctx + "/adminlogout\">ログアウト</a>");
         out.println("<a class=\"btn2\"  href=\"" + ctx + "/routesearch\">ルート検索に戻る</a>");
         out.println("<a class=\"btn2\" href=\"" + ctx + "/portlog\">配車ログ</a>");
         out.println("</div>");
@@ -242,35 +263,10 @@ public class PortAdminServlet extends HttpServlet {
 
 
 
-        // operator 切替ボタン（q/sort を維持）
+        // operator 切替は認証済みユーザーは必ず自分の事業者固定となるため不要
+        // （以下のコードは削除）
+
         out.println("<div class=\"row\">");
-
-        // 全事業者
-        out.println("<a class=\"btn2\" href=\"" + ctx + "/portadmin/?q=" + URLEncoder.encode(q, "UTF-8")
-                + "&sort=" + URLEncoder.encode(sort, "UTF-8") + "\">全事業者</a>");
-
-        String opSql = "SELECT DISTINCT operator_id, operator_name FROM port_status ORDER BY operator_name";
-        try (Connection conn = openConn();
-            PreparedStatement ps = conn.prepareStatement(opSql);
-            ResultSet rs = ps.executeQuery()) {
-
-            while (rs.next()) {
-                int oid = rs.getInt("operator_id");
-                String on = rs.getString("operator_name");
-
-                String href = ctx + "/portadmin/" + oid
-                        + "?q=" + URLEncoder.encode(q, "UTF-8")
-                        + "&sort=" + URLEncoder.encode(sort, "UTF-8");
-
-                // 選択中だけちょい強調（btn でもOK）
-                String cls = (opId != null && opId == oid) ? "btn" : "btn2";
-                out.println("<a class=\"" + cls + "\" href=\"" + href + "\">" + esc(on) + "</a>");
-            }
-        } catch (Exception e) {
-            out.println("<span class='mini'>operator一覧の取得に失敗</span>");
-        }
-
-        out.println("</div>");
 
         if (!msg.isEmpty()) {
             out.println("<div class=\"alert\">" + esc(msg) + "</div>");
@@ -350,16 +346,20 @@ public class PortAdminServlet extends HttpServlet {
     protected void doPost(HttpServletRequest request, HttpServletResponse response)
             throws ServletException, IOException {
 
+        // ===== セッション認証チェック =====
+        HttpSession session = request.getSession(false);
+        if (session == null || session.getAttribute("operatorId") == null) {
+            response.sendRedirect(request.getContextPath() + "/adminlogin");
+            return;
+        }
+
+        Integer sessionOperatorId = (Integer) session.getAttribute("operatorId");
+
         request.setCharacterEncoding("UTF-8");
         String action = safe(request.getParameter("action"), "update");
 
         // ★ doPost側でも opId / basePath を作る
-        Integer opId = null;
-        String path = request.getPathInfo();
-        if (path != null && !path.equals("/")) {
-            String s = path.replace("/", "");
-            if (s.matches("\\d+")) opId = Integer.valueOf(s);
-        }
+        Integer opId = sessionOperatorId;  // セッション認証済みなので、常にセッションの operatorId を使用
 
         String ctx = request.getContextPath();
         String basePath = ctx + "/portadmin" + (opId != null ? ("/" + opId) : "");

@@ -11,6 +11,16 @@
   </servlet>
 
   <servlet>
+    <servlet-name>AdminLogin</servlet-name>
+    <servlet-class>AdminLoginServlet</servlet-class>
+  </servlet>
+
+  <servlet>
+    <servlet-name>AdminLogout</servlet-name>
+    <servlet-class>AdminLogoutServlet</servlet-class>
+  </servlet>
+
+  <servlet>
     <servlet-name>PortAdmin</servlet-name>
     <servlet-class>PortAdminServlet</servlet-class>
   </servlet>
@@ -23,6 +33,16 @@
   <servlet-mapping>
     <servlet-name>RouteSearch</servlet-name>
     <url-pattern>/routesearch</url-pattern>
+  </servlet-mapping>
+
+  <servlet-mapping>
+    <servlet-name>AdminLogin</servlet-name>
+    <url-pattern>/adminlogin</url-pattern>
+  </servlet-mapping>
+
+  <servlet-mapping>
+    <servlet-name>AdminLogout</servlet-name>
+    <url-pattern>/adminlogout</url-pattern>
   </servlet-mapping>
 
   <servlet-mapping>

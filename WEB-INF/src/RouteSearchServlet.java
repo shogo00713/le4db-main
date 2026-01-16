@@ -1855,8 +1855,6 @@ public class RouteSearchServlet extends HttpServlet {
 
     // 乗換あり の結果表示    
     private void printTransferRow(PrintWriter out, TransferPath tp, String detailUrl) {
-
-        // --- 1行目: いままで通りのサマリ行（表の行） ---
         StringBuilder sb = new StringBuilder();
         if (!isZeroWalk(tp.walk0)) sb.append("徒歩 → ");
         sb.append(tp.leg1.routeName);
@@ -1891,6 +1889,7 @@ public class RouteSearchServlet extends HttpServlet {
         out.println("<td>" + esc(tp.leg1.tripName + " → " + tp.bike.fromPortName + "→" + tp.bike.toPortName) + "</td>");
         out.println("<td>" + esc(hhmm(tp.startTime)) + " → " + esc(hhmm(tp.endTime)) + "</td>");
         out.println("<td>" + tp.totalMinutes + "分</td>");
+        out.println("<td><a class=\"detailbtn\" href=\"" + esc(detailUrl) + "\">詳細</a></td>");
         out.println("</tr>");
 
 
@@ -1913,6 +1912,5 @@ public class RouteSearchServlet extends HttpServlet {
         out.println("</tr>");
 
     }
-
 
 }
