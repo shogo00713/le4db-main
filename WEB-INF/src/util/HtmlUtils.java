@@ -39,4 +39,13 @@ public class HtmlUtils {
         String sel = value.equals(selected) ? " selected" : "";
         return "<option value=\"" + esc(value) + "\"" + sel + ">" + esc(label) + "</option>";
     }
+
+    /**
+     * nullを空文字に変換
+     * @param s 入力文字列
+     * @return sがnullの場合は空文字、それ以外はs
+     */ 
+    public static String nvl(String s){
+        return s==null ? "" : s;
+    }
 }

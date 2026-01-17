@@ -1,5 +1,6 @@
 import static util.HtmlUtils.esc;
 import static util.HtmlUtils.option;
+import static util.HtmlUtils.nvl;
 import static util.TimeUtils.addMinutes;
 import static util.TimeUtils.diffMinutes;
 import static util.TimeUtils.now;
@@ -84,13 +85,13 @@ public class RouteSearchServlet extends HttpServlet {
         PrintWriter out = response.getWriter();
 
         // フォームでやり取りするパラメータを変数として簡単に扱えるように
-        String originstop    = routeRequest.fromStop;
-        String deststop      = routeRequest.toStop;
+        String originstop    = routeRequest.originStop;
+        String deststop      = routeRequest.destStop;
         String day           = routeRequest.day;
         String timemode      = routeRequest.timeMode;
         String timevalue     = routeRequest.timeValue;
-        Integer originstopid = routeRequest.fromId;
-        Integer deststopid   = routeRequest.toId;
+        Integer originstopid = routeRequest.originStopId;
+        Integer deststopid   = routeRequest.destStopId;
         String baseTime      = routeRequest.baseTime;
 
         // HTMLの設定部分
@@ -100,7 +101,7 @@ public class RouteSearchServlet extends HttpServlet {
         out.println("<meta charset=\"UTF-8\">");
         out.println("<meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">");
         out.println("<title>RouteSearch</title>");
-        out.println("<link rel=\"stylesheet\" href=\"" + request.getContextPath() + "/static/app.css\"/>"); // CSSはapp.css参照        out.println("</head>");
+        out.println("<link rel=\"stylesheet\" href=\"" + request.getContextPath() + "/static/app.css\"/>"); // CSSはapp.css参照
         out.println("</head>");
 
         // HTML本文はじまり
@@ -133,15 +134,16 @@ public class RouteSearchServlet extends HttpServlet {
         out.println("<form class=\"form\" action=\"" + request.getContextPath() + "/routesearch\" method=\"GET\">");
 
 
+
         // (1) 出発地 / 目的地 => originstop / deststop
         out.println("<div class=\"field\">");
         out.println("<label class=\"label\" for=\"from_stop\">出発</label>");
-        out.println("<input class=\"input\" id=\"from_stop\" type=\"text\" name=\"from_stop\" placeholder=\"例 : 京都駅\" value=\"" + esc(originstop) + "\"/>");
+        out.println("<input class=\"input\" id=\"from_stop\" type=\"text\" name=\"originstop\" placeholder=\"例 : 京都駅\" value=\"" + esc(originstop) + "\"/>");
         out.println("</div>");
 
         out.println("<div class=\"field\">");
         out.println("<label class=\"label\" for=\"to_stop\">到着</label>");
-        out.println("<input class=\"input\" id=\"to_stop\" type=\"text\" name=\"to_stop\" placeholder=\"例 : 三条駅\" value=\"" + esc(deststop) + "\"/>");
+        out.println("<input class=\"input\" id=\"to_stop\" type=\"text\" name=\"deststop\" placeholder=\"例 : 三条駅\" value=\"" + esc(deststop) + "\"/>");
         out.println("</div>");
 
         // (2) 運行日 => day
@@ -162,10 +164,11 @@ public class RouteSearchServlet extends HttpServlet {
         out.println("</select>");
         out.println("</div>");
 
-        // (4) 時刻選択 time_val
-        out.println("<div class=\"field\">");
+        // (4) 時刻選択 time_val（spec のときだけ表示したい）
+        boolean showTimeVal = "spec".equals(timemode);
+        out.println("<div class=\"field\" id=\"timeValField\"" + (showTimeVal ? "" : " style=\\\"display:none;\\\"") + ">");
         out.println("<label class=\"label\" for=\"time_val\">指定時刻（時刻条件=指定時刻のとき）</label>");
-        out.println("<input class=\"input\" id=\"time_val\" type=\"time\" name=\"time_val\" value=\"" + esc(timevalue) + "\"/>");
+        out.println("<input class=\"input\" id=\"time_val\" type=\"time\" name=\"time_val\" value=\"" + esc(timevalue) + "\"" + (showTimeVal ? "" : " disabled") + "/>");
         out.println("</div>");
 
         // 検索ボタン
@@ -226,15 +229,15 @@ public class RouteSearchServlet extends HttpServlet {
                 out.println("<form class=\"form\" action=\"routesearch\" method=\"GET\">");
 
                 // 元の入力値も引き継ぐ（これがないと条件が消える）
-                out.println("<input type=\"hidden\" name=\"from_stop\" value=\"" + esc(originstop) + "\"/>");
-                out.println("<input type=\"hidden\" name=\"to_stop\" value=\"" + esc(deststop) + "\"/>");
+                out.println("<input type=\"hidden\" name=\"originstop\" value=\"" + esc(originstop) + "\"/>");
+                out.println("<input type=\"hidden\" name=\"deststop\" value=\"" + esc(deststop) + "\"/>");
                 out.println("<input type=\"hidden\" name=\"day\" value=\"" + esc(day) + "\"/>");
                 out.println("<input type=\"hidden\" name=\"time_mode\" value=\"" + esc(timemode) + "\"/>");
                 out.println("<input type=\"hidden\" name=\"time_val\" value=\"" + esc(timevalue) + "\"/>");
 
                 // 出発地
                 if (originstopid != null) { // 決まっていたなら
-                    out.println("<input type=\"hidden\" name=\"from_id\" value=\"" + originstopid + "\"/>");
+                    out.println("<input type=\"hidden\" name=\"originstopid\" value=\"" + originstopid + "\"/>");
                     Stop fixedoriginStop = getStopByStopId(conn, originstopid);
                     if (fixedoriginStop != null) {
                         out.println("<div class=\"field\">");
@@ -244,8 +247,8 @@ public class RouteSearchServlet extends HttpServlet {
                     }
                 } else { // 決まっていないなら
                     out.println("<div class=\"field\">");
-                    out.println("<label class=\"label\" for=\"from_id\">出発 (候補)</label>");
-                    out.println("<select class=\"select\" id=\"from_id\" name=\"from_id\">");
+                    out.println("<label class=\"label\" for=\"originstopid\">出発 (候補)</label>");
+                    out.println("<select class=\"select\" id=\"originstopid\" name=\"originstopid\">");
                     for (StopSearchCandidate c : originCandidates) {
                         out.println("<option value=\"" + c.stopId + "\">" + esc(c.stopName) + " (" + esc(c.stopType) + ")</option>");}
                     out.println("</select>");
@@ -254,7 +257,7 @@ public class RouteSearchServlet extends HttpServlet {
 
                 // 到着地
                 if (deststopid != null) { // 決まっていたなら
-                    out.println("<input type=\"hidden\" name=\"to_id\" value=\"" + deststopid + "\"/>");
+                    out.println("<input type=\"hidden\" name=\"deststopid\" value=\"" + deststopid + "\"/>");
 
                     Stop fixedDestStop = getStopByStopId(conn, deststopid);
                     if (fixedDestStop != null) {
@@ -265,8 +268,8 @@ public class RouteSearchServlet extends HttpServlet {
                     }
                 } else { // 決まっていないなら
                     out.println("<div class=\"field\">");
-                    out.println("<label class=\"label\" for=\"to_id\">到着 (候補)</label>");
-                    out.println("<select class=\"select\" id=\"to_id\" name=\"to_id\">");
+                    out.println("<label class=\"label\" for=\"deststopid\">到着 (候補)</label>");
+                    out.println("<select class=\"select\" id=\"deststopid\" name=\"deststopid\">");
                     for (StopSearchCandidate c : destCandidates) {
                         out.println("<option value=\"" + c.stopId + "\">" + esc(c.stopName) + " (" + esc(c.stopType) + ")</option>");}
                     out.println("</select>");
@@ -281,6 +284,26 @@ public class RouteSearchServlet extends HttpServlet {
                 return;
             }
 
+
+            // ---- JavaScriptで時刻指定欄の表示/非表示を制御 ----
+            out.println("<script>");
+            out.println("(() => {");
+            out.println("  const tm = document.getElementById('time_mode');");
+            out.println("  const field = document.getElementById('timeValField');");
+            out.println("  const tv = document.getElementById('time_val');");
+            out.println("  function sync(){");
+            out.println("    const show = (tm.value === 'spec');");
+            out.println("    field.style.display = show ? '' : 'none';");
+            out.println("    tv.disabled = !show;");
+            out.println("    if(!show) tv.value = '';");
+            out.println("  }");
+            out.println("  tm.addEventListener('change', sync);");
+            out.println("  sync();");
+            out.println("})();");
+            out.println("</script>");
+            // -----------------------------------------------
+
+
         // -----------------------------------------------------------------------------------------------
 
             // 経路探索 (最重要)
@@ -289,8 +312,9 @@ public class RouteSearchServlet extends HttpServlet {
 
             // 出発地/到着地 を確定 -> その検索に入る
             Stop originStop = getStopByStopId(conn, originstopid);
-            Stop destStop = getStopByStopId(conn, deststopid);
+            Stop destStop   = getStopByStopId(conn, deststopid);
 
+            // セッションに最後に使った停留所名を保存
             session.setAttribute("lastOriginStopName", originStop != null ? originStop.name : "");
             session.setAttribute("lastOriginStopType", originStop != null ? originStop.type : "");
             session.setAttribute("lastDestStopName", destStop != null ? destStop.name : "");
@@ -298,13 +322,11 @@ public class RouteSearchServlet extends HttpServlet {
 
             // 出発地 / 目的地 の近くの停留所を探索
             List<NearbyStop> stopsNearOrigin = nearbyStopsById(conn, originstopid, FROM_RADIUS_M, NEAR_LIMIT);
-            List<NearbyStop> stopsNearDest = nearbyStopsById(conn, deststopid, TO_RADIUS_M, NEAR_LIMIT);
+            List<NearbyStop> stopsNearDest   = nearbyStopsById(conn, deststopid, TO_RADIUS_M, NEAR_LIMIT);
 
             // 出発地 / 目的地 の近くのポートを探索
-            List<PortCandidate> portsNearOrigin = nearbyPorts(conn, originStop.lat, originStop.lon, FROM_RADIUS_M,
-                    PORT_LIMIT, true, false); // 借りれる自転車がある
-            List<PortCandidate> portsNearDest = nearbyPorts(conn, destStop.lat, destStop.lon, TO_RADIUS_M, PORT_LIMIT,
-                    false, true); // 返せるポートが空いている
+            List<PortCandidate> portsNearOrigin = nearbyPorts(conn, originStop.lat, originStop.lon, FROM_RADIUS_M, PORT_LIMIT, true, false); // 借りれる自転車がある
+            List<PortCandidate> portsNearDest = nearbyPorts(conn, destStop.lat, destStop.lon, TO_RADIUS_M, PORT_LIMIT, false, true); // 返せるポートが空いている
 
             // 探索する候補数の上限
             final int TRANSFER_CANDIDATE_LIMIT = RESULT_LIMIT * 30;
@@ -317,14 +339,13 @@ public class RouteSearchServlet extends HttpServlet {
 
             // ---- part 1 (徒歩のみ) ----
 
-            double dist = distanceMeters(originStop.lat, originStop.lon, destStop.lat, destStop.lon);
-            int walkOnlyMin = walkingMinutes(dist, METER_CORRECTION, METER_PER_MINUTE);
-            String walkOnlyEnd = addMinutes(baseTime, walkOnlyMin);
+            int dist           = distanceMeters(originStop.lat, originStop.lon, destStop.lat, destStop.lon);
+            int walkMin        = walkingMinutes(dist, METER_CORRECTION, METER_PER_MINUTE);
+            String arrivalTime = addMinutes(baseTime, walkMin);
 
-            results.add(new ResultItem(
-                    0, walkOnlyEnd, walkOnlyMin, "",
-                    new WalkOnlyPlan(originStop.name, destStop.name, (int) Math.round(dist), walkOnlyMin, baseTime,
-                            walkOnlyEnd)));
+            WalkOnlyPlan walk = new WalkOnlyPlan(originStop.name, destStop.name, dist, walkMin, baseTime, arrivalTime);
+
+            results.add(new ResultItem(0, arrivalTime, walkMin, "", walk));
 
             // -------------------------
 
@@ -337,45 +358,32 @@ public class RouteSearchServlet extends HttpServlet {
             // 出発地近くのポートに対して
             for (PortCandidate fromPort : portsNearOrigin) {
 
-                int walkToStartPortMin = walkingMinutes(fromPort.distance, METER_CORRECTION, METER_PER_MINUTE);
-                int walkToStartPortDistance = distanceMeters(originStop.lat, originStop.lon, fromPort.lat,
-                        fromPort.lon);
-                WalkPath walkToStartPort = new WalkPath(originStop.name, fromPort.portName, walkToStartPortDistance,
-                        walkToStartPortMin);
+                int walkToStartPortMin      = walkingMinutes(fromPort.distance, METER_CORRECTION, METER_PER_MINUTE);
+                int walkToStartPortDistance = distanceMeters(originStop.lat, originStop.lon, fromPort.lat, fromPort.lon);
+                WalkPath walkToStartPort    = new WalkPath(originStop.name, fromPort.portName, walkToStartPortDistance, walkToStartPortMin);
+                String bikeStartTime        = addMinutes(baseTime, walkToStartPortMin + BIKE_UNLOCK_MIN);
 
-                String bikeStartTime = addMinutes(addMinutes(baseTime, walkToStartPortMin), BIKE_UNLOCK_MIN);
                 // 目的地近くのポートに対して
                 for (PortCandidate toPort : portsNearDest) {
 
-                    // 適切な自転車かチェック
                     int rideDistance = distanceMeters(fromPort.lat, fromPort.lon, toPort.lat, toPort.lon);
-                    if (rideDistance > BIKE_MAX_RIDE_M)
-                        continue;
-                    if (fromPort.operatorId != toPort.operatorId)
-                        continue;
-                    if (fromPort.portId == toPort.portId)
-                        continue;
+                    if (rideDistance > BIKE_MAX_RIDE_M)           continue;
+                    if (fromPort.operatorId != toPort.operatorId) continue;
+                    if (fromPort.portId == toPort.portId)         continue;
 
-                    int rideMin = ridingMinutes(rideDistance, BIKE_METER_CORRECTION, BIKE_METER_PER_MINUTE);
-                    String bikeEndTime = addMinutes(addMinutes(bikeStartTime, rideMin), BIKE_LOCK_MIN);
+                    String operatorContact = normalizeContact(fromPort.operatorContact, fromPort.operatorName);
+                    int rideMin        = ridingMinutes(rideDistance, BIKE_METER_CORRECTION, BIKE_METER_PER_MINUTE);
+                    String bikeEndTime = addMinutes(bikeStartTime, rideMin + BIKE_LOCK_MIN);
+                    BikePath bike = new BikePath(fromPort.operatorId, fromPort.operatorName, operatorContact, fromPort.portId, fromPort.portName, toPort.portId, toPort.portName, rideDistance, rideMin, bikeStartTime, bikeEndTime);
 
                     int walkToDestinationDistance = distanceMeters(toPort.lat, toPort.lon, destStop.lat, destStop.lon);
-                    int walkToDestinationMin = walkingMinutes(walkToDestinationDistance, METER_CORRECTION,
-                            METER_PER_MINUTE);
-                    WalkPath walkToDestination = new WalkPath(toPort.portName, destStop.name, walkToDestinationDistance,
-                            walkToDestinationMin);
+                    int walkToDestinationMin = walkingMinutes(walkToDestinationDistance, METER_CORRECTION, METER_PER_MINUTE);
+                    WalkPath walkToDestination = new WalkPath(toPort.portName, destStop.name, walkToDestinationDistance, walkToDestinationMin);
+
                     String endTime = addMinutes(bikeEndTime, walkToDestinationMin);
-                    int totalMin = diffMinutes(baseTime, endTime);
+                    int totalMin   = diffMinutes(baseTime, endTime);
 
-                    // 自転車移動の情報
-                        String operatorContact = normalizeContact(fromPort.operatorContact, fromPort.operatorName);
-                        BikePath bike = new BikePath(fromPort.operatorId, fromPort.operatorName, operatorContact,
-                            fromPort.portId, fromPort.portName, toPort.portId, toPort.portName,
-                            rideDistance, rideMin, bikeStartTime, bikeEndTime);
-
-                    // 移動全体の情報
-                    BikeDirectPlan plan = new BikeDirectPlan(walkToStartPort, bike, walkToDestination, totalMin,
-                            baseTime, endTime);
+                    BikeDirectPlan plan = new BikeDirectPlan(walkToStartPort, bike, walkToDestination, totalMin, baseTime, endTime);
                     bikeDirectCandidates.add(plan);
                 }
             }
@@ -883,51 +891,44 @@ public class RouteSearchServlet extends HttpServlet {
         out.println("</html>");
     }
 
+    // -----------------------------------------------------------------------------------------------
+
+
+    // リクエスト解析
     private RouteRequest parseRequest(HttpServletRequest request) {
         RouteRequest rr = new RouteRequest();
 
-        rr.fromStop = request.getParameter("from_stop");
-        rr.toStop = request.getParameter("to_stop");
-        rr.day = request.getParameter("day");
-        rr.timeMode = request.getParameter("time_mode");
-        rr.timeValue = request.getParameter("time_val");
-        String fromIdStr = request.getParameter("from_id");
-        String toIdStr = request.getParameter("to_id");
+        rr.originStop          = nvl(request.getParameter("originstop"));
+        rr.destStop            = nvl(request.getParameter("deststop"));
+        rr.day                 = nvl(request.getParameter("day"));
+        rr.timeMode            = nvl(request.getParameter("time_mode"));
+        rr.timeValue           = nvl(request.getParameter("time_val"));
+        String originStopIdStr = nvl(request.getParameter("originstopid"));
+        String destStopIdStr   = nvl(request.getParameter("deststopid"));
 
-        // NULL => 空文字列 に変換 (エラー対策)
-        if (rr.fromStop == null)
-            rr.fromStop = "";
-        if (rr.toStop == null)
-            rr.toStop = "";
-        if (rr.day == null || rr.day.isEmpty())
-            rr.day = "平日";
-        if (rr.timeMode == null)
-            rr.timeMode = "now";
-        if (rr.timeValue == null)
-            rr.timeValue = "";
+        // デフォルト値設定
+        if (rr.day == null || rr.day.isEmpty())           rr.day      = "平日";
+        if (rr.timeMode == null || rr.timeMode.isEmpty()) rr.timeMode = "now";
 
         // 文字列 -> 数値
-        if (fromIdStr != null && !fromIdStr.trim().isEmpty()) {
+        if (originStopIdStr != null && !originStopIdStr.trim().isEmpty()) {
             try {
-                rr.fromId = Integer.valueOf(fromIdStr);
+                rr.originStopId = Integer.valueOf(originStopIdStr);
             } catch (NumberFormatException e) {
-                rr.fromId = null;
+                rr.originStopId = null;
             }
         }
-        if (toIdStr != null && !toIdStr.trim().isEmpty()) {
+        if (destStopIdStr != null && !destStopIdStr.trim().isEmpty()) {
             try {
-                rr.toId = Integer.valueOf(toIdStr);
+                rr.destStopId = Integer.valueOf(destStopIdStr);
             } catch (NumberFormatException e) {
-                rr.toId = null;
+                rr.destStopId = null;
             }
         }
 
-        // 入力バリデーション
-        if (rr.fromStop.isEmpty() || rr.toStop.isEmpty()) {
-            rr.errorMessage = "出発と到着を入力して検索してください";
-        } else if ("spec".equals(rr.timeMode) && rr.timeValue.isEmpty()) {
-            rr.errorMessage = "指定時刻を入力してください";
-        }
+        // 入力がおかしかったら対応するえらーメッセージを送る
+        if      (rr.originStop.isEmpty() || rr.destStop.isEmpty())     rr.errorMessage = "出発と到着を入力して検索してください";
+        else if ("spec".equals(rr.timeMode) && rr.timeValue.isEmpty()) rr.errorMessage = "指定時刻を入力してください";
 
         // 時間を basetime として統合
         if ("spec".equals(rr.timeMode) && !rr.timeValue.isEmpty()) {
@@ -948,7 +949,6 @@ public class RouteSearchServlet extends HttpServlet {
     public void destroy() {
     }
 
-    // -----------------------------------------------------------------------------------------------
 
     // --------------------- 便利関数系 -------------------
 
@@ -1240,15 +1240,16 @@ public class RouteSearchServlet extends HttpServlet {
             out.println("</div>");
             out.println("<div class='reservation-actions'>");
             out.println("<button class='btn-reserve' id='reserveBtn' onclick='reserveBike(" + bikeOperatorId + ")'>予約する</button>");
-            out.println("<button class='btn-action hidden' id='startBtn' onclick='startBikeUsage()'>利用開始</button>");
-            out.println("<button class='btn-action hidden' id='returnBtn' onclick='returnBike()'>返却</button>");
-            out.println("<span class='cancel-wrap'>");
-            out.println("<button class='btn-cancel hidden' id='cancelBtn' onclick='cancelReservation()'>キャンセル</button>");
-            out.println("<span id='reserveTimer' class='timer-pill reserve hidden'></span>");
-            out.println("<span id='useTimer' class='timer-pill use hidden'></span>");
-            out.println("</span>");
-            out.println("<div class='reservation-note'>※ 予約は30分以内に利用開始してください（30分を過ぎると無効になります）。</div>");
-            out.println("<div class='reservation-status' id='statusMsg'></div>");
+            out.println("<button class='btn-action' id='startBtn' style='display:none;' onclick='startBikeUsage()'>利用開始</button>");
+            out.println("<button class='btn-action' id='returnBtn' style='display:none;' onclick='returnBikeUsage()'>返却</button>");
+            out.println("<div class='cancel-area'>");
+            out.println("<button class='btn-cancel' id='cancelBtn' style='display:none;' onclick='cancelBikeReservation()'>キャンセル</button>");
+            out.println("<span id='timerPill' class='timer-pill' style='display:none;'></span>");
+            out.println("</div>");
+            out.println("<div id=\"statusMsg\" class=\"reservation-status is-success\">");
+            out.println("<span class=\"status-icon\">✓</span>");
+            out.println("<span class=\"status-text\">自転車を返却しました。ご利用ありがとうございました。</span>");
+            out.println("</div>");
             out.println("</div>");
 
             out.println("<script>");
@@ -1262,10 +1263,10 @@ public class RouteSearchServlet extends HttpServlet {
             out.println("var useStartAt = null;");
             out.println("");
             out.println("function fmtMMSS(total){var m=Math.floor(total/60),s=total%60;return (m<10?'0'+m:m)+':'+(s<10?'0'+s:s);} ");
-            out.println("function startReserveCountdown(seconds){ clearReserveCountdown(); var el=document.getElementById('reserveTimer'); reserveExpiryAt = Date.now()+seconds*1000; el.style.display='inline-block'; reserveTimerId = setInterval(function(){ var remain=Math.max(0, Math.floor((reserveExpiryAt-Date.now())/1000)); el.textContent='予約残り '+fmtMMSS(remain); if(remain<=0){ clearReserveCountdown(); reservationState='not_reserved'; currentReservationId=null; updateButtonStates(); document.getElementById('statusMsg').textContent='予約の有効期限が切れました。再度予約してください。'; } }, 1000); } ");
-            out.println("function clearReserveCountdown(){ if(reserveTimerId){ clearInterval(reserveTimerId); reserveTimerId=null;} var el=document.getElementById('reserveTimer'); if(el){ el.style.display='none'; el.textContent=''; } } ");
-            out.println("function startUseTimer(){ clearUseTimer(); var el=document.getElementById('useTimer'); useStartAt=Date.now(); el.style.display='inline-block'; useTimerId=setInterval(function(){ var sec=Math.floor((Date.now()-useStartAt)/1000); el.textContent='利用時間 '+fmtMMSS(sec); }, 1000);} ");
-            out.println("function clearUseTimer(){ if(useTimerId){ clearInterval(useTimerId); useTimerId=null;} var el=document.getElementById('useTimer'); if(el){ el.style.display='none'; el.textContent=''; } } ");
+            out.println("function startReserveCountdown(seconds){ clearReserveCountdown(); var el=document.getElementById('timerPill'); el.className = 'timer-pill reserve';reserveExpiryAt = Date.now()+seconds*1000; el.style.display='inline-block'; reserveTimerId = setInterval(function(){ var remain=Math.max(0, Math.floor((reserveExpiryAt-Date.now())/1000)); el.textContent='予約残り '+fmtMMSS(remain); if(remain<=0){ clearReserveCountdown(); reservationState='not_reserved'; currentReservationId=null; updateButtonStates(); document.getElementById('statusMsg').textContent='予約の有効期限が切れました。再度予約してください。'; } }, 1000); } ");
+            out.println("function clearReserveCountdown(){ if(reserveTimerId){ clearInterval(reserveTimerId); reserveTimerId=null;} var el=document.getElementById('timerPill'); if(el){ el.style.display='none'; el.textContent='timer-pill'; } } ");
+            out.println("function startUseTimer(){ clearUseTimer(); var el=document.getElementById('timerPill');el.className = 'timer-pill use';useStartAt=Date.now(); el.style.display='inline-block'; useTimerId=setInterval(function(){ var sec=Math.floor((Date.now()-useStartAt)/1000); el.textContent='利用時間 '+fmtMMSS(sec); }, 1000);} ");
+            out.println("function clearUseTimer(){ if(useTimerId){ clearInterval(useTimerId); useTimerId=null;} var el=document.getElementById('timerPill'); if(el){ el.style.display='none'; el.textContent='timer-pill'; } } ");
             out.println("");
             out.println("function reserveBike(operatorId) {");
             out.println("  var xhr = new XMLHttpRequest();");
@@ -1386,6 +1387,8 @@ public class RouteSearchServlet extends HttpServlet {
             out.println("    cancelBtn.style.display = 'none';");
             out.println("  }");
             out.println("}");
+            out.println("function returnBikeUsage() { returnBike(); }");
+            out.println("function cancelBikeReservation() { cancelReservation(); }");
             out.println("</script>");
         }
 
@@ -1406,13 +1409,13 @@ public class RouteSearchServlet extends HttpServlet {
 
     // リクエスト入力を束ねるDTO
     private static class RouteRequest {
-        String fromStop;
-        String toStop;
+        String originStop;
+        String destStop;
         String day;
         String timeMode;
         String timeValue;
-        Integer fromId;
-        Integer toId;
+        Integer originStopId;
+        Integer destStopId;
         String baseTime;
         String errorMessage;
 

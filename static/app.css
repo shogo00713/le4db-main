@@ -109,9 +109,9 @@ body{margin:0;font-family:'Segoe UI',Roboto,'Noto Sans JP',Meiryo,sans-serif;-we
 .page-route-detail .summary-label{font-size:12px;color:var(--muted);letter-spacing:.05em;text-transform:uppercase;}
 .page-route-detail .summary-value{font-size:17px;font-weight:700;letter-spacing:-.01em;}
 .page-route-detail .summary-sub{margin-top:4px;color:var(--muted);font-size:13px;}
-.back-btn{display:inline-block;margin-bottom:18px;padding:10px 22px;background:linear-gradient(90deg, var(--primary), var(--primary2));color:#fff;border-radius:999px;font-weight:700;text-decoration:none;box-shadow:0 4px 12px rgba(59,130,246,.10);transition:filter .12s, box-shadow .12s;}
-.back-btn:hover{filter:saturate(1.08);box-shadow:0 8px 24px rgba(59,130,246,.18);}
-.back-btn:active{filter:brightness(.98);}
+.page-route-detail .back-btn{display:inline-block;margin-bottom:18px;padding:10px 22px;background:linear-gradient(90deg, var(--primary), var(--primary2));color:#fff;border-radius:999px;font-weight:700;text-decoration:none;box-shadow:0 4px 12px rgba(59,130,246,.10);transition:filter .12s, box-shadow .12s;}
+.page-route-detail .back-btn:hover{filter:saturate(1.08);box-shadow:0 8px 24px rgba(59,130,246,.18);}
+.page-route-detail .back-btn:active{filter:brightness(.98);}
 .page-route-detail .steps{display:flex;flex-direction:column;gap:14px;margin-top:14px;}
 .page-route-detail .step{display:grid;grid-template-columns: 88px 1fr;grid-template-rows: auto auto;gap:10px 14px;padding:12px 14px;align-items:start;border:1px solid var(--border);border-radius:16px;background:#fff;box-shadow:0 2px 8px rgba(60,80,120,.08);}
 .page-route-detail .step .kind{font-weight:800;font-size:13px;letter-spacing:.04em;align-self:center;padding:7px 10px;border-radius:999px;background:rgba(59,130,246,.10);color:var(--primary2);text-align:center;}
@@ -138,11 +138,25 @@ body{margin:0;font-family:'Segoe UI',Roboto,'Noto Sans JP',Meiryo,sans-serif;-we
 .page-route-detail .btn-cancel:hover{background:#fef2f2;transform:translateY(-1px);}
 .page-route-detail .reservation-status{font-size:13px;color:#059669;font-weight:600;margin-top:10px;}
 .page-route-detail .cancel-wrap{display:inline-flex;align-items:center;gap:12px;flex-wrap:nowrap;}
-.page-route-detail .timer-pill{display:inline-flex;align-items:baseline;gap:10px;padding:10px 14px;border-radius:999px;border:1px solid rgba(0,0,0,.08);background:#fff;box-shadow:0 2px 10px rgba(0,0,0,.06);}
-.page-route-detail .timer-pill.reserve{background:rgba(59,130,246,.10);border-color:rgba(59,130,246,.25);color:#1d4ed8;}
-.page-route-detail .timer-pill.use{background:rgba(16,185,129,.12);border-color:rgba(16,185,129,.25);color:#065f46;}
 .page-route-detail .timer-label{font-size:12px;opacity:.85;font-weight:700;}
 .page-route-detail .timer-num{font-size:16px;font-weight:800;letter-spacing:.06em;font-variant-numeric:tabular-nums;font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,'Liberation Mono','Courier New',monospace;}
+.page-route-detail .reservation-actions{display:flex;flex-wrap:wrap;gap:10px;align-items:center;}
+.page-route-detail .cancel-area{display:flex;align-items:center;gap:8px;margin-left:auto;}
+.page-route-detail .reservation-status{display:inline-flex;align-items:center;gap:10px;margin:0;padding:10px 14px;border-radius:999px;font-size:14px;font-weight:800;letter-spacing:-.01em;line-height:1.2;box-shadow:0 2px 10px rgba(0,0,0,.06);border:1px solid rgba(0,0,0,.08);background:#fff;color:#111827;}
+.page-route-detail .reservation-status .status-icon{width:22px;height:22px;border-radius:999px;display:inline-flex;align-items:center;justify-content:center;font-size:13px;font-weight:900;}
+.page-route-detail .reservation-status.is-success{background:rgba(16,185,129,.12);border-color:rgba(16,185,129,.30);color:#065f46;}
+.page-route-detail .reservation-status.is-success .status-icon{background:rgba(16,185,129,.20);color:#065f46;}
+.page-route-detail .reservation-status.is-warn{background:#fffbeb;border-color:#fcd34d;color:#92400e;}
+.page-route-detail .reservation-status.is-danger{background:#fef2f2;border-color:#fecaca;color:#991b1b;}
+.page-route-detail .timer-num{font-family:inherit;font-variant-numeric: tabular-nums;letter-spacing:.03em;font-size:13px;font-weight:900;}
+.page-route-detail .timer-label{font-size:11px;font-weight:800;opacity:.85;}
+.page-route-detail .timer-pill{display:inline-flex;align-items:center;gap:8px;padding:8px 12px;border-radius:999px;font-size:12px;font-weight:800;line-height:1;border:1px solid rgba(0,0,0,.08);background:#fff;color:#111827;box-shadow:0 2px 10px rgba(0,0,0,.06);}
+.page-route-detail .timer-pill.reserve{background:rgba(59,130,246,.10);border-color:rgba(59,130,246,.25);color:#1d4ed8;}
+.page-route-detail .timer-pill.use{background:rgba(16,185,129,.12);border-color:rgba(16,185,129,.25);color:#065f46;}
+.page-route-detail .timer-pill.is-warn{background:#fffbeb;border-color:#fcd34d;color:#92400e;}
+.page-route-detail .timer-pill.is-danger{background:#fef2f2;border-color:#fecaca;color:#991b1b;}
+.page-route-detail .timer-label{font-size:11px;font-weight:800;opacity:.85;}
+.page-route-detail .timer-num{font-variant-numeric: tabular-nums;letter-spacing:.03em;font-weight:900;}
 
 /* 管理者ログインページ */
 .page-admin-login{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Noto Sans JP','Hiragino Sans','Hiragino Kaku Gothic ProN',Meiryo,sans-serif;background:#fff;color:#2d3748;display:flex;justify-content:center;align-items:center;min-height:100vh;padding:20px;}
