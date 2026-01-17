@@ -10,6 +10,7 @@ import static util.TimeUtils.hhmm;
 import static util.GeoUtils.distanceMeters;
 import static util.GeoUtils.walkingMinutes;
 import static util.GeoUtils.ridingMinutes;
+import static util.RouteConstants.*;
 
 import model.*;
 import dao.*;
@@ -31,34 +32,6 @@ import javax.servlet.http.HttpServletResponse;
 import javax.servlet.http.HttpSession;
 
 public class RouteSearchServlet extends HttpServlet {
-
-    // ------- いじって性能を変えられる定数群 -------
-
-    // 時間関係定数
-    private static final int TRANSFER_MIN = 2; // 乗り換えするのに必要な最低時間
-    private static final int BIKE_UNLOCK_MIN = 2; // 借りる / 解錠 の最低時間
-    private static final int BIKE_LOCK_MIN = 2; // 返す / 施錠 の最低時間
-
-    // 距離関係定数
-    private static final int FROM_RADIUS_M = 1000; // 出発地周りの徒歩圏最大
-    private static final int TO_RADIUS_M = 1000; // 到着地周りの徒歩圏最大
-    private static final int TRANSFER_RADIUS_M = 300; // 乗換の徒歩圏最大
-    private static final int BIKE_PORT_RADIUS_M = 400; // 停留所 と ポート間の徒歩圏最大
-    private static final int BIKE_MAX_RIDE_M = 6000; // 自転車移動の最大距離（暴走防止）
-
-    // 探索関係定数
-    private static final int MID_LIMIT = 10; // 乗り換え地点候補の探索数上限
-    private static final int NEAR_LIMIT = 30; // 乗換経路探索数上限
-    private static final int PORT_LIMIT = 5; // 近隣ポートの探索数上限
-    private static final int RESULT_LIMIT = 5; // 表示する乗換経路の最大
-
-    // 徒歩/自転車速度関係定数
-    private static final double METER_CORRECTION = 1.25; // 徒歩距離補正係数 (直線 -> 道のり)
-    private static final double METER_PER_MINUTE = 80.0; // 徒歩の速さは 80m/分
-    private static final double BIKE_METER_CORRECTION = 1.5; // 自転車距離補正係数 (直線 -> 自転車通行可能な道のり)
-    private static final double BIKE_METER_PER_MINUTE = 250.0; // 自転車の速さは 250m/分
-
-    // --------------------------------------------
 
 
     // データベース接続 & 初期化 (DatabaseConfigが大体やってくれる)
@@ -503,7 +476,7 @@ public class RouteSearchServlet extends HttpServlet {
                 // 目的地近くの停留所候補に対して
                 for (NearByStops alightStop : result.stopsNearDest) {
 
-                    List<TransitPath> directPathCandidates = searchDirectTransitPath(conn, boardStop.stopId, alightStop.stopId, arrivalTimeToBoardStop, day, 1);
+                    List<TransitPath> directPathCandidates = TransitQueries.searchDirectTransit(conn, boardStop.stopId, alightStop.stopId, arrivalTimeToBoardStop, day, 1);
                     if (directPathCandidates.isEmpty()) continue;
                     TransitPath leg = directPathCandidates.get(0);
 
@@ -546,7 +519,7 @@ public class RouteSearchServlet extends HttpServlet {
                 // 乗換降車停留所候補に対して
                 for (AlightStopCandidate firstAlightStop : firstAlightStopCandidates) {
 
-                    List<TransitPath> leg1Candidates = searchDirectTransitPath(conn, firstBoardStop.stopId, firstAlightStop.stopId, arrivalTimeTo1BoardStop, day, 1);
+                    List<TransitPath> leg1Candidates = TransitQueries.searchDirectTransit(conn, firstBoardStop.stopId, firstAlightStop.stopId, arrivalTimeTo1BoardStop, day, 1);
                     if (leg1Candidates.isEmpty()) continue;
                     TransitPath leg1 = leg1Candidates.get(0);
 
@@ -565,7 +538,7 @@ public class RouteSearchServlet extends HttpServlet {
                         // 目的地近くの停留所候補に対して
                         for (NearByStops secondAlightStop : result.stopsNearDest) {
 
-                            List<TransitPath> leg2Candidates = searchDirectTransitPath(conn, secondBoardStop.stopId, secondAlightStop.stopId, arrivalTimeToSecondBoardStop, day, 1);
+                            List<TransitPath> leg2Candidates = TransitQueries.searchDirectTransit(conn, secondBoardStop.stopId, secondAlightStop.stopId, arrivalTimeToSecondBoardStop, day, 1);
                             if (leg2Candidates.isEmpty()) continue;
                             TransitPath leg2 = leg2Candidates.get(0);
 
@@ -614,7 +587,7 @@ public class RouteSearchServlet extends HttpServlet {
                 // 乗換降車停留所候補に対して
                 for (AlightStopCandidate firstAlightStop : firstAlightStopCandidates) {
 
-                    List<TransitPath> leg1Candidates = searchDirectTransitPath(conn, boardStop.stopId, firstAlightStop.stopId, arrivalTimeToBoardStop, day, 1);
+                    List<TransitPath> leg1Candidates = TransitQueries.searchDirectTransit(conn, boardStop.stopId, firstAlightStop.stopId, arrivalTimeToBoardStop, day, 1);
                     if (leg1Candidates.isEmpty()) continue;
                     TransitPath leg1 = leg1Candidates.get(0);
 
@@ -684,7 +657,7 @@ public class RouteSearchServlet extends HttpServlet {
                 for (Stop boardStop : boardStopCandidates) {
                     boolean ok = false;
                     for (NearByStops nsto : nearDestTop) {
-                        if (!searchDirectTransitPath(conn, boardStop.id, nsto.stopId, baseTime, day, 1).isEmpty()) {
+                        if (!TransitQueries.searchDirectTransit(conn, boardStop.id, nsto.stopId, baseTime, day, 1).isEmpty()) {
                             ok = true;
                             break;
                         }
@@ -741,7 +714,7 @@ public class RouteSearchServlet extends HttpServlet {
 
                         // 目的地近くの停留所候補に対して
                         for (NearByStops alightStop : destStopsForBT) {
-                            List<TransitPath> leg2Candidates = searchDirectTransitPath(conn, boardstop.id, alightStop.stopId, transitDepartTime, day, 1);
+                            List<TransitPath> leg2Candidates = TransitQueries.searchDirectTransit(conn, boardstop.id, alightStop.stopId, transitDepartTime, day, 1);
                             if (leg2Candidates.isEmpty()) continue;
                             TransitPath leg2 = leg2Candidates.get(0);
 
@@ -1383,69 +1356,7 @@ public class RouteSearchServlet extends HttpServlet {
 
     // --------------------- 経路検索系 --------------------
 
-    // 直通の検索
-    private List<TransitPath> searchDirectTransitPath(Connection conn, int fromStopId, int toStopId,
-            String baseTime, String day, int limit) throws SQLException {
 
-        String sql = ""
-                + "SELECT "
-                + "  t.trip_id AS trip_id, "
-                + "  r.route_name AS route_name, "
-                + "  r.route_color AS route_color, "
-                + "  t.trip_name AS trip_name, "
-                + "  sa_from.stop_id AS from_stop_id, "
-                + "  sf.stop_name AS from_stop_name, "
-                + "  sa_from.departure_time AS dep_time, "
-                + "  sa_to.stop_id AS to_stop_id, "
-                + "  st.stop_name AS to_stop_name, "
-                + "  sa_to.arrival_time AS arr_time "
-                + "FROM stop_at sa_from "
-                + "JOIN stop_information sf ON sf.stop_id = sa_from.stop_id "
-                + "JOIN stop_at sa_to ON sa_to.trip_id = sa_from.trip_id "
-                + "JOIN stop_information st ON st.stop_id = sa_to.stop_id "
-                + "JOIN trip_information t ON t.trip_id = sa_from.trip_id "
-                + "JOIN route_trip rt ON rt.trip_id = t.trip_id "
-                + "JOIN route_information r ON r.route_id = rt.route_id "
-                + "WHERE sa_from.stop_id = ? "
-                + "  AND sa_to.stop_id = ? "
-                + "  AND sa_from.arrival_order < sa_to.arrival_order "
-                + "  AND sa_from.departure_time >= ?::time ";
-
-        if ("平日".equals(day)) {
-            sql += " AND t.trip_datetime IN ('全日','平日') ";
-        } else if ("休日".equals(day)) {
-            sql += " AND t.trip_datetime IN ('全日','休日') ";
-        }
-
-        sql += " ORDER BY sa_to.arrival_time ASC, sa_from.departure_time ASC ";
-        sql += " LIMIT ?";
-
-        List<TransitPath> list = new ArrayList<>();
-        try (PreparedStatement ps = conn.prepareStatement(sql)) {
-            int idx = 1;
-            ps.setInt(idx++, fromStopId);
-            ps.setInt(idx++, toStopId);
-            ps.setString(idx++, baseTime);
-            ps.setInt(idx++, limit);
-
-            try (ResultSet rs = ps.executeQuery()) {
-                while (rs.next()) {
-                    list.add(new TransitPath(
-                            rs.getInt("trip_id"),
-                            rs.getString("route_name"),
-                            rs.getString("route_color"),
-                            rs.getString("trip_name"),
-                            rs.getInt("from_stop_id"),
-                            rs.getString("from_stop_name"),
-                            hhmm(rs.getString("dep_time")),
-                            rs.getInt("to_stop_id"),
-                            rs.getString("to_stop_name"),
-                            hhmm(rs.getString("arr_time"))));
-                }
-            }
-        }
-        return list;
-    }
 
     // --------------------- その他系 --------------------
 

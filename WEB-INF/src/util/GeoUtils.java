@@ -28,9 +28,9 @@ public class GeoUtils {
     
     /**
      * 徒歩時間を計算（分）
-     * @param distanceMeters : 直線距離 (メートル)
-     * @param correction     : 道のり補正係数 (通常1.25)
-     * @param meterPerMinute : 徒歩速度 (メートル/分, 通常80)
+     * @param distanceMeters : 直線距離 (m)
+     * @param correction     : 道のり補正係数
+     * @param meterPerMinute : 徒歩速度 (m/分)
      */
     public static int walkingMinutes(double distanceMeters, double correction, double meterPerMinute) {
     if (distanceMeters <= 0)
@@ -41,14 +41,23 @@ public class GeoUtils {
     
     /**
      * 自転車移動時間を計算（分）
-     * @param distanceMeters : 直線距離 (メートル)
-     * @param correction     : 道のり補正係数 (通常1.5)
-     * @param meterPerMinute : 自転車速度 (メートル/分, 通常250)
+     * @param distanceMeters : 直線距離 (m)
+     * @param correction     : 道のり補正係数
+     * @param meterPerMinute : 自転車速度(m/分)
      */
     public static int ridingMinutes(double distanceMeters, double correction, double meterPerMinute) {
     if (distanceMeters <= 0)
             return 0;
         int minutes = (int) Math.ceil(distanceMeters * correction / meterPerMinute);
         return Math.max(0, minutes);
+    }
+
+    /**
+     * 距離が指定範囲内かチェック
+     * @param distanceM : 距離(m)
+     * @param radiusM   : 範囲半径(m)
+     */
+    public static boolean isWithinRadius(int distanceM, int radiusM) {
+        return distanceM <= radiusM;
     }
 }
