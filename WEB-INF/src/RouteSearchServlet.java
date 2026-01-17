@@ -2,6 +2,7 @@ import static util.HtmlUtils.esc;
 import static util.HtmlUtils.option;
 import static util.HtmlUtils.nvl;
 import static util.HtmlUtils.toStr;
+import static util.HtmlUtils.preferNonEmpty;
 import static util.TimeUtils.addMinutes;
 import static util.TimeUtils.diffMinutes;
 import static util.TimeUtils.now;
@@ -321,8 +322,8 @@ public class RouteSearchServlet extends HttpServlet {
             List<SelectedStopCandidate> destCandidates = new ArrayList<>();
 
             // 決まっていないなら候補を探索
-            if (originstopid == null) originCandidates = searchStopCandidates(conn, originstop, 10);
-            if (deststopid == null) destCandidates     = searchStopCandidates(conn, deststop, 10);
+            if (originstopid == null) originCandidates = selectStopCandidates(conn, originstop, 10);
+            if (deststopid == null) destCandidates     = selectStopCandidates(conn, deststop, 10);
 
             // 0件なら終了
             if ((originstopid == null && originCandidates.isEmpty()) || (deststopid == null && destCandidates.isEmpty())) {
@@ -419,12 +420,12 @@ public class RouteSearchServlet extends HttpServlet {
             session.setAttribute("lastDestStopType",   result.lastDestStopType);
 
             // 出発地 / 目的地 の近くの停留所を探索
-            result.stopsNearOrigin = nearbyStopsById(conn, originstopid, FROM_RADIUS_M, NEAR_LIMIT);
-            result.stopsNearDest   = nearbyStopsById(conn, deststopid, TO_RADIUS_M, NEAR_LIMIT);
+            result.stopsNearOrigin = getNearByStopsByStopId(conn, originstopid, FROM_RADIUS_M, NEAR_LIMIT);
+            result.stopsNearDest   = getNearByStopsByStopId(conn, deststopid, TO_RADIUS_M, NEAR_LIMIT);
 
             // 出発地 / 目的地 の近くのポートを探索
-            result.portsNearOrigin = nearbyPorts(conn, result.originStop.lat, result.originStop.lon, FROM_RADIUS_M, PORT_LIMIT, true, false);
-            result.portsNearDest   = nearbyPorts(conn, result.destStop.lat, result.destStop.lon, TO_RADIUS_M, PORT_LIMIT, false, true);
+            result.portsNearOrigin = getNearByPortsByLatLon(conn, result.originStop.lat, result.originStop.lon, FROM_RADIUS_M, PORT_LIMIT, true, false);
+            result.portsNearDest   = getNearByPortsByLatLon(conn, result.destStop.lat, result.destStop.lon, TO_RADIUS_M, PORT_LIMIT, false, true);
 
             // 探索する候補数の上限
             final int TRANSFER_CANDIDATE_LIMIT = RESULT_LIMIT * 30;
@@ -501,9 +502,9 @@ public class RouteSearchServlet extends HttpServlet {
                 // 目的地近くの停留所候補に対して
                 for (NearByStops alightStop : result.stopsNearDest) {
 
-                    List<DirectPath> directPathCandidates = searchDirect(conn, boardStop.stopId, alightStop.stopId, arrivalTimeToBoardStop, day, 1);
+                    List<DirectTransitPath> directPathCandidates = searchDirectTransitPath(conn, boardStop.stopId, alightStop.stopId, arrivalTimeToBoardStop, day, 1);
                     if (directPathCandidates.isEmpty()) continue;
-                    DirectPath leg = directPathCandidates.get(0);
+                    DirectTransitPath leg = directPathCandidates.get(0);
 
                     int walkToDestMin       = walkingMinutes(alightStop.distance, METER_CORRECTION, METER_PER_MINUTE);
                     String originDepartTime = addMinutes(leg.depTime, -walkToBoardStopMin);
@@ -544,13 +545,13 @@ public class RouteSearchServlet extends HttpServlet {
                 // 乗換降車停留所候補に対して
                 for (AlightStopCandidate firstAlightStop : firstAlightStopCandidates) {
 
-                    List<DirectPath> leg1Candidates = searchDirect(conn, firstBoardStop.stopId, firstAlightStop.stopId, arrivalTimeTo1BoardStop, day, 1);
+                    List<DirectTransitPath> leg1Candidates = searchDirectTransitPath(conn, firstBoardStop.stopId, firstAlightStop.stopId, arrivalTimeTo1BoardStop, day, 1);
                     if (leg1Candidates.isEmpty()) continue;
-                    DirectPath leg1 = leg1Candidates.get(0);
+                    DirectTransitPath leg1 = leg1Candidates.get(0);
 
                     String originDepartTime = addMinutes(leg1.depTime, -walkTo1BoardStopMin);
 
-                    List<NearByStops> stopsNearFirstAlight = nearbyStopsById(conn, firstAlightStop.stopId, TRANSFER_RADIUS_M, NEAR_LIMIT);
+                    List<NearByStops> stopsNearFirstAlight = getNearByStopsByStopId(conn, firstAlightStop.stopId, TRANSFER_RADIUS_M, NEAR_LIMIT);
 
                     // 乗換乗車停留所候補に対して
                     for (NearByStops secondBoardStop : stopsNearFirstAlight) {
@@ -563,9 +564,9 @@ public class RouteSearchServlet extends HttpServlet {
                         // 目的地近くの停留所候補に対して
                         for (NearByStops secondAlightStop : result.stopsNearDest) {
 
-                            List<DirectPath> leg2Candidates = searchDirect(conn, secondBoardStop.stopId, secondAlightStop.stopId, arrivalTimeToSecondBoardStop, day, 1);
+                            List<DirectTransitPath> leg2Candidates = searchDirectTransitPath(conn, secondBoardStop.stopId, secondAlightStop.stopId, arrivalTimeToSecondBoardStop, day, 1);
                             if (leg2Candidates.isEmpty()) continue;
-                            DirectPath leg2 = leg2Candidates.get(0);
+                            DirectTransitPath leg2 = leg2Candidates.get(0);
 
                             int walkToDestMin      = walkingMinutes(secondAlightStop.distance, METER_CORRECTION, METER_PER_MINUTE);
                             String destArrivalTime = addMinutes(leg2.arrTime, walkToDestMin);
@@ -612,13 +613,13 @@ public class RouteSearchServlet extends HttpServlet {
                 // 乗換降車停留所候補に対して
                 for (AlightStopCandidate firstAlightStop : firstAlightStopCandidates) {
 
-                    List<DirectPath> leg1Candidates = searchDirect(conn, boardStop.stopId, firstAlightStop.stopId, arrivalTimeToBoardStop, day, 1);
+                    List<DirectTransitPath> leg1Candidates = searchDirectTransitPath(conn, boardStop.stopId, firstAlightStop.stopId, arrivalTimeToBoardStop, day, 1);
                     if (leg1Candidates.isEmpty()) continue;
-                    DirectPath leg1 = leg1Candidates.get(0);
+                    DirectTransitPath leg1 = leg1Candidates.get(0);
 
                     String originDepartTime = addMinutes(leg1.depTime, -walkToBoardStopMin);
 
-                    List<PortCandidate> startPortCandidates = nearbyPorts(conn, firstAlightStop.lat, firstAlightStop.lon, BIKE_PORT_RADIUS_M, PORT_LIMIT, true, false);
+                    List<PortCandidate> startPortCandidates = getNearByPortsByLatLon(conn, firstAlightStop.lat, firstAlightStop.lon, BIKE_PORT_RADIUS_M, PORT_LIMIT, true, false);
 
                     // 乗車ポート候補に対して
                     for (PortCandidate startPort : startPortCandidates) {
@@ -676,13 +677,13 @@ public class RouteSearchServlet extends HttpServlet {
             java.util.Map<String, TransferBikeTransit> bestBikeTransitPlanByBTKey = new java.util.HashMap<>();
             List<PortCandidate> usePortsCandidates;
             {
-                List<NearByStops> boardStopCandidates = nearbyStopsByLatLon(conn, result.originStop.lat, result.originStop.lon, BIKE_MAX_RIDE_M, 50);
+                List<NearByStops> boardStopCandidates = getNearByStopsByLatLon(conn, result.originStop.lat, result.originStop.lon, BIKE_MAX_RIDE_M, 50);
                 List<NearByStops> nearDestTop = result.stopsNearDest.subList(0, Math.min(8, result.stopsNearDest.size()));
                 List<NearByStops> goodBoards = new ArrayList<>();
                 for (NearByStops b : boardStopCandidates) {
                     boolean ok = false;
                     for (NearByStops nsto : nearDestTop) {
-                        if (!searchDirect(conn, b.stopId, nsto.stopId, baseTime, day, 1).isEmpty()) {
+                        if (!searchDirectTransitPath(conn, b.stopId, nsto.stopId, baseTime, day, 1).isEmpty()) {
                             ok = true;
                             break;
                         }
@@ -691,7 +692,7 @@ public class RouteSearchServlet extends HttpServlet {
                 }
                 usePortsCandidates = collectNearbyPortsFromStops(conn, goodBoards, BIKE_PORT_RADIUS_M, PORT_LIMIT, false, true);
                 if (usePortsCandidates.isEmpty()) {
-                    usePortsCandidates = nearbyPorts(conn, result.originStop.lat, result.originStop.lon, BIKE_MAX_RIDE_M, 30, false, true);
+                    usePortsCandidates = getNearByPortsByLatLon(conn, result.originStop.lat, result.originStop.lon, BIKE_MAX_RIDE_M, 30, false, true);
                 }
             }
 
@@ -720,7 +721,7 @@ public class RouteSearchServlet extends HttpServlet {
                     int rideMin        = ridingMinutes(rideDist, BIKE_METER_CORRECTION, BIKE_METER_PER_MINUTE);
                     String bikeEndTime = addMinutes(bikeStart, rideMin + BIKE_LOCK_MIN);
 
-                    List<NearByStops> boardStops = nearbyStopsByLatLon(conn, returnPort.lat, returnPort.lon, TRANSFER_RADIUS_M, 12);
+                    List<NearByStops> boardStops = getNearByStopsByLatLon(conn, returnPort.lat, returnPort.lon, TRANSFER_RADIUS_M, 12);
 
                     // 乗り換え候補の停留所に対して
                     for (NearByStops boardstop : boardStops) {
@@ -731,16 +732,16 @@ public class RouteSearchServlet extends HttpServlet {
                         WalkPath walkTransfer = new WalkPath(returnPort.portName, boardstop.name, boardstop.distance, walkTransferMin);
                         String transitDepartTime = addMinutes(bikeEndTime, TRANSFER_MIN + walkTransferMin);
 
-                        DirectPath bestLeg2 = null;
+                        DirectTransitPath bestLeg2 = null;
                         WalkPath bestWalk2 = null;
                         String bestEnd = null;
                         int bestTotal = Integer.MAX_VALUE;
 
                         // 目的地近くの停留所候補に対して
                         for (NearByStops alightStop : destStopsForBT) {
-                            List<DirectPath> leg2Candidates = searchDirect(conn, boardstop.stopId, alightStop.stopId, transitDepartTime, day, 1);
+                            List<DirectTransitPath> leg2Candidates = searchDirectTransitPath(conn, boardstop.stopId, alightStop.stopId, transitDepartTime, day, 1);
                             if (leg2Candidates.isEmpty()) continue;
-                            DirectPath leg2 = leg2Candidates.get(0);
+                            DirectTransitPath leg2 = leg2Candidates.get(0);
 
                             int walkToDestMin   = walkingMinutes(alightStop.distance, METER_CORRECTION, METER_PER_MINUTE);
                             WalkPath walkToDest = new WalkPath(alightStop.name, result.destStop.name, alightStop.distance, walkToDestMin);
@@ -859,8 +860,6 @@ public class RouteSearchServlet extends HttpServlet {
 
         out.println("</table></div><br/>");
     }
-
-    // --------------------- 便利関数系 -------------------
 
     // 詳細ページの表示
     private void renderDetailPage(HttpServletRequest req, HttpServletResponse resp) throws IOException {
@@ -1306,57 +1305,14 @@ public class RouteSearchServlet extends HttpServlet {
         out.println("</body></html>");
     }
 
-    private String preferNonEmpty(String primary, String fallback) {
-        if (primary != null && !primary.trim().isEmpty()) {
-            return primary;
-        }
-        return fallback == null ? "" : fallback;
-    }
+    // --------------------- 便利関数系 -------------------
 
-    // 検索結果を束ねるDTO
-    private static class RouteResult {
-        Stop originStop;
-        Stop destStop;
-        List<ResultItem> results;
-        List<ResultItem> displayedResults;
-        List<NearByStops> stopsNearOrigin;
-        List<NearByStops> stopsNearDest;
-        List<PortCandidate> portsNearOrigin;
-        List<PortCandidate> portsNearDest;
-        String lastOriginStopName;
-        String lastOriginStopType;
-        String lastDestStopName;
-        String lastDestStopType;
-    }
 
-    // --------------------- 候補検索系 --------------------
 
-    // stopId から停留所情報を取得
-    private Stop getStopByStopId(Connection conn, int stopId) throws SQLException {
-        String sql = "SELECT stop_id, stop_name, stop_latitude, stop_longitude, stop_type "
-                + "FROM stop_information "
-                + "WHERE stop_id = ? "
-                + "LIMIT 1";
+    // --------------------- 出発/目的地候補検索系 --------------------
 
-        try (PreparedStatement ps = conn.prepareStatement(sql)) {
-            int idx = 1;
-            ps.setInt(idx++, stopId);
-
-            try (ResultSet rs = ps.executeQuery()) {
-                if (!rs.next())
-                    return null;
-
-                String name = rs.getString("stop_name");
-                double lat = rs.getDouble("stop_latitude");
-                double lon = rs.getDouble("stop_longitude");
-                String type = rs.getString("stop_type");
-                return new Stop(name, type, lat, lon);
-            }
-        }
-    }
-
-    // 候補の前検索
-    private List<SelectedStopCandidate> searchStopCandidates(Connection conn, String keyword, int limit)
+    // 停留所候補を検索
+    private List<SelectedStopCandidate> selectStopCandidates(Connection conn, String keyword, int limit)
             throws SQLException {
         String sql = "SELECT stop_id, stop_name, stop_type "
                 + "FROM stop_information "
@@ -1390,70 +1346,172 @@ public class RouteSearchServlet extends HttpServlet {
         return list;
     }
 
-    // --------------------- 経路探索系 --------------------
+    // --------------------- Stop / Port 系 --------------------
 
-    // 直通の検索
-    private List<DirectPath> searchDirect(Connection conn, int fromStopId, int toStopId,
-            String baseTime, String day, int limit) throws SQLException {
+    // stopId から停留所情報を取得
+    private Stop getStopByStopId(Connection conn, int stopId) throws SQLException {
+        String sql = "SELECT stop_id, stop_name, stop_latitude, stop_longitude, stop_type "
+                + "FROM stop_information "
+                + "WHERE stop_id = ? "
+                + "LIMIT 1";
 
-        String sql = ""
-                + "SELECT "
-                + "  t.trip_id AS trip_id, "
-                + "  r.route_name AS route_name, "
-                + "  r.route_color AS route_color, "
-                + "  t.trip_name AS trip_name, "
-                + "  sa_from.stop_id AS from_stop_id, "
-                + "  sf.stop_name AS from_stop_name, "
-                + "  sa_from.departure_time AS dep_time, "
-                + "  sa_to.stop_id AS to_stop_id, "
-                + "  st.stop_name AS to_stop_name, "
-                + "  sa_to.arrival_time AS arr_time "
-                + "FROM stop_at sa_from "
-                + "JOIN stop_information sf ON sf.stop_id = sa_from.stop_id "
-                + "JOIN stop_at sa_to ON sa_to.trip_id = sa_from.trip_id "
-                + "JOIN stop_information st ON st.stop_id = sa_to.stop_id "
-                + "JOIN trip_information t ON t.trip_id = sa_from.trip_id "
-                + "JOIN route_trip rt ON rt.trip_id = t.trip_id "
-                + "JOIN route_information r ON r.route_id = rt.route_id "
-                + "WHERE sa_from.stop_id = ? "
-                + "  AND sa_to.stop_id = ? "
-                + "  AND sa_from.arrival_order < sa_to.arrival_order "
-                + "  AND sa_from.departure_time >= ?::time ";
-
-        if ("平日".equals(day)) {
-            sql += " AND t.trip_datetime IN ('全日','平日') ";
-        } else if ("休日".equals(day)) {
-            sql += " AND t.trip_datetime IN ('全日','休日') ";
-        }
-
-        sql += " ORDER BY sa_to.arrival_time ASC, sa_from.departure_time ASC ";
-        sql += " LIMIT ?";
-
-        List<DirectPath> list = new ArrayList<>();
         try (PreparedStatement ps = conn.prepareStatement(sql)) {
             int idx = 1;
-            ps.setInt(idx++, fromStopId);
-            ps.setInt(idx++, toStopId);
-            ps.setString(idx++, baseTime);
-            ps.setInt(idx++, limit);
+            ps.setInt(idx++, stopId);
+
+            try (ResultSet rs = ps.executeQuery()) {
+                if (!rs.next())
+                    return null;
+
+                String name = rs.getString("stop_name");
+                double lat = rs.getDouble("stop_latitude");
+                double lon = rs.getDouble("stop_longitude");
+                String type = rs.getString("stop_type");
+                return new Stop(name, type, lat, lon);
+            }
+        }
+    }
+
+    // stopId 近くの停留所を列挙
+    private List<NearByStops> getNearByStopsByStopId(Connection conn, int centerStopId, int radiusM, int limit) throws SQLException {
+        Stop centerstop = getStopByStopId(conn, centerStopId);
+        if (centerstop == null)
+            return new ArrayList<>();
+
+        // 半径radiusMを緯度経度の範囲に雑に変換（高速化）
+        double dLat = radiusM / 111000.0;
+        double dLon = radiusM / (111000.0 * Math.cos(Math.toRadians(centerstop.lat)));
+
+        String sql = "SELECT stop_id, stop_name, stop_latitude, stop_longitude "
+                + "FROM stop_information "
+                + "WHERE stop_latitude BETWEEN ? AND ? "
+                + "  AND stop_longitude BETWEEN ? AND ?";
+
+        List<NearByStops> tmp = new ArrayList<>();
+
+        try (PreparedStatement ps = conn.prepareStatement(sql)) {
+            int idx = 1;
+            ps.setDouble(idx++, centerstop.lat - dLat);
+            ps.setDouble(idx++, centerstop.lat + dLat);
+            ps.setDouble(idx++, centerstop.lon - dLon);
+            ps.setDouble(idx++, centerstop.lon + dLon);
 
             try (ResultSet rs = ps.executeQuery()) {
                 while (rs.next()) {
-                    list.add(new DirectPath(
-                            rs.getInt("trip_id"),
-                            rs.getString("route_name"),
-                            rs.getString("route_color"),
-                            rs.getString("trip_name"),
-                            rs.getInt("from_stop_id"),
-                            rs.getString("from_stop_name"),
-                            hhmm(rs.getString("dep_time")),
-                            rs.getInt("to_stop_id"),
-                            rs.getString("to_stop_name"),
-                            hhmm(rs.getString("arr_time"))));
+                    int sid = rs.getInt("stop_id");
+                    String name = rs.getString("stop_name");
+                    double lat = rs.getDouble("stop_latitude");
+                    double lon = rs.getDouble("stop_longitude");
+
+                    int meters = (int) Math.round(distanceMeters(centerstop.lat, centerstop.lon, lat, lon));
+                    if (meters <= radiusM) {
+                        tmp.add(new NearByStops(sid, name, meters, lat, lon));
+                    }
                 }
             }
         }
-        return list;
+
+        // 近い順
+        tmp.sort((a, b) -> Integer.compare(a.distance, b.distance));
+
+        if (tmp.isEmpty() || tmp.get(0).stopId != centerStopId) {
+            tmp.add(0, new NearByStops(centerStopId, centerstop.name, 0, centerstop.lat, centerstop.lon));
+        }
+
+        if (tmp.size() > limit)
+            return new ArrayList<>(tmp.subList(0, limit));
+        return tmp;
+    }
+
+    // ある緯度経度から近くの停留所を列挙
+    private List<NearByStops> getNearByStopsByLatLon(Connection conn, double centerLat, double centerLon,
+            int radiusM, int limit) throws SQLException {
+
+        double dLat = radiusM / 111000.0;
+        double dLon = radiusM / (111000.0 * Math.cos(Math.toRadians(centerLat)));
+
+        String sql = "SELECT stop_id, stop_name, stop_latitude, stop_longitude " +
+                "FROM stop_information " +
+                "WHERE stop_latitude BETWEEN ? AND ? " +
+                "  AND stop_longitude BETWEEN ? AND ?";
+
+        List<NearByStops> tmp = new ArrayList<>();
+        try (PreparedStatement ps = conn.prepareStatement(sql)) {
+            int idx = 1;
+            ps.setDouble(idx++, centerLat - dLat);
+            ps.setDouble(idx++, centerLat + dLat);
+            ps.setDouble(idx++, centerLon - dLon);
+            ps.setDouble(idx++, centerLon + dLon);
+
+            try (ResultSet rs = ps.executeQuery()) {
+                while (rs.next()) {
+                    int sid = rs.getInt("stop_id");
+                    String name = rs.getString("stop_name");
+                    double lat = rs.getDouble("stop_latitude");
+                    double lon = rs.getDouble("stop_longitude");
+
+                    int meters = (int) Math.round(distanceMeters(centerLat, centerLon, lat, lon));
+                    if (meters <= radiusM)
+                        tmp.add(new NearByStops(sid, name, meters, lat, lon));
+                }
+            }
+        }
+
+        tmp.sort((a, b) -> Integer.compare(a.distance, b.distance));
+        if (tmp.size() > limit)
+            return new ArrayList<>(tmp.subList(0, limit));
+        return tmp;
+    }
+
+    // ある緯度経度から近くのポートを列挙
+    private List<PortCandidate> getNearByPortsByLatLon(Connection conn, double centerLat, double centerLon,
+            int radiusM, int limit, boolean needBikes, boolean needFreeDocks) throws SQLException {
+
+        double dLat = radiusM / 111000.0;
+        double dLon = radiusM / (111000.0 * Math.cos(Math.toRadians(centerLat)));
+
+        String sql = "SELECT * FROM port_status " +
+            "WHERE port_latitude BETWEEN ? AND ? " +
+            "  AND port_longitude BETWEEN ? AND ? ";
+
+        if (needBikes)
+            sql += " AND bikes > 0 ";
+        if (needFreeDocks)
+            sql += " AND free_docks > 0 ";
+
+        List<PortCandidate> tmp = new ArrayList<>();
+        try (PreparedStatement ps = conn.prepareStatement(sql)) {
+            int idx = 1;
+            ps.setDouble(idx++, centerLat - dLat);
+            ps.setDouble(idx++, centerLat + dLat);
+            ps.setDouble(idx++, centerLon - dLon);
+            ps.setDouble(idx++, centerLon + dLon);
+
+            try (ResultSet rs = ps.executeQuery()) {
+                java.sql.ResultSetMetaData meta = rs.getMetaData();
+                boolean hasOperatorContact = hasColumn(meta, "operator_contact");
+
+                while (rs.next()) {
+                    int pid = rs.getInt("port_id");
+                    int opid = rs.getInt("operator_id");
+                    String opn = rs.getString("operator_name");
+                    String pn = rs.getString("port_name");
+                    double lat = rs.getDouble("port_latitude");
+                    double lon = rs.getDouble("port_longitude");
+                    String contact = hasOperatorContact ? rs.getString("operator_contact") : null;
+
+                    int dist = (int) Math.round(distanceMeters(centerLat, centerLon, lat, lon));
+                    if (dist <= radiusM) {
+                        tmp.add(new PortCandidate(pid, opid, opn, contact, pn, lat, lon, dist));
+                    }
+                }
+            }
+        }
+
+        tmp.sort((a, b) -> Integer.compare(a.distance, b.distance));
+        if (tmp.size() > limit)
+            return new ArrayList<>(tmp.subList(0, limit));
+        return tmp;
     }
 
     // 出発停留所から降りれる停留所を列挙
@@ -1504,6 +1562,74 @@ public class RouteSearchServlet extends HttpServlet {
         }
         return list;
     }
+
+    // --------------------- 経路検索系 --------------------
+
+    // 直通の検索
+    private List<DirectTransitPath> searchDirectTransitPath(Connection conn, int fromStopId, int toStopId,
+            String baseTime, String day, int limit) throws SQLException {
+
+        String sql = ""
+                + "SELECT "
+                + "  t.trip_id AS trip_id, "
+                + "  r.route_name AS route_name, "
+                + "  r.route_color AS route_color, "
+                + "  t.trip_name AS trip_name, "
+                + "  sa_from.stop_id AS from_stop_id, "
+                + "  sf.stop_name AS from_stop_name, "
+                + "  sa_from.departure_time AS dep_time, "
+                + "  sa_to.stop_id AS to_stop_id, "
+                + "  st.stop_name AS to_stop_name, "
+                + "  sa_to.arrival_time AS arr_time "
+                + "FROM stop_at sa_from "
+                + "JOIN stop_information sf ON sf.stop_id = sa_from.stop_id "
+                + "JOIN stop_at sa_to ON sa_to.trip_id = sa_from.trip_id "
+                + "JOIN stop_information st ON st.stop_id = sa_to.stop_id "
+                + "JOIN trip_information t ON t.trip_id = sa_from.trip_id "
+                + "JOIN route_trip rt ON rt.trip_id = t.trip_id "
+                + "JOIN route_information r ON r.route_id = rt.route_id "
+                + "WHERE sa_from.stop_id = ? "
+                + "  AND sa_to.stop_id = ? "
+                + "  AND sa_from.arrival_order < sa_to.arrival_order "
+                + "  AND sa_from.departure_time >= ?::time ";
+
+        if ("平日".equals(day)) {
+            sql += " AND t.trip_datetime IN ('全日','平日') ";
+        } else if ("休日".equals(day)) {
+            sql += " AND t.trip_datetime IN ('全日','休日') ";
+        }
+
+        sql += " ORDER BY sa_to.arrival_time ASC, sa_from.departure_time ASC ";
+        sql += " LIMIT ?";
+
+        List<DirectTransitPath> list = new ArrayList<>();
+        try (PreparedStatement ps = conn.prepareStatement(sql)) {
+            int idx = 1;
+            ps.setInt(idx++, fromStopId);
+            ps.setInt(idx++, toStopId);
+            ps.setString(idx++, baseTime);
+            ps.setInt(idx++, limit);
+
+            try (ResultSet rs = ps.executeQuery()) {
+                while (rs.next()) {
+                    list.add(new DirectTransitPath(
+                            rs.getInt("trip_id"),
+                            rs.getString("route_name"),
+                            rs.getString("route_color"),
+                            rs.getString("trip_name"),
+                            rs.getInt("from_stop_id"),
+                            rs.getString("from_stop_name"),
+                            hhmm(rs.getString("dep_time")),
+                            rs.getInt("to_stop_id"),
+                            rs.getString("to_stop_name"),
+                            hhmm(rs.getString("arr_time"))));
+                }
+            }
+        }
+        return list;
+    }
+
+    // --------------------- その他系 --------------------
 
     // より良い自転車か調べる
     private boolean betterBikeTransit(TransferBikeTransit a, TransferBikeTransit b) {
@@ -1563,98 +1689,6 @@ public class RouteSearchServlet extends HttpServlet {
         return as.compareTo(bs) > 0;
     }
 
-    // ある停留所の近くの停留所を列挙
-    private List<NearByStops> nearbyStopsById(Connection conn, int centerStopId, int radiusM, int limit)
-            throws SQLException {
-        Stop centerstop = getStopByStopId(conn, centerStopId);
-        if (centerstop == null)
-            return new ArrayList<>();
-
-        // 半径radiusMを緯度経度の範囲に雑に変換（高速化）
-        double dLat = radiusM / 111000.0;
-        double dLon = radiusM / (111000.0 * Math.cos(Math.toRadians(centerstop.lat)));
-
-        String sql = "SELECT stop_id, stop_name, stop_latitude, stop_longitude "
-                + "FROM stop_information "
-                + "WHERE stop_latitude BETWEEN ? AND ? "
-                + "  AND stop_longitude BETWEEN ? AND ?";
-
-        List<NearByStops> tmp = new ArrayList<>();
-
-        try (PreparedStatement ps = conn.prepareStatement(sql)) {
-            int idx = 1;
-            ps.setDouble(idx++, centerstop.lat - dLat);
-            ps.setDouble(idx++, centerstop.lat + dLat);
-            ps.setDouble(idx++, centerstop.lon - dLon);
-            ps.setDouble(idx++, centerstop.lon + dLon);
-
-            try (ResultSet rs = ps.executeQuery()) {
-                while (rs.next()) {
-                    int sid = rs.getInt("stop_id");
-                    String name = rs.getString("stop_name");
-                    double lat = rs.getDouble("stop_latitude");
-                    double lon = rs.getDouble("stop_longitude");
-
-                    int meters = (int) Math.round(distanceMeters(centerstop.lat, centerstop.lon, lat, lon));
-                    if (meters <= radiusM) {
-                        tmp.add(new NearByStops(sid, name, meters, lat, lon));
-                    }
-                }
-            }
-        }
-
-        // 近い順
-        tmp.sort((a, b) -> Integer.compare(a.distance, b.distance));
-
-        if (tmp.isEmpty() || tmp.get(0).stopId != centerStopId) {
-            tmp.add(0, new NearByStops(centerStopId, centerstop.name, 0, centerstop.lat, centerstop.lon));
-        }
-
-        if (tmp.size() > limit)
-            return new ArrayList<>(tmp.subList(0, limit));
-        return tmp;
-    }
-
-    // ある緯度経度の近くの停留所を列挙
-    private List<NearByStops> nearbyStopsByLatLon(Connection conn, double centerLat, double centerLon,
-            int radiusM, int limit) throws SQLException {
-
-        double dLat = radiusM / 111000.0;
-        double dLon = radiusM / (111000.0 * Math.cos(Math.toRadians(centerLat)));
-
-        String sql = "SELECT stop_id, stop_name, stop_latitude, stop_longitude " +
-                "FROM stop_information " +
-                "WHERE stop_latitude BETWEEN ? AND ? " +
-                "  AND stop_longitude BETWEEN ? AND ?";
-
-        List<NearByStops> tmp = new ArrayList<>();
-        try (PreparedStatement ps = conn.prepareStatement(sql)) {
-            int idx = 1;
-            ps.setDouble(idx++, centerLat - dLat);
-            ps.setDouble(idx++, centerLat + dLat);
-            ps.setDouble(idx++, centerLon - dLon);
-            ps.setDouble(idx++, centerLon + dLon);
-
-            try (ResultSet rs = ps.executeQuery()) {
-                while (rs.next()) {
-                    int sid = rs.getInt("stop_id");
-                    String name = rs.getString("stop_name");
-                    double lat = rs.getDouble("stop_latitude");
-                    double lon = rs.getDouble("stop_longitude");
-
-                    int meters = (int) Math.round(distanceMeters(centerLat, centerLon, lat, lon));
-                    if (meters <= radiusM)
-                        tmp.add(new NearByStops(sid, name, meters, lat, lon));
-                }
-            }
-        }
-
-        tmp.sort((a, b) -> Integer.compare(a.distance, b.distance));
-        if (tmp.size() > limit)
-            return new ArrayList<>(tmp.subList(0, limit));
-        return tmp;
-    }
-
     // ポートを事業者ごとにグループ化
     private java.util.Map<Integer, java.util.List<PortCandidate>> groupPortsByOperator(List<PortCandidate> ports) {
         java.util.Map<Integer, java.util.List<PortCandidate>> portsByOperator = new java.util.HashMap<>();
@@ -1670,14 +1704,13 @@ public class RouteSearchServlet extends HttpServlet {
             throws SQLException {
         java.util.Map<Integer, PortCandidate> portById = new java.util.HashMap<>();
         for (NearByStops stop : stops) {
-            List<PortCandidate> ports = nearbyPorts(conn, stop.lat, stop.lon, radiusM, portLimit, needBikes, needDocks);
+            List<PortCandidate> ports = getNearByPortsByLatLon(conn, stop.lat, stop.lon, radiusM, portLimit, needBikes, needDocks);
             for (PortCandidate p : ports) {
                 portById.putIfAbsent(p.portId, p);
             }
         }
         return new ArrayList<>(portById.values());
     }
-    // -------------------- 基本経路系 --------------------
 
     // 乗り換えが同一地点かどうかを判断する関数
     private boolean isZeroWalk(WalkPath w) {
@@ -1686,66 +1719,6 @@ public class RouteSearchServlet extends HttpServlet {
         boolean same = (w.fromName != null && w.toName != null && w.fromName.equals(w.toName));
         return same && w.min == 0 && w.dist == 0;
     }
-
-
-    // -------------------- 自転車系 --------------------
-
-
-    // ある緯度経度の近くのポートを列挙
-    private List<PortCandidate> nearbyPorts(Connection conn, double centerLat, double centerLon,
-            int radiusM, int limit, boolean needBikes, boolean needFreeDocks) throws SQLException {
-
-        double dLat = radiusM / 111000.0;
-        double dLon = radiusM / (111000.0 * Math.cos(Math.toRadians(centerLat)));
-
-        String sql = "SELECT * FROM port_status " +
-            "WHERE port_latitude BETWEEN ? AND ? " +
-            "  AND port_longitude BETWEEN ? AND ? ";
-
-        if (needBikes)
-            sql += " AND bikes > 0 ";
-        if (needFreeDocks)
-            sql += " AND free_docks > 0 ";
-
-        List<PortCandidate> tmp = new ArrayList<>();
-        try (PreparedStatement ps = conn.prepareStatement(sql)) {
-            int idx = 1;
-            ps.setDouble(idx++, centerLat - dLat);
-            ps.setDouble(idx++, centerLat + dLat);
-            ps.setDouble(idx++, centerLon - dLon);
-            ps.setDouble(idx++, centerLon + dLon);
-
-            try (ResultSet rs = ps.executeQuery()) {
-                java.sql.ResultSetMetaData meta = rs.getMetaData();
-                boolean hasOperatorContact = hasColumn(meta, "operator_contact");
-
-                while (rs.next()) {
-                    int pid = rs.getInt("port_id");
-                    int opid = rs.getInt("operator_id");
-                    String opn = rs.getString("operator_name");
-                    String pn = rs.getString("port_name");
-                    double lat = rs.getDouble("port_latitude");
-                    double lon = rs.getDouble("port_longitude");
-                    String contact = hasOperatorContact ? rs.getString("operator_contact") : null;
-
-                    int dist = (int) Math.round(distanceMeters(centerLat, centerLon, lat, lon));
-                    if (dist <= radiusM) {
-                        tmp.add(new PortCandidate(pid, opid, opn, contact, pn, lat, lon, dist));
-                    }
-                }
-            }
-        }
-
-        tmp.sort((a, b) -> Integer.compare(a.distance, b.distance));
-        if (tmp.size() > limit)
-            return new ArrayList<>(tmp.subList(0, limit));
-        return tmp;
-    }
-
-
-
-
-
 
 
     // -------------------- 表示系 --------------------
