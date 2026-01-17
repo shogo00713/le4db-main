@@ -405,7 +405,9 @@ public class PortAdminServlet extends HttpServlet {
             String insertLog =
                 "INSERT INTO bike_move_log(operator_id, from_port_id, to_port_id, moved_bikes, source) VALUES(?,?,?,?, ?)";
 
-            try (Connection conn = openConn()) {
+            Connection conn = null;
+            try {
+                conn = openConn();
                 conn.setAutoCommit(false);
 
                 // デッドロック回避：小さいport_idからロック
@@ -488,9 +490,16 @@ public class PortAdminServlet extends HttpServlet {
                 return;
 
             } catch (Exception e) {
+                if (conn != null) {
+                    try { conn.rollback(); } catch (SQLException ignore) {}
+                }
                 response.sendRedirect(basePath + "?" + keep + "&msg=" +
                         URLEncoder.encode("DBエラー(移動): " + e.getMessage(), "UTF-8"));
                 return;
+            } finally {
+                if (conn != null) {
+                    try { conn.close(); } catch (SQLException ignore) {}
+                }
             }
         }
 
