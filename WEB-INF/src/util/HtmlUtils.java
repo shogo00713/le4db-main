@@ -2,6 +2,11 @@ package util;
 
 public class HtmlUtils {
     
+    /**
+     * HTMLエスケープ
+     * @param text 入力文字列
+     * @return エスケープ後の文字列
+     */
     public static String esc(String text) {
         if (text == null) {
             return "";
@@ -13,10 +18,23 @@ public class HtmlUtils {
                    .replace("'", "&#39;");
     }
     
+    /**
+     * null安全な文字列取得
+     * @param value 入力文字列
+     * @param defaultValue デフォルト値
+     * @return valueがnullの場合はdefaultValue、それ以外はvalue
+     */
     public static String safe(String value, String defaultValue) {
         return (value == null) ? defaultValue : value;
     }
     
+    /**
+     * optionタグ生成
+     * @param value optionの値
+     * @param label optionの表示ラベル
+     * @param selected 選択されている値
+     * @return optionタグの文字列
+     */
     public static String option(String value, String label, String selected) {
         String sel = value.equals(selected) ? " selected" : "";
         return "<option value=\"" + esc(value) + "\"" + sel + ">" + esc(label) + "</option>";
