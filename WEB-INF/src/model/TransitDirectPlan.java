@@ -9,15 +9,15 @@ package model;
  * @startTime 出発時刻 "HH:mm"
  * @endTime 到着時刻 "HH:mm"
  */
-public class DirectPlan {
+public class TransitDirectPlan {
     public final WalkPath walk0;
-    public final DirectTransitPath leg;
+    public final TransitPath leg;
     public final WalkPath walk2;
     public final int totalMin;
     public final String startTime;
     public final String endTime;
 
-    public DirectPlan(WalkPath walk0, DirectTransitPath leg, WalkPath walk2, int totalMin, String startTime, String endTime) {
+    public TransitDirectPlan(WalkPath walk0, TransitPath leg, WalkPath walk2, int totalMin, String startTime, String endTime) {
         this.walk0 = walk0;
         this.leg = leg;
         this.walk2 = walk2;

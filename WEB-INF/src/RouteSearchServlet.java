@@ -490,7 +490,7 @@ public class RouteSearchServlet extends HttpServlet {
 
 
             // ---- part 3 (公共交通 直通) ----
-            java.util.Map<Integer, DirectPlan> bestDirectPlanByTripId = new java.util.HashMap<>();
+            java.util.Map<Integer, TransitDirectPlan> bestDirectPlanByTripId = new java.util.HashMap<>();
 
             // 出発地近くの停留所候補に対して
             for (NearByStops boardStop : result.stopsNearOrigin) {
@@ -502,9 +502,9 @@ public class RouteSearchServlet extends HttpServlet {
                 // 目的地近くの停留所候補に対して
                 for (NearByStops alightStop : result.stopsNearDest) {
 
-                    List<DirectTransitPath> directPathCandidates = searchDirectTransitPath(conn, boardStop.stopId, alightStop.stopId, arrivalTimeToBoardStop, day, 1);
+                    List<TransitPath> directPathCandidates = searchDirectTransitPath(conn, boardStop.stopId, alightStop.stopId, arrivalTimeToBoardStop, day, 1);
                     if (directPathCandidates.isEmpty()) continue;
-                    DirectTransitPath leg = directPathCandidates.get(0);
+                    TransitPath leg = directPathCandidates.get(0);
 
                     int walkToDestMin       = walkingMinutes(alightStop.distance, METER_CORRECTION, METER_PER_MINUTE);
                     String originDepartTime = addMinutes(leg.depTime, -walkToBoardStopMin);
@@ -512,22 +512,22 @@ public class RouteSearchServlet extends HttpServlet {
                     WalkPath walkToDest     = new WalkPath(alightStop.name, result.destStop.name, alightStop.distance, walkToDestMin);
                     int totalMin            = diffMinutes(originDepartTime, destArrivalTime);
 
-                    DirectPlan directPlan      = new DirectPlan(walkToBoardStop, leg, walkToDest, totalMin, originDepartTime, destArrivalTime);
-                    DirectPlan currentBestPlan = bestDirectPlanByTripId.get(leg.tripId);
+                    TransitDirectPlan directPlan      = new TransitDirectPlan(walkToBoardStop, leg, walkToDest, totalMin, originDepartTime, destArrivalTime);
+                    TransitDirectPlan currentBestPlan = bestDirectPlanByTripId.get(leg.tripId);
                     if (currentBestPlan == null || betterDirect(directPlan, currentBestPlan)) bestDirectPlanByTripId.put(leg.tripId, directPlan); // その便を使用する現時点の最良プランと比較
                     if (bestDirectPlanByTripId.size() > DIRECT_CANDIDATE_LIMIT) {
-                        java.util.List<DirectPlan> sortPlans = new java.util.ArrayList<>(bestDirectPlanByTripId.values());
+                        java.util.List<TransitDirectPlan> sortPlans = new java.util.ArrayList<>(bestDirectPlanByTripId.values());
                         sortPlans.sort(java.util.Comparator.comparing(p -> LocalTime.parse(p.endTime)));
                         sortPlans.subList(DIRECT_CANDIDATE_LIMIT, sortPlans.size()).clear();
                         bestDirectPlanByTripId.clear();
-                        for (DirectPlan p : sortPlans) bestDirectPlanByTripId.put(p.leg.tripId, p);
+                        for (TransitDirectPlan p : sortPlans) bestDirectPlanByTripId.put(p.leg.tripId, p);
                     }
                 }
             }
 
-            List<DirectPlan> resultDirectPlans = new ArrayList<>(bestDirectPlanByTripId.values());
+            List<TransitDirectPlan> resultDirectPlans = new ArrayList<>(bestDirectPlanByTripId.values());
             resultDirectPlans.sort(Comparator.comparing(p -> LocalTime.parse(p.endTime)));
-            for (DirectPlan dp : resultDirectPlans) result.results.add(new ResultItem(1, dp.endTime, dp.totalMin, "", dp));
+            for (TransitDirectPlan dp : resultDirectPlans) result.results.add(new ResultItem(1, dp.endTime, dp.totalMin, "", dp));
 
 
             // ---- part 4 (公共交通 乗換1回) ----
@@ -545,9 +545,9 @@ public class RouteSearchServlet extends HttpServlet {
                 // 乗換降車停留所候補に対して
                 for (AlightStopCandidate firstAlightStop : firstAlightStopCandidates) {
 
-                    List<DirectTransitPath> leg1Candidates = searchDirectTransitPath(conn, firstBoardStop.stopId, firstAlightStop.stopId, arrivalTimeTo1BoardStop, day, 1);
+                    List<TransitPath> leg1Candidates = searchDirectTransitPath(conn, firstBoardStop.stopId, firstAlightStop.stopId, arrivalTimeTo1BoardStop, day, 1);
                     if (leg1Candidates.isEmpty()) continue;
-                    DirectTransitPath leg1 = leg1Candidates.get(0);
+                    TransitPath leg1 = leg1Candidates.get(0);
 
                     String originDepartTime = addMinutes(leg1.depTime, -walkTo1BoardStopMin);
 
@@ -564,9 +564,9 @@ public class RouteSearchServlet extends HttpServlet {
                         // 目的地近くの停留所候補に対して
                         for (NearByStops secondAlightStop : result.stopsNearDest) {
 
-                            List<DirectTransitPath> leg2Candidates = searchDirectTransitPath(conn, secondBoardStop.stopId, secondAlightStop.stopId, arrivalTimeToSecondBoardStop, day, 1);
+                            List<TransitPath> leg2Candidates = searchDirectTransitPath(conn, secondBoardStop.stopId, secondAlightStop.stopId, arrivalTimeToSecondBoardStop, day, 1);
                             if (leg2Candidates.isEmpty()) continue;
-                            DirectTransitPath leg2 = leg2Candidates.get(0);
+                            TransitPath leg2 = leg2Candidates.get(0);
 
                             int walkToDestMin      = walkingMinutes(secondAlightStop.distance, METER_CORRECTION, METER_PER_MINUTE);
                             String destArrivalTime = addMinutes(leg2.arrTime, walkToDestMin);
@@ -613,9 +613,9 @@ public class RouteSearchServlet extends HttpServlet {
                 // 乗換降車停留所候補に対して
                 for (AlightStopCandidate firstAlightStop : firstAlightStopCandidates) {
 
-                    List<DirectTransitPath> leg1Candidates = searchDirectTransitPath(conn, boardStop.stopId, firstAlightStop.stopId, arrivalTimeToBoardStop, day, 1);
+                    List<TransitPath> leg1Candidates = searchDirectTransitPath(conn, boardStop.stopId, firstAlightStop.stopId, arrivalTimeToBoardStop, day, 1);
                     if (leg1Candidates.isEmpty()) continue;
-                    DirectTransitPath leg1 = leg1Candidates.get(0);
+                    TransitPath leg1 = leg1Candidates.get(0);
 
                     String originDepartTime = addMinutes(leg1.depTime, -walkToBoardStopMin);
 
@@ -732,16 +732,16 @@ public class RouteSearchServlet extends HttpServlet {
                         WalkPath walkTransfer = new WalkPath(returnPort.portName, boardstop.name, boardstop.distance, walkTransferMin);
                         String transitDepartTime = addMinutes(bikeEndTime, TRANSFER_MIN + walkTransferMin);
 
-                        DirectTransitPath bestLeg2 = null;
+                        TransitPath bestLeg2 = null;
                         WalkPath bestWalk2 = null;
                         String bestEnd = null;
                         int bestTotal = Integer.MAX_VALUE;
 
                         // 目的地近くの停留所候補に対して
                         for (NearByStops alightStop : destStopsForBT) {
-                            List<DirectTransitPath> leg2Candidates = searchDirectTransitPath(conn, boardstop.stopId, alightStop.stopId, transitDepartTime, day, 1);
+                            List<TransitPath> leg2Candidates = searchDirectTransitPath(conn, boardstop.stopId, alightStop.stopId, transitDepartTime, day, 1);
                             if (leg2Candidates.isEmpty()) continue;
-                            DirectTransitPath leg2 = leg2Candidates.get(0);
+                            TransitPath leg2 = leg2Candidates.get(0);
 
                             int walkToDestMin   = walkingMinutes(alightStop.distance, METER_CORRECTION, METER_PER_MINUTE);
                             WalkPath walkToDest = new WalkPath(alightStop.name, result.destStop.name, alightStop.distance, walkToDestMin);
@@ -843,8 +843,8 @@ public class RouteSearchServlet extends HttpServlet {
 
             if (resultItem.payload instanceof WalkDirectPlan) {
                 printWalkDirectRow(out, (WalkDirectPlan) resultItem.payload, detailUrl);
-            } else if (resultItem.payload instanceof DirectPlan) {
-                printDirectRow(out, (DirectPlan) resultItem.payload, detailUrl);
+            } else if (resultItem.payload instanceof TransitDirectPlan) {
+                printDirectRow(out, (TransitDirectPlan) resultItem.payload, detailUrl);
             } else if (resultItem.payload instanceof BikeDirectPlan) {
                 printBikeDirectRow(out, (BikeDirectPlan) resultItem.payload, detailUrl);
             } else if (resultItem.payload instanceof TransferTransitBike) {
@@ -897,7 +897,7 @@ public class RouteSearchServlet extends HttpServlet {
         String q = (String) session.getAttribute("lastSearchQuery");
         String backUrl = req.getContextPath() + "/routesearch" + (q != null ? ("?" + q) : "");
 
-        // --- HTML（おしゃれなカードUI＋タイムライン表示）---
+        // --- HTML ---
         out.println("<!DOCTYPE html><html lang='ja'><head>");
         out.println("<meta charset='UTF-8'><meta name='viewport' content='width=device-width, initial-scale=1'>");
         out.println("<title>Route Detail</title>");
@@ -910,12 +910,12 @@ public class RouteSearchServlet extends HttpServlet {
 
         String payloadOrigin = "";
         String payloadDest = "";
-        if (item.payload instanceof WalkOnlyPlan) {
-            WalkOnlyPlan wp = (WalkOnlyPlan) item.payload;
+        if (item.payload instanceof WalkDirectPlan) {
+            WalkDirectPlan wp = (WalkDirectPlan) item.payload;
             payloadOrigin = wp.fromName;
             payloadDest = wp.toName;
-        } else if (item.payload instanceof DirectPlan) {
-            DirectPlan dp = (DirectPlan) item.payload;
+        } else if (item.payload instanceof TransitDirectPlan) {
+            TransitDirectPlan dp = (TransitDirectPlan) item.payload;
             payloadOrigin = dp.walk0.fromName != null ? dp.walk0.fromName : dp.leg.fromStopName;
             payloadDest = dp.walk2.toName != null ? dp.walk2.toName : dp.leg.toStopName;
         } else if (item.payload instanceof TransferPath) {
@@ -953,47 +953,30 @@ public class RouteSearchServlet extends HttpServlet {
         String arrow = " <span class='arrow-mini'>→</span> ";
 
         out.println("<div class='steps'>");
+
+        // 徒歩のみ
         if (item.payload instanceof WalkDirectPlan) {
             WalkDirectPlan wp = (WalkDirectPlan) item.payload;
-            String main = esc(wp.fromName) + arrow + esc(wp.toName) + " (" + hhmm(wp.startTime) + "→"
-                    + hhmm(wp.endTime) + ")";
+            String main = esc(wp.fromName) + arrow + esc(wp.toName) + " (" + hhmm(wp.startTime) + "→" + hhmm(wp.endTime) + ")";
             String meta = chipInfo("距離 約" + wp.distanceM + "m") + chipInfo("時間 " + wp.totalMin + "分");
             printStep(out, "徒歩", main, meta);
-        } else if (item.payload instanceof DirectPlan) {
-            DirectPlan dp = (DirectPlan) item.payload;
-            if (!isZeroWalk(dp.walk0)) {
-                String mainWalk0 = esc(dp.walk0.fromName) + arrow + esc(dp.walk0.toName);
-                String metaWalk0 = chipInfo("距離 約" + dp.walk0.dist + "m") + chipInfo("時間 " + dp.walk0.min + "分");
-                printStep(out, "徒歩", mainWalk0, metaWalk0);
-            }
-
-            String mainRide = esc(dp.leg.fromStopName) + " " + hhmm(dp.leg.depTime) + arrow + esc(dp.leg.toStopName)
-                    + " " + hhmm(dp.leg.arrTime);
-            String metaRide = chipLine(dp.leg.routeName, dp.leg.routeColor)
-                    + chipTrip(dp.leg.tripName)
-                    + chipInfo("時間 " + diffMinutes(dp.leg.depTime, dp.leg.arrTime) + "分");
+        } 
+        // 直通
+        else if (item.payload instanceof TransitDirectPlan) {
+            TransitDirectPlan dp = (TransitDirectPlan) item.payload;
+            printWalk(dp.walk0, out, arrow);
+            String mainRide = esc(dp.leg.fromStopName) + " " + hhmm(dp.leg.depTime) + arrow + esc(dp.leg.toStopName) + " " + hhmm(dp.leg.arrTime);
+            String metaRide = chipLine(dp.leg.routeName, dp.leg.routeColor) + chipTrip(dp.leg.tripName) + chipInfo("時間 " + diffMinutes(dp.leg.depTime, dp.leg.arrTime) + "分");
             printStep(out, "乗車", mainRide, metaRide);
-
-            if (!isZeroWalk(dp.walk2)) {
-                String mainWalk2 = esc(dp.walk2.fromName) + arrow + esc(dp.walk2.toName);
-                String metaWalk2 = chipInfo("距離 約" + dp.walk2.dist + "m") + chipInfo("時間 " + dp.walk2.min + "分");
-                printStep(out, "徒歩", mainWalk2, metaWalk2);
-            }
-        } else if (item.payload instanceof TransferPath) {
+            printWalk(dp.walk2, out, arrow);
+        }
+        // 乗換
+        else if (item.payload instanceof TransferPath) {
             TransferPath tp = (TransferPath) item.payload;
-            if (!isZeroWalk(tp.walk0)) {
-                String mainWalk0 = esc(tp.walk0.fromName) + arrow + esc(tp.walk0.toName);
-                String metaWalk0 = chipInfo("距離 約" + tp.walk0.dist + "m") + chipInfo("時間 " + tp.walk0.min + "分");
-                printStep(out, "徒歩", mainWalk0, metaWalk0);
-            }
-
-            String mainRide1 = esc(tp.leg1.fromStopName) + " " + hhmm(tp.leg1.depTime) + arrow
-                    + esc(tp.leg1.toStopName) + " " + hhmm(tp.leg1.arrTime);
-            String metaRide1 = chipLine(tp.leg1.routeName, tp.leg1.routeColor)
-                    + chipTrip(tp.leg1.tripName)
-                    + chipInfo("時間 " + diffMinutes(tp.leg1.depTime, tp.leg1.arrTime) + "分");
+            printWalk(tp.walk0, out, arrow);
+            String mainRide1 = esc(tp.leg1.fromStopName) + " " + hhmm(tp.leg1.depTime) + arrow + esc(tp.leg1.toStopName) + " " + hhmm(tp.leg1.arrTime);
+            String metaRide1 = chipLine(tp.leg1.routeName, tp.leg1.routeColor) + chipTrip(tp.leg1.tripName) + chipInfo("時間 " + diffMinutes(tp.leg1.depTime, tp.leg1.arrTime) + "分");
             printStep(out, "乗車", mainRide1, metaRide1);
-
             if (!isZeroWalk(tp.walk1)) {
                 String mainWalk1 = esc(tp.walk1.fromName) + arrow + esc(tp.walk1.toName);
                 String metaWalk1 = chipInfo("距離 約" + tp.walk1.dist + "m") + chipInfo("時間 " + tp.walk1.min + "分");
@@ -1001,116 +984,54 @@ public class RouteSearchServlet extends HttpServlet {
             } else {
                 printStep(out, "乗換", "同一地点で乗換", "");
             }
-
-            String mainRide2 = esc(tp.leg2.fromStopName) + " " + hhmm(tp.leg2.depTime) + arrow
-                    + esc(tp.leg2.toStopName) + " " + hhmm(tp.leg2.arrTime);
-            String metaRide2 = chipLine(tp.leg2.routeName, tp.leg2.routeColor)
-                    + chipTrip(tp.leg2.tripName)
-                    + chipInfo("時間 " + diffMinutes(tp.leg2.depTime, tp.leg2.arrTime) + "分");
+            String mainRide2 = esc(tp.leg2.fromStopName) + " " + hhmm(tp.leg2.depTime) + arrow + esc(tp.leg2.toStopName) + " " + hhmm(tp.leg2.arrTime);
+            String metaRide2 = chipLine(tp.leg2.routeName, tp.leg2.routeColor) + chipTrip(tp.leg2.tripName) + chipInfo("時間 " + diffMinutes(tp.leg2.depTime, tp.leg2.arrTime) + "分");
             printStep(out, "乗車", mainRide2, metaRide2);
-
-            if (!isZeroWalk(tp.walk2)) {
-                String mainWalk2 = esc(tp.walk2.fromName) + arrow + esc(tp.walk2.toName);
-                String metaWalk2 = chipInfo("距離 約" + tp.walk2.dist + "m") + chipInfo("時間 " + tp.walk2.min + "分");
-                printStep(out, "徒歩", mainWalk2, metaWalk2);
-            }
-        } else if (item.payload instanceof BikeDirectPlan) {
-            BikeDirectPlan bp = (BikeDirectPlan) item.payload;
-            if (!isZeroWalk(bp.walk0)) {
-                String mainWalk0 = esc(bp.walk0.fromName) + arrow + esc(bp.walk0.toName);
-                String metaWalk0 = chipInfo("距離 約" + bp.walk0.dist + "m") + chipInfo("時間 " + bp.walk0.min + "分");
-                printStep(out, "徒歩", mainWalk0, metaWalk0);
-            }
-
-            String mainBike = esc(bp.bike.fromPortName) + " " + hhmm(bp.bike.startTime) + arrow
-                    + esc(bp.bike.toPortName) + " " + hhmm(bp.bike.endTime);
-            String metaBike = chipInfo("距離 約" + bp.bike.distanceM + "m")
-                    + chipInfo("時間 " + bp.bike.rideMinutes + "分")
-                    + chipInfo("事業者 " + bp.bike.operatorName)
-                    + chipContact(bp.bike.operatorContact);
-            printStep(out, "自転車", mainBike, metaBike);
-
-            if (!isZeroWalk(bp.walk2)) {
-                String mainWalk2 = esc(bp.walk2.fromName) + arrow + esc(bp.walk2.toName);
-                String metaWalk2 = chipInfo("距離 約" + bp.walk2.dist + "m") + chipInfo("時間 " + bp.walk2.min + "分");
-                printStep(out, "徒歩", mainWalk2, metaWalk2);
-            }
-        } else if (item.payload instanceof TransferTransitBike) {
-            TransferTransitBike tp = (TransferTransitBike) item.payload;
-            if (!isZeroWalk(tp.walk0)) {
-                String mainWalk0 = esc(tp.walk0.fromName) + arrow + esc(tp.walk0.toName);
-                String metaWalk0 = chipInfo("距離 約" + tp.walk0.dist + "m") + chipInfo("時間 " + tp.walk0.min + "分");
-                printStep(out, "徒歩", mainWalk0, metaWalk0);
-            }
-
-            String mainRide1 = esc(tp.leg1.fromStopName) + " " + hhmm(tp.leg1.depTime) + arrow
-                    + esc(tp.leg1.toStopName) + " " + hhmm(tp.leg1.arrTime);
-            String metaRide1 = chipLine(tp.leg1.routeName, tp.leg1.routeColor)
-                    + chipTrip(tp.leg1.tripName)
-                    + chipInfo("時間 " + diffMinutes(tp.leg1.depTime, tp.leg1.arrTime) + "分");
-            printStep(out, "乗車", mainRide1, metaRide1);
-
-            if (!isZeroWalk(tp.walk1)) {
-                String mainWalk1 = esc(tp.walk1.fromName) + arrow + esc(tp.walk1.toName);
-                String metaWalk1 = chipInfo("距離 約" + tp.walk1.dist + "m") + chipInfo("時間 " + tp.walk1.min + "分");
-                printStep(out, "徒歩", mainWalk1, metaWalk1);
-            }
-
-            String mainBike = esc(tp.bike.fromPortName) + " " + hhmm(tp.bike.startTime) + arrow
-                    + esc(tp.bike.toPortName) + " " + hhmm(tp.bike.endTime);
-            String metaBike = chipInfo("距離 約" + tp.bike.distanceM + "m")
-                    + chipInfo("時間 " + tp.bike.rideMinutes + "分")
-                    + chipInfo("事業者 " + tp.bike.operatorName)
-                    + chipContact(tp.bike.operatorContact);
-            printStep(out, "自転車", mainBike, metaBike);
-
-            if (!isZeroWalk(tp.walk2)) {
-                String mainWalk2 = esc(tp.walk2.fromName) + arrow + esc(tp.walk2.toName);
-                String metaWalk2 = chipInfo("距離 約" + tp.walk2.dist + "m") + chipInfo("時間 " + tp.walk2.min + "分");
-                printStep(out, "徒歩", mainWalk2, metaWalk2);
-            }
-        } else if (item.payload instanceof TransferBikeTransit) {
-            TransferBikeTransit tp = (TransferBikeTransit) item.payload;
-            if (!isZeroWalk(tp.walk0)) {
-                String mainWalk0 = esc(tp.walk0.fromName) + arrow + esc(tp.walk0.toName);
-                String metaWalk0 = chipInfo("距離 約" + tp.walk0.dist + "m") + chipInfo("時間 " + tp.walk0.min + "分");
-                printStep(out, "徒歩", mainWalk0, metaWalk0);
-            }
-
-            String mainBike = esc(tp.bike.fromPortName) + " " + hhmm(tp.bike.startTime) + arrow
-                    + esc(tp.bike.toPortName) + " " + hhmm(tp.bike.endTime);
-            String metaBike = chipInfo("距離 約" + tp.bike.distanceM + "m")
-                    + chipInfo("時間 " + tp.bike.rideMinutes + "分")
-                    + chipInfo("事業者 " + tp.bike.operatorName)
-                    + chipContact(tp.bike.operatorContact);
-            printStep(out, "自転車", mainBike, metaBike);
-
-            if (!isZeroWalk(tp.walk1)) {
-                String mainWalk1 = esc(tp.walk1.fromName) + arrow + esc(tp.walk1.toName);
-                String metaWalk1 = chipInfo("距離 約" + tp.walk1.dist + "m") + chipInfo("時間 " + tp.walk1.min + "分");
-                printStep(out, "徒歩", mainWalk1, metaWalk1);
-            }
-
-            String mainRide = esc(tp.leg2.fromStopName) + " " + hhmm(tp.leg2.depTime) + arrow
-                    + esc(tp.leg2.toStopName) + " " + hhmm(tp.leg2.arrTime);
-            String metaRide = chipLine(tp.leg2.routeName, tp.leg2.routeColor)
-                    + chipTrip(tp.leg2.tripName)
-                    + chipInfo("時間 " + diffMinutes(tp.leg2.depTime, tp.leg2.arrTime) + "分");
-            printStep(out, "乗車", mainRide, metaRide);
-
-            if (!isZeroWalk(tp.walk2)) {
-                String mainWalk2 = esc(tp.walk2.fromName) + arrow + esc(tp.walk2.toName);
-                String metaWalk2 = chipInfo("距離 約" + tp.walk2.dist + "m") + chipInfo("時間 " + tp.walk2.min + "分");
-                printStep(out, "徒歩", mainWalk2, metaWalk2);
-            }
+            printWalk(tp.walk2, out, arrow);
         }
+        // 自転車のみ
+        else if (item.payload instanceof BikeDirectPlan) {
+            BikeDirectPlan bp = (BikeDirectPlan) item.payload;
+            printWalk(bp.walk0, out, arrow);
+            String mainBike = esc(bp.bike.fromPortName) + " " + hhmm(bp.bike.startTime) + arrow + esc(bp.bike.toPortName) + " " + hhmm(bp.bike.endTime);
+            String metaBike = chipInfo("距離 約" + bp.bike.distanceM + "m") + chipInfo("時間 " + bp.bike.rideMinutes + "分") + chipInfo("事業者 " + bp.bike.operatorName) + chipContact(bp.bike.operatorContact);
+            printStep(out, "自転車", mainBike, metaBike);
+            printWalk(bp.walk2, out, arrow);
+        }
+        // 公共交通 -> 自転車
+        else if (item.payload instanceof TransferTransitBike) {
+            TransferTransitBike tp = (TransferTransitBike) item.payload;
+            printWalk(tp.walk0, out, arrow);
+            String mainRide1 = esc(tp.leg1.fromStopName) + " " + hhmm(tp.leg1.depTime) + arrow+ esc(tp.leg1.toStopName) + " " + hhmm(tp.leg1.arrTime);
+            String metaRide1 = chipLine(tp.leg1.routeName, tp.leg1.routeColor) + chipTrip(tp.leg1.tripName) + chipInfo("時間 " + diffMinutes(tp.leg1.depTime, tp.leg1.arrTime) + "分");
+            printStep(out, "乗車", mainRide1, metaRide1);
+            printWalk(tp.walk1, out, arrow);
+            String mainBike = esc(tp.bike.fromPortName) + " " + hhmm(tp.bike.startTime) + arrow + esc(tp.bike.toPortName) + " " + hhmm(tp.bike.endTime);
+            String metaBike = chipInfo("距離 約" + tp.bike.distanceM + "m") + chipInfo("時間 " + tp.bike.rideMinutes + "分") + chipInfo("事業者 " + tp.bike.operatorName) + chipContact(tp.bike.operatorContact);
+            printStep(out, "自転車", mainBike, metaBike);
+            printWalk(tp.walk2, out, arrow);
+        } 
+        // 自転車 -> 公共交通
+        else if (item.payload instanceof TransferBikeTransit) {
+            TransferBikeTransit tp = (TransferBikeTransit) item.payload;
+            printWalk(tp.walk0, out, arrow);
+            String mainBike = esc(tp.bike.fromPortName) + " " + hhmm(tp.bike.startTime) + arrow + esc(tp.bike.toPortName) + " " + hhmm(tp.bike.endTime);
+            String metaBike = chipInfo("距離 約" + tp.bike.distanceM + "m") + chipInfo("時間 " + tp.bike.rideMinutes + "分") + chipInfo("事業者 " + tp.bike.operatorName) + chipContact(tp.bike.operatorContact);
+            printStep(out, "自転車", mainBike, metaBike);
+            printWalk(tp.walk1, out, arrow);
+            String mainRide = esc(tp.leg2.fromStopName) + " " + hhmm(tp.leg2.depTime) + arrow + esc(tp.leg2.toStopName) + " " + hhmm(tp.leg2.arrTime);
+            String metaRide = chipLine(tp.leg2.routeName, tp.leg2.routeColor) + chipTrip(tp.leg2.tripName) + chipInfo("時間 " + diffMinutes(tp.leg2.depTime, tp.leg2.arrTime) + "分");
+            printStep(out, "乗車", mainRide, metaRide);
+            printWalk(tp.walk2, out, arrow);
+        }
+
         out.println("</div>");
 
-        // ===== シェアサイクル予約セクション =====
+        // ---- シェアサイクル予約セクション ----
         boolean hasBikeSegment = (item.payload instanceof BikeDirectPlan) ||
                                  (item.payload instanceof TransferTransitBike) ||
                                  (item.payload instanceof TransferBikeTransit);
-
+        // 変数を統一させる
         if (hasBikeSegment) {
             String bikeOperatorName = "";
             String bikeOperatorContact = "";
@@ -1566,7 +1487,7 @@ public class RouteSearchServlet extends HttpServlet {
     // --------------------- 経路検索系 --------------------
 
     // 直通の検索
-    private List<DirectTransitPath> searchDirectTransitPath(Connection conn, int fromStopId, int toStopId,
+    private List<TransitPath> searchDirectTransitPath(Connection conn, int fromStopId, int toStopId,
             String baseTime, String day, int limit) throws SQLException {
 
         String sql = ""
@@ -1602,7 +1523,7 @@ public class RouteSearchServlet extends HttpServlet {
         sql += " ORDER BY sa_to.arrival_time ASC, sa_from.departure_time ASC ";
         sql += " LIMIT ?";
 
-        List<DirectTransitPath> list = new ArrayList<>();
+        List<TransitPath> list = new ArrayList<>();
         try (PreparedStatement ps = conn.prepareStatement(sql)) {
             int idx = 1;
             ps.setInt(idx++, fromStopId);
@@ -1612,7 +1533,7 @@ public class RouteSearchServlet extends HttpServlet {
 
             try (ResultSet rs = ps.executeQuery()) {
                 while (rs.next()) {
-                    list.add(new DirectTransitPath(
+                    list.add(new TransitPath(
                             rs.getInt("trip_id"),
                             rs.getString("route_name"),
                             rs.getString("route_color"),
@@ -1642,7 +1563,7 @@ public class RouteSearchServlet extends HttpServlet {
     }
     
     // より良い直通か調べる
-    private boolean betterDirect(DirectPlan a, DirectPlan b) {
+    private boolean betterDirect(TransitDirectPlan a, TransitDirectPlan b) {
         LocalTime ea = LocalTime.parse(a.endTime);
         LocalTime eb = LocalTime.parse(b.endTime);
 
@@ -1719,7 +1640,6 @@ public class RouteSearchServlet extends HttpServlet {
         boolean same = (w.fromName != null && w.toName != null && w.fromName.equals(w.toName));
         return same && w.min == 0 && w.dist == 0;
     }
-
 
     // -------------------- 表示系 --------------------
 
@@ -1805,7 +1725,7 @@ public class RouteSearchServlet extends HttpServlet {
         return "<div class=\"path\">" + tagWalk(wp.totalMin + "分") + "</div>";
     }
 
-    private String pathHtml(DirectPlan dp) {
+    private String pathHtml(TransitDirectPlan dp) {
         StringBuilder h = new StringBuilder();
         h.append("<div class=\"path\">");
         if (!isZeroWalk(dp.walk0)) {
@@ -1950,7 +1870,7 @@ public class RouteSearchServlet extends HttpServlet {
     }
 
     // 直通 の結果を表示
-    private void printDirectRow(PrintWriter out, DirectPlan dp, String detailUrl) {
+    private void printDirectRow(PrintWriter out, TransitDirectPlan dp, String detailUrl) {
         out.println("<tr>");
         out.println("<td>" + pathHtml(dp) + "</td>");
         out.println("<td>" + esc(hhmm(dp.startTime)) + " → " + esc(hhmm(dp.endTime)) + "</td>");
@@ -1991,5 +1911,11 @@ public class RouteSearchServlet extends HttpServlet {
 
     }
 
-
+    private void printWalk (WalkPath w, PrintWriter out, String arrow) {
+        if(!isZeroWalk(w)) {
+            String main = esc(w.fromName) + arrow + esc(w.toName);
+            String meta = chipInfo("距離 約" + w.dist + "m") + chipInfo("時間 " + w.min + "分");
+            printStep(out, "徒歩", main, meta);
+        }
+    }
 }
