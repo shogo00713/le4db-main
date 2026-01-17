@@ -1,3 +1,6 @@
+import static util.HtmlUtils.esc;
+import static util.HtmlUtils.safe;
+
 import java.io.IOException;
 import java.io.PrintWriter;
 import java.net.URLEncoder;
@@ -22,13 +25,6 @@ public class BikeMoveLogServlet extends HttpServlet {
     }  
 
     Connection conn = null; // 認証 & 接続用
-
-    private String esc(String s) {
-        if (s == null) return "";
-        return s.replace("&", "&amp;").replace("<", "&lt;")
-                .replace(">", "&gt;").replace("\"", "&quot;");
-    }
-    private String safe(String s, String def) { return (s == null) ? def : s; }
 
     private static class LogRow {
         final int logId;

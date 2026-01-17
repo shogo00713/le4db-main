@@ -8,7 +8,7 @@ import java.util.Properties;
 
  データベース接続の初期化と接続取得を行うクラス
 
- initialize メソッド : 設定ファイルの読み込み
+ initialize メソッド    : 設定ファイルの読み込み
  getConnection メソッド : 接続の取得する
 
  */

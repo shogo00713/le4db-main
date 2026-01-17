@@ -1,5 +1,4 @@
 import static util.HtmlUtils.esc;
-import static util.HtmlUtils.safe;
 import static util.HtmlUtils.option;
 
 import java.io.IOException;

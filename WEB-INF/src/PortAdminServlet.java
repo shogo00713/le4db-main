@@ -1,15 +1,15 @@
-import java.io.FileInputStream;
+import static util.HtmlUtils.esc;
+import static util.HtmlUtils.safe;
+
 import java.io.IOException;
 import java.io.PrintWriter;
 import java.net.URLEncoder;
 import java.sql.Connection;
-import java.sql.DriverManager;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Properties;
 
 import javax.servlet.ServletException;
 import javax.servlet.http.HttpServlet;
@@ -33,17 +33,6 @@ public class PortAdminServlet extends HttpServlet {
         }
     }
     Connection conn = null; // 認証 & 接続用
-
-    // HTMLエスケープ
-    private String esc(String s) {
-        if (s == null) return "";
-        return s.replace("&", "&amp;").replace("<", "&lt;")
-                .replace(">", "&gt;").replace("\"", "&quot;");
-    }
-
-    private String safe(String s, String def) {
-        return (s == null) ? def : s;
-    }
 
     private static class PortRow {
         final int portId;
