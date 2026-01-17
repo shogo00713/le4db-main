@@ -48,25 +48,8 @@ public class AdminLoginServlet extends HttpServlet {
         out.println("<!DOCTYPE html><html lang=\"ja\"><head><meta charset=\"UTF-8\"/>");
         out.println("<meta name=\"viewport\" content=\"width=device-width, initial-scale=1\"/>");
         out.println("<title>ShareCycle Admin Login</title>");
-        
-        // CSS（簡易）
-        out.println("<style>");
-        out.println("*{margin:0;padding:0;box-sizing:border-box;}");
-        out.println("body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Noto Sans JP','Hiragino Sans','Hiragino Kaku Gothic ProN',Meiryo,sans-serif;background:#fff;color:#2d3748;display:flex;justify-content:center;align-items:center;min-height:100vh;padding:20px;}");
-        out.println(".login-container{background:rgba(255,255,255,0.98);backdrop-filter:blur(10px);border-radius:20px;box-shadow:0 20px 60px rgba(0,0,0,0.15);padding:40px;width:100%;max-width:420px;}");
-        out.println(".login-title{margin:0 0 10px 0;font-size:32px;font-weight:700;text-align:center;color:#1a202c;letter-spacing:-0.5px;}");
-        out.println(".login-muted{color:#718096;font-size:14px;text-align:center;margin:0 0 30px 0;}");
-        out.println(".form-group{margin:20px 0;}");
-        out.println("label{display:block;margin:0 0 8px 0;font-size:14px;font-weight:600;color:#4a5568;}");
-        out.println("input,select{width:100%;padding:12px 16px;border:2px solid #e2e8f0;border-radius:12px;font-size:15px;transition:all 0.2s ease;background:#f7fafc;}");
-        out.println("input:focus,select:focus{outline:none;border-color:#3b82f6;background:#fff;box-shadow:0 0 0 3px rgba(59,130,246,0.1);}");
-        out.println(".btn{width:100%;padding:14px 20px;background:linear-gradient(135deg,#3b82f6 0%,#1d4ed8 100%);color:#fff;border:none;border-radius:12px;font-size:16px;font-weight:600;cursor:pointer;margin-top:28px;transition:all 0.3s ease;box-shadow:0 4px 15px rgba(59,130,246,0.4);}");
-        out.println(".btn:hover{transform:translateY(-2px);box-shadow:0 6px 20px rgba(255,255,255,0.98);}");
-        out.println(".btn:active{transform:translateY(0);}");
-        out.println(".alert{padding:14px 16px;border-radius:12px;background:#fed7d7;border:1px solid #fc8181;color:#c53030;margin:20px 0;font-size:14px;}");
-        out.println("a{color:#3b82f6;text-decoration:none;transition:color 0.2s ease;}");
-        out.println("a:hover{color:#1d4ed8;}");
-        out.println("</style>");
+        out.println("<link rel=\"stylesheet\" href=\"" + request.getContextPath() + "/static/app.css\"/>");
+        out.println("</head><body class=\"page-admin-login\">");
 
         out.println("<div class=\"login-container\">");
         out.println("<h1 class=\"login-title\">管理者ログイン</h1>");
@@ -111,8 +94,8 @@ public class AdminLoginServlet extends HttpServlet {
 
         out.println("</form>");
 
-        out.println("<div style=\"text-align:center;margin-top:20px;\">");
-        out.println("<a href=\"" + request.getContextPath() + "/routesearch\" style=\"color:#007AFF;text-decoration:none;font-size:14px;\">← ルート検索に戻る</a>");
+        out.println("<div class=\"link-area\">");
+        out.println("<a class=\"back-link\" href=\"" + request.getContextPath() + "/routesearch\">← ルート検索に戻る</a>");
         out.println("</div>");
 
         out.println("</div>");

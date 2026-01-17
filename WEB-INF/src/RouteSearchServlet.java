@@ -130,90 +130,11 @@ public class RouteSearchServlet extends HttpServlet {
         out.println("<meta charset=\"UTF-8\">");
         out.println("<meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">");
         out.println("<title>RouteSearch</title>");
-
-        // CSS 直書き (外部ファイルに変更予定)
-        out.println("<style>");
-        out.println(":root{"
-                + "--bg:#f3f6fa;"
-                + "--panel:#fff;"
-                + "--panelSolid:#fff;"
-                + "--text:#222;"
-                + "--muted:#7a869a;"
-                + "--border:#e3e8ee;"
-                + "--hairline:#e3e8ee;"
-                + "--shadow:0 8px 32px rgba(60,80,120,.10);"
-                + "--shadow2:0 2px 8px rgba(60,80,120,.08);"
-                + "--radius:18px;"
-                + "--gap:18px;"
-                + "--primary:#3b82f6;"
-                + "--primary2:#2563eb;"
-                + "--ring:rgba(59,130,246,.18);"
-                + "--accent:#fbbf24;"
-                + "}");
-        out.println("*{box-sizing:border-box;}");
-        out.println("html,body{height:100%;}");
-        out.println("body{margin:0;background:var(--bg);color:var(--text);font-family:'Segoe UI',Roboto,'Noto Sans JP',Meiryo,sans-serif;-webkit-font-smoothing:antialiased;moz-osx-font-smoothing:grayscale;}");
-        out.println(".app{max-width:1150px;margin:32px auto;padding:0 18px;}");
-        out.println(".header{margin-bottom:18px;display:flex;align-items:flex-end;justify-content:space-between;gap:18px;}");
-        out.println(".title{font-size:26px;line-height:1.2;margin:0;letter-spacing:-.01em;font-weight:700;}");
-        out.println(".subtitle{margin:0;color:var(--muted);font-size:15px;}");
-        out.println(".card{background:var(--panel);border:1px solid var(--border);border-radius:var(--radius);box-shadow:var(--shadow);padding:22px 24px 18px 24px;backdrop-filter: blur(10px);}");
-        out.println(".form{display:grid;grid-template-columns:1fr 1fr;gap:var(--gap);align-items:end;}");
-        out.println("@media (max-width: 820px){.form{grid-template-columns:1fr;}}");
-        out.println(".field{display:flex;flex-direction:column;gap:8px;}");
-        out.println(".label{font-size:13px;color:var(--muted);font-weight:500;}");
-        out.println(".input,.select{width:100%;padding:13px 14px;border:1px solid var(--hairline);border-radius:14px;background:rgba(255,255,255,.98);font-size:15px;outline:none;transition:border-color .15s ease, box-shadow .15s ease;}");
-        out.println(".input:focus,.select:focus{border-color:var(--primary);box-shadow:0 0 0 5px var(--ring);}");
-        out.println(".input::placeholder{color:rgba(110,110,115,.85);}");
-        out.println(".actions{grid-column:1/-1;display:flex;flex-wrap:wrap;gap:12px;align-items:center;}");
-        out.println(".btn{appearance:none;border:none;border-radius:999px;padding:12px 24px;font-weight:700;background:linear-gradient(90deg, var(--primary), var(--primary2));color:#fff;cursor:pointer;box-shadow:0 6px 16px rgba(59,130,246,.12);transition:transform .12s, box-shadow .12s, filter .12s;}");
-        out.println(".btn:hover{filter:saturate(1.08);box-shadow:0 10px 24px rgba(59,130,246,.18);}");
-        out.println(".btn:active{transform:translateY(1px);box-shadow:0 4px 12px rgba(59,130,246,.12);}");
-        out.println(".hr{height:1px;background:var(--border);margin:18px 0;}");
-        out.println(".alert{padding:12px 16px;border-radius:16px;background:#fffbe6;border:1px solid var(--accent);color:#92400e;font-size:15px;}");
-        out.println(".fixed{padding:12px 16px;border-radius:14px;background:rgba(0,0,0,.03);border:1px solid var(--border);font-size:15px;}");
-        out.println(".muted{color:var(--muted);font-size:14px;}");
-        out.println(".result-title{font-size:18px;margin:0 0 10px 0;letter-spacing:-.01em;font-weight:600;}");
-        out.println(".route-banner{font-size:22px;font-weight:900;margin:10px 0 14px 0;letter-spacing:-.01em;color:var(--primary2);}");
-        out.println(".route-banner .arrow{color:var(--muted);padding:0 10px;}");
-        out.println(".table-wrap{overflow:auto;border:1px solid var(--border);border-radius:16px;background:var(--panelSolid);box-shadow:var(--shadow2);margin-bottom:18px;}");
-        out.println("table{width:100%;border-collapse:separate;border-spacing:0;min-width:720px;}");
-        out.println("th,td{padding:13px 14px;border-bottom:1px solid var(--hairline);text-align:left;font-size:15px;white-space:nowrap;}");
-        out.println("th{background:rgba(250,250,252,.98);font-size:13px;color:#3a3a3c;position:sticky;top:0;z-index:2;}");
-        out.println("tr:hover td{background:rgba(59,130,246,.04);}");
-        out.println(".detail-row td{background:rgba(59,130,246,.02);}");
-        out.println(".steps{display:flex;flex-direction:column;gap:14px;margin-top:14px;}");
-        out.println(".step{display:grid;grid-template-columns: 60px 1fr auto;gap:14px;padding:14px 14px;border:1px solid var(--border);border-radius:16px;background:#fff;box-shadow:0 2px 8px rgba(60,80,120,.08);}");
-        out.println(".step .kind{font-weight:800;font-size:13px;letter-spacing:.04em;align-self:center;padding:7px 10px;border-radius:999px;background:rgba(59,130,246,.10);color:var(--primary2);text-align:center;}");
-        out.println(".step .main{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-size:15px;}");
-        out.println(".step .meta{white-space:nowrap;color:var(--muted);font-size:13px;}");
-        out.println(".detail-card{max-width:700px;margin:32px auto;padding:28px 32px;background:var(--panel);border-radius:20px;box-shadow:var(--shadow);border:1px solid var(--border);}");
-        out.println(".detail-header{font-size:22px;font-weight:700;margin-bottom:10px;color:var(--primary2);}");
-        out.println(".detail-summary{font-size:16px;color:var(--muted);margin-bottom:18px;}");
-        out.println(".back-btn{display:inline-block;margin-bottom:18px;padding:10px 22px;background:linear-gradient(90deg, var(--primary), var(--primary2));color:#fff;border-radius:999px;font-weight:700;text-decoration:none;box-shadow:0 4px 12px rgba(59,130,246,.10);transition:filter .12s, box-shadow .12s;}");
-        out.println(".reservation-timers{display:flex;gap:8px;align-items:center;margin-top:8px;}");
-        out.println(".timer-badge{display:none;padding:6px 10px;border-radius:999px;background:#0ea5e9;color:#fff;font-weight:700;font-size:12px;}");
-        out.println(".back-btn:hover{filter:saturate(1.08);box-shadow:0 8px 24px rgba(59,130,246,.18);}");
-        out.println(".back-btn:active{filter:brightness(.98);}");
-        out.println(".steps{display:flex;flex-direction:column;gap:14px;margin-top:14px;}");
-        out.println(".step{display:grid;grid-template-columns: 60px 1fr auto;gap:14px;padding:14px 14px;border:1px solid var(--border);border-radius:16px;background:#fff;box-shadow:0 2px 8px rgba(60,80,120,.08);}");
-        out.println(".step .kind{font-weight:800;font-size:13px;letter-spacing:.04em;align-self:center;padding:7px 10px;border-radius:999px;background:rgba(59,130,246,.10);color:var(--primary2);text-align:center;}");
-        out.println(".step .main{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-size:15px;}");
-        out.println(".step .meta{white-space:nowrap;color:var(--muted);font-size:13px;}");
-        out.println(".path{display:flex;flex-wrap:wrap;align-items:center;gap:8px;}");
-        out.println(".tag{display:inline-flex;align-items:center;gap:8px;padding:6px 10px;border-radius:999px;border:1px solid var(--border);background:#fff;font-size:14px;font-weight:800;}");
-        out.println(".tag.line{--line:#9ca3af;}");
-        out.println(".tag.line:before{content:\"\";width:10px;height:10px;border-radius:3px;background:var(--line);}");
-        out.println(".tag.walk{background:rgba(0,0,0,.03);color:#374151;font-weight:500;}");
-        out.println(".tag.transfer{background:rgba(251,191,36,.18);border-color:rgba(251,191,36,.55);color:#92400e;font-weight:800;}");
-        out.println(".tag.bike{background:rgba(34,197,94,.12);border-color:rgba(34,197,94,.35);color:#166534;font-weight:600;}");
-        out.println(".arrow-mini{color:var(--muted);font-weight:900;}");
-        out.println("</style>");
-        // CSS ここまで
+        out.println("<link rel=\"stylesheet\" href=\"" + request.getContextPath() + "/static/app.css\"/>");
 
         // HTML本文
         out.println("</head>");
-        out.println("<body>");
+        out.println("<body class=\"page-route-search\">");
         out.println("<div class=\"app\">");
 
         out.println("<div class=\"header\">");
@@ -1066,55 +987,8 @@ public class RouteSearchServlet extends HttpServlet {
         out.println("<!DOCTYPE html><html lang='ja'><head>");
         out.println("<meta charset='UTF-8'><meta name='viewport' content='width=device-width, initial-scale=1'>");
         out.println("<title>Route Detail</title>");
-
-        out.println("<style>");
-        out.println(":root{--bg:#f3f6fa;--panel:#fff;--panelSolid:#fff;--text:#222;--muted:#7a869a;--border:#e3e8ee;--hairline:#e3e8ee;--shadow:0 8px 32px rgba(60,80,120,.10);--shadow2:0 2px 8px rgba(60,80,120,.08);--radius:18px;--gap:18px;--primary:#3b82f6;--primary2:#2563eb;--ring:rgba(59,130,246,.18);--accent:#fbbf24;}");
-        out.println("body{margin:0;background:var(--bg);color:var(--text);font-family:'Segoe UI',Roboto,'Noto Sans JP',Meiryo,sans-serif;-webkit-font-smoothing:antialiased;moz-osx-font-smoothing:grayscale;}");
-        out.println(".detail-card{max-width:960px;margin:32px auto;padding:28px 32px;background:var(--panel);border-radius:20px;box-shadow:var(--shadow);border:1px solid var(--border);}");
-        out.println(".detail-header{font-size:22px;font-weight:700;margin-bottom:14px;color:var(--primary2);}");
-        out.println(".detail-summary{margin-bottom:18px;}");
-        out.println(".summary-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px;}");
-        out.println(".summary-item{padding:12px 14px;border:1px solid var(--border);border-radius:14px;background:var(--panelSolid);box-shadow:var(--shadow2);}");
-        out.println(".summary-label{font-size:12px;color:var(--muted);letter-spacing:.05em;text-transform:uppercase;}");
-        out.println(".summary-value{font-size:17px;font-weight:700;letter-spacing:-.01em;}");
-        out.println(".summary-sub{margin-top:4px;color:var(--muted);font-size:13px;}");
-        out.println(".back-btn{display:inline-block;margin-bottom:18px;padding:10px 22px;background:linear-gradient(90deg, var(--primary), var(--primary2));color:#fff;border-radius:999px;font-weight:700;text-decoration:none;box-shadow:0 4px 12px rgba(59,130,246,.10);transition:filter .12s, box-shadow .12s;}");
-        out.println(".back-btn:hover{filter:saturate(1.08);box-shadow:0 8px 24px rgba(59,130,246,.18);}");
-        out.println(".back-btn:active{filter:brightness(.98);}");
-        out.println(".steps{display:flex;flex-direction:column;gap:14px;margin-top:14px;}");
-        out.println(".step{display:grid;grid-template-columns: 88px 1fr;grid-template-rows: auto auto;gap:10px 14px;padding:12px 14px;align-items:start;border:1px solid var(--border);border-radius:16px;background:#fff;box-shadow:0 2px 8px rgba(60,80,120,.08);}");
-        out.println(".step .kind{font-weight:800;font-size:13px;letter-spacing:.04em;align-self:center;padding:7px 10px;border-radius:999px;background:rgba(59,130,246,.10);color:var(--primary2);text-align:center;}");
-        out.println(".step .main{grid-column:2;grid-row:1;white-space:normal;overflow:hidden;text-overflow:ellipsis;font-size:15px;line-height:1.45;display:flex;align-items:center;gap:8px;}");
-        out.println(".step .meta{grid-column: 2;grid-row: 2;display:flex;flex-wrap:wrap;gap:8px;color:var(--muted);font-size:13px;align-items:center;}");
-        out.println(".arrow-mini{color:var(--muted);font-weight:900;}");
-        out.println(".chip{display:inline-flex;align-items:center;gap:6px;padding:4px 9px;border-radius:999px;border:1px solid var(--border);background:#fff;font-size:12px;font-weight:700;}");
-        out.println(".chip .dot{width:10px;height:10px;border-radius:3px;background:var(--primary);}");
-        out.println(".chip.line{border-color:var(--line);background:rgba(0,0,0,.02);color:#111;}");
-        out.println(".chip.line .dot{background:var(--line);}");
-        out.println(".chip.trip{background:rgba(59,130,246,.12);border-color:rgba(59,130,246,.32);color:#1d4ed8;}");
-        out.println(".chip.info{font-weight:600;}");
-        out.println(".chip.contact{background:rgba(16,185,129,.12);border-color:rgba(16,185,129,.35);color:#065f46;}");
-        out.println(".reservation-actions{display:flex;align-items:center;gap:14px;flex-wrap:wrap;}");
-        out.println(".timer-pill{display:inline-flex;align-items:baseline;gap:10px;padding:10px 14px;border-radius:999px;border:1px solid rgba(0,0,0,.08);background:#fff;box-shadow:0 2px 10px rgba(0,0,0,.06);}");
-        out.println(".timer-pill.reserve{background:rgba(59,130,246,.10);border-color:rgba(59,130,246,.25);color:#1d4ed8;}");
-        out.println(".timer-pill.use{background:rgba(16,185,129,.12);border-color:rgba(16,185,129,.25);color:#065f46;}");
-        out.println(".timer-label{font-size:12px;opacity:.85;font-weight:700;}");
-        out.println(".timer-num{font-size:16px;font-weight:800;letter-spacing:.06em;font-variant-numeric:tabular-nums;font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,'Liberation Mono','Courier New',monospace;}");
-        out.println(".reservation-section{margin-top:28px;padding:22px;background:linear-gradient(135deg,rgba(16,185,129,.12) 0%,rgba(59,130,246,.12) 100%);border-radius:16px;border:2px solid rgba(16,185,129,.35);}");
-        out.println(".reservation-title{font-size:16px;font-weight:700;color:#065f46;margin:0 0 14px 0;}");
-        out.println(".reservation-actions{display:flex;flex-wrap:wrap;gap:12px;}");
-        out.println(".btn-reserve{padding:14px 32px;background:linear-gradient(135deg,#10b981 0%,#059669 100%);color:#fff;border:none;border-radius:999px;font-size:15px;font-weight:700;cursor:pointer;box-shadow:0 4px 14px rgba(16,185,129,.3);transition:all .2s ease;}");
-        out.println(".btn-reserve:hover{transform:translateY(-2px);box-shadow:0 6px 20px rgba(16,185,129,.4);}");
-        out.println(".btn-reserve:disabled{background:#ccc;cursor:not-allowed;transform:none;box-shadow:none;}");
-        out.println(".btn-action{padding:12px 24px;background:#fff;border:2px solid #10b981;color:#065f46;border-radius:999px;font-size:14px;font-weight:700;cursor:pointer;transition:all .2s ease;}");
-        out.println(".btn-action:hover{background:#ecfdf5;transform:translateY(-1px);}");
-        out.println(".btn-action:disabled{background:#f3f4f6;border-color:#d1d5db;color:#9ca3af;cursor:not-allowed;transform:none;}");
-        out.println(".btn-cancel{padding:12px 24px;background:#fff;border:2px solid #ef4444;color:#dc2626;border-radius:999px;font-size:14px;font-weight:700;cursor:pointer;transition:all .2s ease;}");
-        out.println(".btn-cancel:hover{background:#fef2f2;transform:translateY(-1px);}");
-        out.println(".reservation-status{font-size:13px;color:#059669;font-weight:600;margin-top:10px;}");
-        out.println(".cancel-wrap{display:inline-flex;align-items:center;gap:12px;flex-wrap:nowrap;}");
-        out.println("</style>");
-        out.println("</head><body>");
+        out.println("<link rel=\"stylesheet\" href=\"" + req.getContextPath() + "/static/app.css\"/>");
+        out.println("</head><body class='page-route-detail'>");
 
         out.println("<div class='detail-card'>");
         out.println("<a href='" + esc(backUrl) + "' class='back-btn'>← 戻る</a>");
@@ -1355,20 +1229,20 @@ public class RouteSearchServlet extends HttpServlet {
 
             out.println("<div class='reservation-section'>");
             out.println("<div class='reservation-title'>🚲 シェアサイクルを予約</div>");
-            out.println("<div style='margin-bottom:12px;'>");
-            out.println("<p style='margin:0 0 6px 0;color:#065f46;font-size:14px;font-weight:600;'>" + esc(bikeOperatorName) + "</p>");
-            out.println("<p style='margin:0;color:#059669;font-size:13px;'>" + esc(bikeOperatorContact) + "</p>");
+            out.println("<div class='contact-card'>");
+            out.println("<p class='contact-name'>" + esc(bikeOperatorName) + "</p>");
+            out.println("<p class='contact-contact'>" + esc(bikeOperatorContact) + "</p>");
             out.println("</div>");
             out.println("<div class='reservation-actions'>");
             out.println("<button class='btn-reserve' id='reserveBtn' onclick='reserveBike(" + bikeOperatorId + ")'>予約する</button>");
-            out.println("<button class='btn-action' id='startBtn' style='display:none;' onclick='startBikeUsage()'>利用開始</button>");
-            out.println("<button class='btn-action' id='returnBtn' style='display:none;' onclick='returnBike()'>返却</button>");
+            out.println("<button class='btn-action hidden' id='startBtn' onclick='startBikeUsage()'>利用開始</button>");
+            out.println("<button class='btn-action hidden' id='returnBtn' onclick='returnBike()'>返却</button>");
             out.println("<span class='cancel-wrap'>");
-            out.println("<button class='btn-cancel' id='cancelBtn' style='display:none;' onclick='cancelReservation()'>キャンセル</button>");
-            out.println("<span id='reserveTimer' class='timer-pill reserve' style='display:none;'></span>");
-            out.println("<span id='useTimer' class='timer-pill use' style='display:none;'></span>");
+            out.println("<button class='btn-cancel hidden' id='cancelBtn' onclick='cancelReservation()'>キャンセル</button>");
+            out.println("<span id='reserveTimer' class='timer-pill reserve hidden'></span>");
+            out.println("<span id='useTimer' class='timer-pill use hidden'></span>");
             out.println("</span>");
-            out.println("<div class='reservation-note' style='margin-top:8px;font-size:12px;color:#6b7280;'>※ 予約は30分以内に利用開始してください（30分を過ぎると無効になります）。</div>");
+            out.println("<div class='reservation-note'>※ 予約は30分以内に利用開始してください（30分を過ぎると無効になります）。</div>");
             out.println("<div class='reservation-status' id='statusMsg'></div>");
             out.println("</div>");
 

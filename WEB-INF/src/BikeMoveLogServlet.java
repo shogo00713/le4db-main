@@ -240,32 +240,10 @@ public class BikeMoveLogServlet extends HttpServlet {
         out.println("<!DOCTYPE html><html lang=\"ja\"><head><meta charset=\"UTF-8\"/>");
         out.println("<meta name=\"viewport\" content=\"width=device-width, initial-scale=1\"/>");
         out.println("<title>Bike Move Log</title>");
-        out.println("<style>");
-        out.println("*{margin:0;padding:0;box-sizing:border-box;}");
-        out.println("body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Noto Sans JP','Hiragino Sans','Hiragino Kaku Gothic ProN',Meiryo,sans-serif;background:#eff6ff;color:#2d3748;padding:20px;}");
-        out.println(".app{max-width:1200px;margin:0 auto;}");
-        out.println(".card{background:#fff;border-radius:20px;box-shadow:0 10px 30px rgba(0,0,0,0.08);padding:32px;margin-bottom:24px;}");
-        out.println(".title{margin:0 0 8px 0;font-size:28px;font-weight:700;color:#1a202c;letter-spacing:-0.5px;}");
-        out.println(".muted{color:#718096;font-size:14px;margin:4px 0;}");
-        out.println(".row{display:flex;gap:12px;flex-wrap:wrap;align-items:center;margin:16px 0;}");
-        out.println("input,select{padding:12px 16px;border:2px solid #e2e8f0;border-radius:12px;font-size:14px;transition:all 0.2s ease;background:#f7fafc;}");
-        out.println("input:focus,select:focus{outline:none;border-color:#3b82f6;background:#fff;box-shadow:0 0 0 3px rgba(59,130,246,0.1);}");
-        out.println(".btn{padding:12px 24px;background:linear-gradient(135deg,#3b82f6 0%,#1d4ed8 100%);color:#fff;border:none;border-radius:12px;font-size:14px;font-weight:600;cursor:pointer;text-decoration:none;display:inline-block;transition:all 0.3s ease;box-shadow:0 4px 12px rgba(59,130,246,0.3);}");
-        out.println(".btn:hover{transform:translateY(-2px);box-shadow:0 6px 16px rgba(59,130,246,0.4);}");
-        out.println(".btn2{padding:10px 20px;background:#fff;color:#4a5568;border:2px solid #e2e8f0;border-radius:10px;font-size:14px;font-weight:600;cursor:pointer;text-decoration:none;display:inline-block;transition:all 0.2s ease;}");
-        out.println(".btn2:hover{background:#dbeafe;border-color:#3b82f6;transform:translateY(-1px);}");
-        out.println(".alert{padding:14px 18px;border-radius:12px;background:#fff5f5;border:2px solid #feb2b2;color:#742a2a;margin:16px 0;font-size:14px;}");
-        out.println(".table-wrap{overflow:auto;border-radius:16px;border:2px solid #e2e8f0;margin:20px 0;}");
-        out.println("table{width:100%;border-collapse:separate;border-spacing:0;}");
-        out.println("th,td{padding:14px 16px;text-align:left;}");
-        out.println("th{background:#f7fafc;font-size:13px;font-weight:700;color:#4a5568;text-transform:uppercase;letter-spacing:0.5px;border-bottom:2px solid #e2e8f0;}");
-        out.println("td{border-bottom:1px solid #e2e8f0;color:#2d3748;}");
-        out.println("tr:hover td{background:#eff6ff;}");
-        out.println(".mini{font-size:13px;color:#718096;}");
-        out.println("</style>");
-        out.println("</head><body><div class=\"app\"><div class=\"card\">");
+        out.println("<link rel=\"stylesheet\" href=\"" + ctx + "/static/app.css\"/>");
+        out.println("</head><body class=\"page-port-log\"><div class=\"app\"><div class=\"card\">");
 
-        out.println("<div class=\"row\" style=\"justify-content:space-between;\">");
+        out.println("<div class=\"row justify-between\">");
         out.println("<div>");
         out.println("<h1 class=\"title\">配車ログ（bike_move_log）</h1>");
         out.println("<p class=\"muted\">事業者: " + esc(sessionOperatorName) + "</p>");
@@ -280,9 +258,9 @@ public class BikeMoveLogServlet extends HttpServlet {
 
         // 分析結果（ユーザー利用のみ）
         out.println("<div class=\"row\">");
-        out.println("<div class=\"alert\" style=\"background:#ecfeff;border-color:rgba(14,165,233,.28);color:#0c4a6e;\">");
+        out.println("<div class=\"alert alert-info\">");
         out.println("<b>分析（ユーザー利用のみ）</b>：事業者の活用検討に役立つサマリ<br/>");
-        out.println("<div class=\"row\" style=\"gap:24px;\">");
+        out.println("<div class=\"row gap-24\">");
         // 出発上位
         out.println("<div><span class=\"mini\"><b>出発が多いポート TOP3</b></span><br/>");
         for (PortStat s : topDepartures) {
@@ -338,7 +316,7 @@ public class BikeMoveLogServlet extends HttpServlet {
         }
 
         out.println("</table></div>");
-        out.println("<p class=\"mini\" style=\"margin-top:12px;\">※ 配車ログは監査のため削除できません</p>");
+        out.println("<p class=\"mini mt-12\">※ 配車ログは監査のため削除できません</p>");
 
         out.println("</div></div></body></html>");
     }
