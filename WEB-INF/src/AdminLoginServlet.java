@@ -1,12 +1,9 @@
-import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.PrintWriter;
 import java.net.URLEncoder;
 import java.sql.Connection;
-import java.sql.DriverManager;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
-import java.util.Properties;
 
 import javax.servlet.ServletException;
 import javax.servlet.http.HttpServlet;
@@ -17,35 +14,17 @@ import javax.servlet.http.HttpSession;
 @SuppressWarnings("serial")
 public class AdminLoginServlet extends HttpServlet {
 
-    private String _hostname = null;
-    private String _dbname   = null;
-    private String _username = null;
-    private String _password = null;
 
     public void init() throws ServletException {
-        String iniFilePath = getServletConfig().getServletContext()
-                .getRealPath("WEB-INF/le4db.ini");
-
-        try (FileInputStream fis = new FileInputStream(iniFilePath)) {
-            Properties prop = new Properties();
-            prop.load(fis);
-            _hostname = prop.getProperty("hostname");
-            _dbname   = prop.getProperty("dbname");
-            _username = prop.getProperty("username");
-            _password = prop.getProperty("password");
-
-            Class.forName("org.postgresql.Driver");
+        String iniFilePath = getServletConfig().getServletContext().getRealPath("WEB-INF/le4db.ini");
+        try {
+            DatabaseConfig.initialize(iniFilePath);
         } catch (Exception e) {
-            e.printStackTrace();
+            throw new ServletException("データベース初期化エラー: " + e.getMessage());
         }
     }
 
-    private Connection openConn() throws Exception {
-        return DriverManager.getConnection(
-            "jdbc:postgresql://" + _hostname + ":5432/" + _dbname,
-            _username, _password
-        );
-    }
+    Connection conn = null; // 認証 & 接続用
 
     // HTMLエスケープ
     private String esc(String s) {
@@ -113,7 +92,7 @@ public class AdminLoginServlet extends HttpServlet {
         out.println("<option value=\"\">-- 選択してください --</option>");
 
         // operator 一覧をデータベースから取得
-        try (Connection conn = openConn()) {
+        try (Connection conn = DatabaseConfig.getConnection()) {
             String sql = "SELECT DISTINCT operator_id, operator_name FROM port_status ORDER BY operator_name";
             try (PreparedStatement ps = conn.prepareStatement(sql);
                  ResultSet rs = ps.executeQuery()) {
@@ -170,7 +149,7 @@ public class AdminLoginServlet extends HttpServlet {
         String storedPassword = null;
         String operatorName = null;
 
-        try (Connection conn = openConn()) {
+        try (Connection conn = DatabaseConfig.getConnection()) {
             String sql = "SELECT password, operator_name FROM admin_credentials WHERE operator_id = ?";
             try (PreparedStatement ps = conn.prepareStatement(sql)) {
                 ps.setInt(1, operatorId);

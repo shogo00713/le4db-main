@@ -1,11 +1,9 @@
-import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.PrintWriter;
 import java.net.URLEncoder;
 import java.sql.*;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Properties;
 import javax.servlet.ServletException;
 import javax.servlet.http.HttpServlet;
 import javax.servlet.http.HttpServletRequest;
@@ -14,33 +12,16 @@ import javax.servlet.http.HttpServletResponse;
 @SuppressWarnings("serial")
 public class BikeMoveLogServlet extends HttpServlet {
 
-    private String _hostname = null;
-    private String _dbname   = null;
-    private String _username = null;
-    private String _password = null;
-
     public void init() throws ServletException {
-        String iniFilePath = getServletConfig().getServletContext()
-                .getRealPath("WEB-INF/le4db.ini");
-        try (FileInputStream fis = new FileInputStream(iniFilePath)) {
-            Properties prop = new Properties();
-            prop.load(fis);
-            _hostname = prop.getProperty("hostname");
-            _dbname   = prop.getProperty("dbname");
-            _username = prop.getProperty("username");
-            _password = prop.getProperty("password");
-            Class.forName("org.postgresql.Driver");
+        String iniFilePath = getServletConfig().getServletContext().getRealPath("WEB-INF/le4db.ini");
+        try {
+            DatabaseConfig.initialize(iniFilePath);
         } catch (Exception e) {
-            e.printStackTrace();
+            throw new ServletException("データベース初期化エラー: " + e.getMessage());
         }
-    }
+    }  
 
-    private Connection openConn() throws SQLException {
-        return DriverManager.getConnection(
-            "jdbc:postgresql://" + _hostname + ":5432/" + _dbname,
-            _username, _password
-        );
-    }
+    Connection conn = null; // 認証 & 接続用
 
     private String esc(String s) {
         if (s == null) return "";
@@ -186,7 +167,7 @@ public class BikeMoveLogServlet extends HttpServlet {
             "ORDER BY total_bikes ASC, po.port_id ASC " +
             "LIMIT 3";
 
-        try (Connection conn = openConn()) {
+        try (Connection conn = DatabaseConfig.getConnection()) {
 
             try (PreparedStatement ps = conn.prepareStatement(listSql)) {
                 int idx = 1;

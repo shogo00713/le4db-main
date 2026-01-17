@@ -1,15 +1,9 @@
-import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.PrintWriter;
 import java.sql.Connection;
-import java.sql.DriverManager;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
-import java.sql.Statement;
-import java.time.LocalDateTime;
-import java.time.format.DateTimeFormatter;
-import java.util.Properties;
 
 import javax.servlet.ServletException;
 import javax.servlet.http.HttpServlet;
@@ -19,34 +13,13 @@ import javax.servlet.http.HttpServletResponse;
 @SuppressWarnings("serial")
 public class BikeReservationServlet extends HttpServlet {
 
-    private String _hostname = null;
-    private String _dbname = null;
-    private String _username = null;
-    private String _password = null;
-
     public void init() throws ServletException {
-        String iniFilePath = getServletConfig().getServletContext()
-                .getRealPath("WEB-INF/le4db.ini");
-
+        String iniFilePath = getServletConfig().getServletContext().getRealPath("WEB-INF/le4db.ini");
         try {
-            FileInputStream fis = new FileInputStream(iniFilePath);
-            Properties prop = new Properties();
-            prop.load(fis);
-            _hostname = prop.getProperty("hostname");
-            _dbname = prop.getProperty("dbname");
-            _username = prop.getProperty("username");
-            _password = prop.getProperty("password");
-
-            Class.forName("org.postgresql.Driver");
+            DatabaseConfig.initialize(iniFilePath);
         } catch (Exception e) {
-            e.printStackTrace();
+            throw new ServletException("データベース初期化エラー: " + e.getMessage());
         }
-    }
-
-    private Connection openConn() throws SQLException {
-        return DriverManager.getConnection(
-                "jdbc:postgresql://" + _hostname + ":5432/" + _dbname,
-                _username, _password);
     }
 
     protected void doPost(HttpServletRequest request, HttpServletResponse response)
@@ -106,7 +79,7 @@ public class BikeReservationServlet extends HttpServlet {
     private void handleReserve(int operatorId, Integer startPortId, PrintWriter out) throws SQLException {
         Connection conn = null;
         try {
-            conn = openConn();
+            conn = DatabaseConfig.getConnection();
 
             // 利用可能な自転車を取得 (docked 状態)
             // startPortIdが指定されている場合は、そのポートにある自転車のみを検索
@@ -192,7 +165,7 @@ public class BikeReservationServlet extends HttpServlet {
     private void handleStart(long reservationId, PrintWriter out) throws SQLException {
         Connection conn = null;
         try {
-            conn = openConn();
+            conn = DatabaseConfig.getConnection();
 
                 // 予約情報を取得（30分以内の予約のみ有効）
                 String selectSql = "SELECT bike_id, operator_id, start_port_id FROM share_bike_reservation "
@@ -272,7 +245,7 @@ public class BikeReservationServlet extends HttpServlet {
     private void handleReturn(long reservationId, Integer requestedReturnPortId, PrintWriter out) throws SQLException {
         Connection conn = null;
         try {
-            conn = openConn();
+            conn = DatabaseConfig.getConnection();
 
             // JSON リクエストから return_port_id を取得（別途実装のため、ここでは requestの再読み込みは不要）
             // 呼び出し元の doPost で既に JSON 解析済み
@@ -372,7 +345,7 @@ public class BikeReservationServlet extends HttpServlet {
     private void handleCancel(long reservationId, PrintWriter out) throws SQLException {
         Connection conn = null;
         try {
-            conn = openConn();
+            conn = DatabaseConfig.getConnection();
 
             // 予約情報を取得
             String selectSql = "SELECT bike_id, operator_id FROM share_bike_reservation "

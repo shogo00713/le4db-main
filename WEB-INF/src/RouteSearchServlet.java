@@ -1,8 +1,10 @@
-import java.io.FileInputStream;
+import static util.HtmlUtils.esc;
+import static util.HtmlUtils.safe;
+import static util.HtmlUtils.option;
+
 import java.io.IOException;
 import java.io.PrintWriter;
 import java.sql.Connection;
-import java.sql.DriverManager;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
@@ -11,7 +13,6 @@ import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
-import java.util.Properties;
 import javax.servlet.ServletException;
 import javax.servlet.http.HttpServlet;
 import javax.servlet.http.HttpServletRequest;
@@ -22,29 +23,16 @@ import javax.servlet.http.HttpSession;
 
 public class RouteSearchServlet extends HttpServlet {
 
-    // サーバ接続の変数定義
-    private String _hostname = null;
-    private String _dbname = null;
-    private String _username = null;
-    private String _password = null;
-
-    // DB初期設定の関数
+    // データベース接続 & 初期化
     public void init() throws ServletException {
-        String iniFilePath = getServletConfig().getServletContext()
-                .getRealPath("WEB-INF/le4db.ini");
-
+        String iniFilePath = getServletConfig().getServletContext().getRealPath("WEB-INF/le4db.ini");
         try {
-            FileInputStream fis = new FileInputStream(iniFilePath);
-            Properties prop = new Properties();
-            prop.load(fis);
-            _hostname = prop.getProperty("hostname");
-            _dbname = prop.getProperty("dbname");
-            _username = prop.getProperty("username");
-            _password = prop.getProperty("password");
+            DatabaseConfig.initialize(iniFilePath);
         } catch (Exception e) {
-            e.printStackTrace();
+            throw new ServletException("データベース初期化エラー: " + e.getMessage());
         }
     }
+
 
     // メインの関数 (doGet)
     protected void doGet(HttpServletRequest request, HttpServletResponse response)
@@ -318,11 +306,7 @@ public class RouteSearchServlet extends HttpServlet {
         HttpSession session = request.getSession();
 
         try {
-            Class.forName("org.postgresql.Driver");
-            conn = DriverManager.getConnection(
-                    "jdbc:postgresql://" + _hostname + ":5432/" + _dbname,
-                    _username, _password);
-
+            conn = DatabaseConfig.getConnection();
             // -----------------------------------------------------------------------------------------------
 
             // 地点候補 => 1つに選定
@@ -1535,20 +1519,6 @@ public class RouteSearchServlet extends HttpServlet {
             return primary;
         }
         return fallback == null ? "" : fallback;
-    }
-
-    // 文字エラー対策1
-    private String esc(String s) {
-        if (s == null)
-            return "";
-        return s.replace("&", "&amp;").replace("<", "&lt;")
-                .replace(">", "&gt;").replace("\"", "&quot;");
-    }
-
-    // 文字エラー対策2
-    private String option(String value, String label, String current) {
-        String selected = (current != null && current.equals(value)) ? " selected" : "";
-        return "<option value=\"" + esc(value) + "\"" + selected + ">" + esc(label) + "</option>";
     }
 
     // 時間管理の関数

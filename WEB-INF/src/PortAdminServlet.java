@@ -23,35 +23,16 @@ import javax.servlet.http.HttpSession;
 
 public class PortAdminServlet extends HttpServlet {
 
-    private String _hostname = null;
-    private String _dbname   = null;
-    private String _username = null;
-    private String _password = null;
-
+    // データベース接続 & 初期化
     public void init() throws ServletException {
-        String iniFilePath = getServletConfig().getServletContext()
-                .getRealPath("WEB-INF/le4db.ini");
-
-        try (FileInputStream fis = new FileInputStream(iniFilePath)) {
-            Properties prop = new Properties();
-            prop.load(fis);
-            _hostname = prop.getProperty("hostname");
-            _dbname   = prop.getProperty("dbname");
-            _username = prop.getProperty("username");
-            _password = prop.getProperty("password");
-
-            Class.forName("org.postgresql.Driver");
+        String iniFilePath = getServletConfig().getServletContext().getRealPath("WEB-INF/le4db.ini");
+        try {
+            DatabaseConfig.initialize(iniFilePath);
         } catch (Exception e) {
-            e.printStackTrace();
+            throw new ServletException("データベース初期化エラー: " + e.getMessage());
         }
     }
-
-    private Connection openConn() throws SQLException {
-        return DriverManager.getConnection(
-            "jdbc:postgresql://" + _hostname + ":5432/" + _dbname,
-            _username, _password
-        );
-    }
+    Connection conn = null; // 認証 & 接続用
 
     // HTMLエスケープ
     private String esc(String s) {
@@ -178,7 +159,7 @@ public class PortAdminServlet extends HttpServlet {
             " AND (? = '' OR port_name ILIKE ?) " +
             "ORDER BY " + orderBy;
 
-        try (Connection conn = openConn();
+        try (Connection conn = DatabaseConfig.getConnection();
             PreparedStatement ps = conn.prepareStatement(sql)) {
 
             int idx = 1;
@@ -408,7 +389,7 @@ public class PortAdminServlet extends HttpServlet {
 
             Connection conn = null;
             try {
-                conn = openConn();
+                conn = DatabaseConfig.getConnection();
                 conn.setAutoCommit(false);
 
                 // デッドロック回避：小さいport_idからロック
@@ -526,7 +507,7 @@ public class PortAdminServlet extends HttpServlet {
 
         String updateSql = "UPDATE port_operation SET bikes = ?, free_docks = ? WHERE port_id = ?";
 
-        try (Connection conn = openConn();
+        try (Connection conn = DatabaseConfig.getConnection();
             PreparedStatement ps = conn.prepareStatement(updateSql)) {
 
             ps.setInt(1, bikes);
