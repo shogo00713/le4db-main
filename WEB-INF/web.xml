@@ -29,6 +29,11 @@
     <servlet-name>PortLog</servlet-name>
     <servlet-class>BikeMoveLogServlet</servlet-class>
   </servlet>
+
+  <servlet>
+    <servlet-name>BikeReservation</servlet-name>
+    <servlet-class>BikeReservationServlet</servlet-class>
+  </servlet>
   
   <servlet-mapping>
     <servlet-name>RouteSearch</servlet-name>
@@ -53,6 +58,11 @@
   <servlet-mapping>
     <servlet-name>PortLog</servlet-name>
     <url-pattern>/portlog</url-pattern>
+  </servlet-mapping>
+
+  <servlet-mapping>
+    <servlet-name>BikeReservation</servlet-name>
+    <url-pattern>/bikereservation</url-pattern>
   </servlet-mapping>
   
 </web-app>

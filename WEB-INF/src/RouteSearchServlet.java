@@ -313,6 +313,7 @@ public class RouteSearchServlet extends HttpServlet {
         Connection conn = null; // 認証 & 接続用
         PreparedStatement ps = null; // DBに送る文章
         ResultSet rs = null; // DBの結果を受け取る文章
+        HttpSession session = request.getSession();
 
         try {
             Class.forName("org.postgresql.Driver");
@@ -430,6 +431,11 @@ public class RouteSearchServlet extends HttpServlet {
             Stop originStop = getStopById(conn, fromid);
             Stop destStop = getStopById(conn, toid);
 
+            session.setAttribute("lastOriginStopName", originStop != null ? originStop.name : "");
+            session.setAttribute("lastOriginStopType", originStop != null ? originStop.type : "");
+            session.setAttribute("lastDestStopName", destStop != null ? destStop.name : "");
+            session.setAttribute("lastDestStopType", destStop != null ? destStop.type : "");
+
             // 出発地 / 目的地 の近くの停留所を探索
             List<NearbyStop> stopsNearOrigin = nearbyStopsById(conn, fromid, FROM_RADIUS_M, NEAR_LIMIT);
             List<NearbyStop> stopsNearDest = nearbyStopsById(conn, toid, TO_RADIUS_M, NEAR_LIMIT);
@@ -502,7 +508,8 @@ public class RouteSearchServlet extends HttpServlet {
                     int totalMin = minutesBetween(baseTime, endTime);
 
                     // 自転車移動の情報
-                    BikePath bike = new BikePath(fromPort.operatorName,
+                        String operatorContact = normalizeContact(fromPort.operatorContact, fromPort.operatorName);
+                        BikePath bike = new BikePath(fromPort.operatorId, fromPort.operatorName, operatorContact,
                             fromPort.portName, toPort.portName,
                             rideDistance, rideMin, bikeStartTime, bikeEndTime);
 
@@ -753,7 +760,9 @@ public class RouteSearchServlet extends HttpServlet {
                             if (!seenTBKeys.add(key))
                                 continue;
 
-                            BikePath bike = new BikePath(startPort.operatorName,
+                            String operatorContact = normalizeContact(startPort.operatorContact, startPort.operatorName);
+                            BikePath bike = new BikePath(startPort.operatorId, startPort.operatorName,
+                                    operatorContact,
                                     startPort.portName, returnPort.portName,
                                     rideDist, rideMin, bikeStartTime, bikeEndTime);
 
@@ -886,11 +895,14 @@ public class RouteSearchServlet extends HttpServlet {
                         if (!seenBTKeys.add(key))
                             continue;
 
+                        String operatorContact = normalizeContact(startPort.operatorContact, startPort.operatorName);
                         BikePath bike = new BikePath(
-                                startPort.operatorName,
-                                startPort.portName,
-                                returnPort.portName,
-                                rideDist, rideMin, bikeStart, bikeEndTime);
+                            startPort.operatorId,
+                            startPort.operatorName,
+                            operatorContact,
+                            startPort.portName,
+                            returnPort.portName,
+                            rideDist, rideMin, bikeStart, bikeEndTime);
 
                         TransferBikeTransit plan = new TransferBikeTransit(walkToStartPort, bike, walkTransfer,
                                 bestLeg2, bestWalk2, bestTotal, baseTime, bestEnd);
@@ -935,7 +947,6 @@ public class RouteSearchServlet extends HttpServlet {
             java.util.Set<String> usedFirstRoute = new java.util.HashSet<>();
             int shown = 0;
 
-            HttpSession session = request.getSession();
             List<ResultItem> displayed = new ArrayList<>();
             session.setAttribute("lastSearchQuery", request.getQueryString());
 
@@ -1063,27 +1074,45 @@ public class RouteSearchServlet extends HttpServlet {
         out.println("<!DOCTYPE html><html lang='ja'><head>");
         out.println("<meta charset='UTF-8'><meta name='viewport' content='width=device-width, initial-scale=1'>");
         out.println("<title>Route Detail</title>");
-        // 共通CSS
         out.println("<style>");
-        out.println(
-                ":root{--bg:#f3f6fa;--panel:#fff;--panelSolid:#fff;--text:#222;--muted:#7a869a;--border:#e3e8ee;--hairline:#e3e8ee;--shadow:0 8px 32px rgba(60,80,120,.10);--shadow2:0 2px 8px rgba(60,80,120,.08);--radius:18px;--gap:18px;--primary:#3b82f6;--primary2:#2563eb;--ring:rgba(59,130,246,.18);--accent:#fbbf24;}");
-        out.println(
-                "body{margin:0;background:var(--bg);color:var(--text);font-family:'Segoe UI',Roboto,'Noto Sans JP',Meiryo,sans-serif;-webkit-font-smoothing:antialiased;moz-osx-font-smoothing:grayscale;}");
-        out.println(
-                ".detail-card{max-width:900px;margin:32px auto;padding:28px 32px;background:var(--panel);border-radius:20px;box-shadow:var(--shadow);border:1px solid var(--border);}");
-        out.println(".detail-header{font-size:22px;font-weight:700;margin-bottom:10px;color:var(--primary2);}");
-        out.println(".detail-summary{font-size:16px;color:var(--muted);margin-bottom:18px;}");
-        out.println(
-                ".back-btn{display:inline-block;margin-bottom:18px;padding:10px 22px;background:linear-gradient(90deg, var(--primary), var(--primary2));color:#fff;border-radius:999px;font-weight:700;text-decoration:none;box-shadow:0 4px 12px rgba(59,130,246,.10);transition:filter .12s, box-shadow .12s;}");
+        out.println(":root{--bg:#f3f6fa;--panel:#fff;--panelSolid:#fff;--text:#222;--muted:#7a869a;--border:#e3e8ee;--hairline:#e3e8ee;--shadow:0 8px 32px rgba(60,80,120,.10);--shadow2:0 2px 8px rgba(60,80,120,.08);--radius:18px;--gap:18px;--primary:#3b82f6;--primary2:#2563eb;--ring:rgba(59,130,246,.18);--accent:#fbbf24;}");
+        out.println("body{margin:0;background:var(--bg);color:var(--text);font-family:'Segoe UI',Roboto,'Noto Sans JP',Meiryo,sans-serif;-webkit-font-smoothing:antialiased;moz-osx-font-smoothing:grayscale;}");
+        out.println(".detail-card{max-width:960px;margin:32px auto;padding:28px 32px;background:var(--panel);border-radius:20px;box-shadow:var(--shadow);border:1px solid var(--border);}");
+        out.println(".detail-header{font-size:22px;font-weight:700;margin-bottom:14px;color:var(--primary2);}");
+        out.println(".detail-summary{margin-bottom:18px;}");
+        out.println(".summary-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px;}");
+        out.println(".summary-item{padding:12px 14px;border:1px solid var(--border);border-radius:14px;background:var(--panelSolid);box-shadow:var(--shadow2);}");
+        out.println(".summary-label{font-size:12px;color:var(--muted);letter-spacing:.05em;text-transform:uppercase;}");
+        out.println(".summary-value{font-size:17px;font-weight:700;letter-spacing:-.01em;}");
+        out.println(".summary-sub{margin-top:4px;color:var(--muted);font-size:13px;}");
+        out.println(".back-btn{display:inline-block;margin-bottom:18px;padding:10px 22px;background:linear-gradient(90deg, var(--primary), var(--primary2));color:#fff;border-radius:999px;font-weight:700;text-decoration:none;box-shadow:0 4px 12px rgba(59,130,246,.10);transition:filter .12s, box-shadow .12s;}");
         out.println(".back-btn:hover{filter:saturate(1.08);box-shadow:0 8px 24px rgba(59,130,246,.18);}");
         out.println(".back-btn:active{filter:brightness(.98);}");
         out.println(".steps{display:flex;flex-direction:column;gap:14px;margin-top:14px;}");
-        out.println(
-                ".step{display:grid;grid-template-columns: 60px 1fr auto;gap:14px;padding:14px 14px;border:1px solid var(--border);border-radius:16px;background:#fff;box-shadow:0 2px 8px rgba(60,80,120,.08);}");
-        out.println(
-                ".step .kind{font-weight:800;font-size:13px;letter-spacing:.04em;align-self:center;padding:7px 10px;border-radius:999px;background:rgba(59,130,246,.10);color:var(--primary2);text-align:center;}");
-        out.println(".step .main{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-size:15px;}");
-        out.println(".step .meta{white-space:nowrap;color:var(--muted);font-size:13px;}");
+        out.println(".step{display:grid;grid-template-columns: 88px 1fr;grid-template-rows: auto auto;gap:10px 14px;padding:12px 14px;align-items:start;border:1px solid var(--border);border-radius:16px;background:#fff;box-shadow:0 2px 8px rgba(60,80,120,.08);}");
+        out.println(".step .kind{font-weight:800;font-size:13px;letter-spacing:.04em;align-self:center;padding:7px 10px;border-radius:999px;background:rgba(59,130,246,.10);color:var(--primary2);text-align:center;}");
+        out.println(".step .main{grid-column:2;grid-row:1;white-space:normal;overflow:hidden;text-overflow:ellipsis;font-size:15px;line-height:1.45;display:flex;align-items:center;gap:8px;}");
+        out.println(".step .meta{grid-column: 2;grid-row: 2;display:flex;flex-wrap:wrap;gap:8px;color:var(--muted);font-size:13px;align-items:center;}");
+        out.println(".arrow-mini{color:var(--muted);font-weight:900;}");
+        out.println(".chip{display:inline-flex;align-items:center;gap:6px;padding:4px 9px;border-radius:999px;border:1px solid var(--border);background:#fff;font-size:12px;font-weight:700;}");
+        out.println(".chip .dot{width:10px;height:10px;border-radius:3px;background:var(--primary);}");
+        out.println(".chip.line{border-color:var(--line);background:rgba(0,0,0,.02);color:#111;}");
+        out.println(".chip.line .dot{background:var(--line);}");
+        out.println(".chip.trip{background:rgba(59,130,246,.12);border-color:rgba(59,130,246,.32);color:#1d4ed8;}");
+        out.println(".chip.info{font-weight:600;}");
+        out.println(".chip.contact{background:rgba(16,185,129,.12);border-color:rgba(16,185,129,.35);color:#065f46;}");
+        out.println(".reservation-section{margin-top:28px;padding:22px;background:linear-gradient(135deg,rgba(16,185,129,.12) 0%,rgba(59,130,246,.12) 100%);border-radius:16px;border:2px solid rgba(16,185,129,.35);}");
+        out.println(".reservation-title{font-size:16px;font-weight:700;color:#065f46;margin:0 0 14px 0;}");
+        out.println(".reservation-actions{display:flex;flex-wrap:wrap;gap:12px;}");
+        out.println(".btn-reserve{padding:14px 32px;background:linear-gradient(135deg,#10b981 0%,#059669 100%);color:#fff;border:none;border-radius:999px;font-size:15px;font-weight:700;cursor:pointer;box-shadow:0 4px 14px rgba(16,185,129,.3);transition:all .2s ease;}");
+        out.println(".btn-reserve:hover{transform:translateY(-2px);box-shadow:0 6px 20px rgba(16,185,129,.4);}");
+        out.println(".btn-reserve:disabled{background:#ccc;cursor:not-allowed;transform:none;box-shadow:none;}");
+        out.println(".btn-action{padding:12px 24px;background:#fff;border:2px solid #10b981;color:#065f46;border-radius:999px;font-size:14px;font-weight:700;cursor:pointer;transition:all .2s ease;}");
+        out.println(".btn-action:hover{background:#ecfdf5;transform:translateY(-1px);}");
+        out.println(".btn-action:disabled{background:#f3f4f6;border-color:#d1d5db;color:#9ca3af;cursor:not-allowed;transform:none;}");
+        out.println(".btn-cancel{padding:12px 24px;background:#fff;border:2px solid #ef4444;color:#dc2626;border-radius:999px;font-size:14px;font-weight:700;cursor:pointer;transition:all .2s ease;}");
+        out.println(".btn-cancel:hover{background:#fef2f2;transform:translateY(-1px);}");
+        out.println(".reservation-status{font-size:13px;color:#059669;font-weight:600;margin-top:10px;}");
         out.println("</style>");
         out.println("</head><body>");
 
@@ -1091,126 +1120,380 @@ public class RouteSearchServlet extends HttpServlet {
         out.println("<a href='" + esc(backUrl) + "' class='back-btn'>← 戻る</a>");
         out.println("<div class='detail-header'>ルート詳細</div>");
 
-        // ルート概要
-        out.println("<div class='detail-summary'>");
-        String origin = "", dest = "";
+        String payloadOrigin = "";
+        String payloadDest = "";
         if (item.payload instanceof WalkOnlyPlan) {
             WalkOnlyPlan wp = (WalkOnlyPlan) item.payload;
-            origin = wp.fromName;
-            dest = wp.toName;
+            payloadOrigin = wp.fromName;
+            payloadDest = wp.toName;
         } else if (item.payload instanceof DirectPlan) {
             DirectPlan dp = (DirectPlan) item.payload;
-            origin = dp.walk0.fromName != null ? dp.walk0.fromName : dp.leg.fromStopName;
-            dest = dp.walk2.toName != null ? dp.walk2.toName : dp.leg.toStopName;
+            payloadOrigin = dp.walk0.fromName != null ? dp.walk0.fromName : dp.leg.fromStopName;
+            payloadDest = dp.walk2.toName != null ? dp.walk2.toName : dp.leg.toStopName;
         } else if (item.payload instanceof TransferPath) {
             TransferPath tp = (TransferPath) item.payload;
-            origin = tp.walk0.fromName != null ? tp.walk0.fromName : tp.leg1.fromStopName;
-            dest = tp.walk2.toName != null ? tp.walk2.toName : tp.leg2.toStopName;
+            payloadOrigin = tp.walk0.fromName != null ? tp.walk0.fromName : tp.leg1.fromStopName;
+            payloadDest = tp.walk2.toName != null ? tp.walk2.toName : tp.leg2.toStopName;
         } else if (item.payload instanceof BikeDirectPlan) {
             BikeDirectPlan bp = (BikeDirectPlan) item.payload;
-            origin = bp.walk0.fromName != null ? bp.walk0.fromName : bp.bike.fromPortName;
-            dest = bp.walk2.toName != null ? bp.walk2.toName : bp.bike.toPortName;
+            payloadOrigin = bp.walk0.fromName != null ? bp.walk0.fromName : bp.bike.fromPortName;
+            payloadDest = bp.walk2.toName != null ? bp.walk2.toName : bp.bike.toPortName;
         } else if (item.payload instanceof TransferTransitBike) {
             TransferTransitBike tp = (TransferTransitBike) item.payload;
-            origin = tp.walk0.fromName != null ? tp.walk0.fromName : tp.leg1.fromStopName;
-            dest = tp.walk2.toName != null ? tp.walk2.toName : tp.bike.toPortName;
+            payloadOrigin = tp.walk0.fromName != null ? tp.walk0.fromName : tp.leg1.fromStopName;
+            payloadDest = tp.walk2.toName != null ? tp.walk2.toName : tp.bike.toPortName;
         } else if (item.payload instanceof TransferBikeTransit) {
             TransferBikeTransit tp = (TransferBikeTransit) item.payload;
-            origin = tp.walk0.fromName != null ? tp.walk0.fromName : tp.bike.fromPortName;
-            dest = tp.walk2.toName != null ? tp.walk2.toName : tp.leg2.toStopName;
+            payloadOrigin = tp.walk0.fromName != null ? tp.walk0.fromName : tp.bike.fromPortName;
+            payloadDest = tp.walk2.toName != null ? tp.walk2.toName : tp.leg2.toStopName;
         }
-        out.println("出発地: " + esc(origin) + "<br>");
-        out.println("目的地: " + esc(dest) + "<br>");
-        out.println("所要時間: " + item.totalMinutes + "分<br>");
-        out.println("到着時刻: " + esc(item.end != null ? hhmm(item.end.toString()) : "") + "<br>");
+
+        String originName = preferNonEmpty(toStr(session.getAttribute("lastOriginStopName")), payloadOrigin);
+        String originType = toStr(session.getAttribute("lastOriginStopType"));
+        String destName = preferNonEmpty(toStr(session.getAttribute("lastDestStopName")), payloadDest);
+        String destType = toStr(session.getAttribute("lastDestStopType"));
+        String arrivalTime = item.end != null ? hhmm(item.end.toString()) : "";
+
+        out.println("<div class='detail-summary'>");
+        out.println("<div class='summary-grid'>");
+        out.println(summaryItem("出発地", originName, originType.isEmpty() ? "" : originType));
+        out.println(summaryItem("目的地", destName, destType.isEmpty() ? "" : destType));
+        out.println(summaryItem("所要時間", item.totalMinutes + "分", arrivalTime.isEmpty() ? "" : ("到着 " + arrivalTime)));
+        out.println("</div>");
         out.println("</div>");
 
-        // タイムライン表示
+        String arrow = " <span class='arrow-mini'>→</span> ";
+
         out.println("<div class='steps'>");
         if (item.payload instanceof WalkOnlyPlan) {
             WalkOnlyPlan wp = (WalkOnlyPlan) item.payload;
-            printStep(out, "徒歩", wp.fromName + " → " + wp.toName,
-                    wp.minutes + "分 / 約" + wp.distanceM + "m, " + hhmm(wp.startTime) + "→" + hhmm(wp.endTime));
+            String main = esc(wp.fromName) + arrow + esc(wp.toName) + " (" + hhmm(wp.startTime) + "→"
+                    + hhmm(wp.endTime) + ")";
+            String meta = chipInfo("距離 約" + wp.distanceM + "m") + chipInfo("時間 " + wp.minutes + "分");
+            printStep(out, "徒歩", main, meta);
         } else if (item.payload instanceof DirectPlan) {
             DirectPlan dp = (DirectPlan) item.payload;
-            if (!isZeroWalk(dp.walk0))
-                printStep(out, "徒歩", dp.walk0.fromName + " → " + dp.walk0.toName,
-                        dp.walk0.min + "分 / 約" + dp.walk0.dist + "m");
-            printStep(out, "乗車", dp.leg.fromStopName + " " + hhmm(dp.leg.depTime) + " 発 → " + dp.leg.toStopName + " "
-                    + hhmm(dp.leg.arrTime) + " 着", dp.leg.routeName + " " + dp.leg.tripName);
-            if (!isZeroWalk(dp.walk2))
-                printStep(out, "徒歩", dp.walk2.fromName + " → " + dp.walk2.toName,
-                        dp.walk2.min + "分 / 約" + dp.walk2.dist + "m");
+            if (!isZeroWalk(dp.walk0)) {
+                String mainWalk0 = esc(dp.walk0.fromName) + arrow + esc(dp.walk0.toName);
+                String metaWalk0 = chipInfo("距離 約" + dp.walk0.dist + "m") + chipInfo("時間 " + dp.walk0.min + "分");
+                printStep(out, "徒歩", mainWalk0, metaWalk0);
+            }
+
+            String mainRide = esc(dp.leg.fromStopName) + " " + hhmm(dp.leg.depTime) + arrow + esc(dp.leg.toStopName)
+                    + " " + hhmm(dp.leg.arrTime);
+            String metaRide = chipLine(dp.leg.routeName, dp.leg.routeColor)
+                    + chipTrip(dp.leg.tripName)
+                    + chipInfo("時間 " + minutesBetween(dp.leg.depTime, dp.leg.arrTime) + "分");
+            printStep(out, "乗車", mainRide, metaRide);
+
+            if (!isZeroWalk(dp.walk2)) {
+                String mainWalk2 = esc(dp.walk2.fromName) + arrow + esc(dp.walk2.toName);
+                String metaWalk2 = chipInfo("距離 約" + dp.walk2.dist + "m") + chipInfo("時間 " + dp.walk2.min + "分");
+                printStep(out, "徒歩", mainWalk2, metaWalk2);
+            }
         } else if (item.payload instanceof TransferPath) {
             TransferPath tp = (TransferPath) item.payload;
-            if (!isZeroWalk(tp.walk0))
-                printStep(out, "徒歩", tp.walk0.fromName + " → " + tp.walk0.toName,
-                        tp.walk0.min + "分 / 約" + tp.walk0.dist + "m");
-            printStep(out, "乗車", tp.leg1.fromStopName + " " + hhmm(tp.leg1.depTime) + " → " + tp.leg1.toStopName + " "
-                    + hhmm(tp.leg1.arrTime), tp.leg1.routeName + " " + tp.leg1.tripName);
-            if (!isZeroWalk(tp.walk1))
-                printStep(out, "徒歩", tp.walk1.fromName + " → " + tp.walk1.toName,
-                        tp.walk1.min + "分 / 約" + tp.walk1.dist + "m");
-            else
-                printStep(out, "乗換", "同一駅で乗換", "");
-            printStep(out, "乗車", tp.leg2.fromStopName + " " + hhmm(tp.leg2.depTime) + " → " + tp.leg2.toStopName + " "
-                    + hhmm(tp.leg2.arrTime), tp.leg2.routeName + " " + tp.leg2.tripName);
-            if (!isZeroWalk(tp.walk2))
-                printStep(out, "徒歩", tp.walk2.fromName + " → " + tp.walk2.toName,
-                        tp.walk2.min + "分 / 約" + tp.walk2.dist + "m");
+            if (!isZeroWalk(tp.walk0)) {
+                String mainWalk0 = esc(tp.walk0.fromName) + arrow + esc(tp.walk0.toName);
+                String metaWalk0 = chipInfo("距離 約" + tp.walk0.dist + "m") + chipInfo("時間 " + tp.walk0.min + "分");
+                printStep(out, "徒歩", mainWalk0, metaWalk0);
+            }
+
+            String mainRide1 = esc(tp.leg1.fromStopName) + " " + hhmm(tp.leg1.depTime) + arrow
+                    + esc(tp.leg1.toStopName) + " " + hhmm(tp.leg1.arrTime);
+            String metaRide1 = chipLine(tp.leg1.routeName, tp.leg1.routeColor)
+                    + chipTrip(tp.leg1.tripName)
+                    + chipInfo("時間 " + minutesBetween(tp.leg1.depTime, tp.leg1.arrTime) + "分");
+            printStep(out, "乗車", mainRide1, metaRide1);
+
+            if (!isZeroWalk(tp.walk1)) {
+                String mainWalk1 = esc(tp.walk1.fromName) + arrow + esc(tp.walk1.toName);
+                String metaWalk1 = chipInfo("距離 約" + tp.walk1.dist + "m") + chipInfo("時間 " + tp.walk1.min + "分");
+                printStep(out, "徒歩", mainWalk1, metaWalk1);
+            } else {
+                printStep(out, "乗換", "同一地点で乗換", "");
+            }
+
+            String mainRide2 = esc(tp.leg2.fromStopName) + " " + hhmm(tp.leg2.depTime) + arrow
+                    + esc(tp.leg2.toStopName) + " " + hhmm(tp.leg2.arrTime);
+            String metaRide2 = chipLine(tp.leg2.routeName, tp.leg2.routeColor)
+                    + chipTrip(tp.leg2.tripName)
+                    + chipInfo("時間 " + minutesBetween(tp.leg2.depTime, tp.leg2.arrTime) + "分");
+            printStep(out, "乗車", mainRide2, metaRide2);
+
+            if (!isZeroWalk(tp.walk2)) {
+                String mainWalk2 = esc(tp.walk2.fromName) + arrow + esc(tp.walk2.toName);
+                String metaWalk2 = chipInfo("距離 約" + tp.walk2.dist + "m") + chipInfo("時間 " + tp.walk2.min + "分");
+                printStep(out, "徒歩", mainWalk2, metaWalk2);
+            }
         } else if (item.payload instanceof BikeDirectPlan) {
             BikeDirectPlan bp = (BikeDirectPlan) item.payload;
-            if (!isZeroWalk(bp.walk0))
-                printStep(out, "徒歩", bp.walk0.fromName + " → " + bp.walk0.toName,
-                        bp.walk0.min + "分 / 約" + bp.walk0.dist + "m");
-            printStep(out, "自転車",
-                    bp.bike.fromPortName + " " + hhmm(bp.bike.startTime) + " → " + bp.bike.toPortName + " "
-                            + hhmm(bp.bike.endTime),
-                    "シェアサイクル(" + bp.bike.operatorName + "), " + bp.bike.rideMinutes + "分 / 約" + bp.bike.distanceM
-                            + "m");
-            if (!isZeroWalk(bp.walk2))
-                printStep(out, "徒歩", bp.walk2.fromName + " → " + bp.walk2.toName,
-                        bp.walk2.min + "分 / 約" + bp.walk2.dist + "m");
+            if (!isZeroWalk(bp.walk0)) {
+                String mainWalk0 = esc(bp.walk0.fromName) + arrow + esc(bp.walk0.toName);
+                String metaWalk0 = chipInfo("距離 約" + bp.walk0.dist + "m") + chipInfo("時間 " + bp.walk0.min + "分");
+                printStep(out, "徒歩", mainWalk0, metaWalk0);
+            }
+
+            String mainBike = esc(bp.bike.fromPortName) + " " + hhmm(bp.bike.startTime) + arrow
+                    + esc(bp.bike.toPortName) + " " + hhmm(bp.bike.endTime);
+            String metaBike = chipInfo("距離 約" + bp.bike.distanceM + "m")
+                    + chipInfo("時間 " + bp.bike.rideMinutes + "分")
+                    + chipInfo("事業者 " + bp.bike.operatorName)
+                    + chipContact(bp.bike.operatorContact);
+            printStep(out, "自転車", mainBike, metaBike);
+
+            if (!isZeroWalk(bp.walk2)) {
+                String mainWalk2 = esc(bp.walk2.fromName) + arrow + esc(bp.walk2.toName);
+                String metaWalk2 = chipInfo("距離 約" + bp.walk2.dist + "m") + chipInfo("時間 " + bp.walk2.min + "分");
+                printStep(out, "徒歩", mainWalk2, metaWalk2);
+            }
         } else if (item.payload instanceof TransferTransitBike) {
             TransferTransitBike tp = (TransferTransitBike) item.payload;
-            if (!isZeroWalk(tp.walk0))
-                printStep(out, "徒歩", tp.walk0.fromName + " → " + tp.walk0.toName,
-                        tp.walk0.min + "分 / 約" + tp.walk0.dist + "m");
-            printStep(out, "乗車", tp.leg1.fromStopName + " " + hhmm(tp.leg1.depTime) + " → " + tp.leg1.toStopName + " "
-                    + hhmm(tp.leg1.arrTime), tp.leg1.routeName + " " + tp.leg1.tripName);
-            if (!isZeroWalk(tp.walk1))
-                printStep(out, "徒歩", tp.walk1.fromName + " → " + tp.walk1.toName,
-                        tp.walk1.min + "分 / 約" + tp.walk1.dist + "m");
-            printStep(out, "自転車",
-                    tp.bike.fromPortName + " " + hhmm(tp.bike.startTime) + " → " + tp.bike.toPortName + " "
-                            + hhmm(tp.bike.endTime),
-                    "シェアサイクル(" + tp.bike.operatorName + "), " + tp.bike.rideMinutes + "分 / 約" + tp.bike.distanceM
-                            + "m");
-            if (!isZeroWalk(tp.walk2))
-                printStep(out, "徒歩", tp.walk2.fromName + " → " + tp.walk2.toName,
-                        tp.walk2.min + "分 / 約" + tp.walk2.dist + "m");
+            if (!isZeroWalk(tp.walk0)) {
+                String mainWalk0 = esc(tp.walk0.fromName) + arrow + esc(tp.walk0.toName);
+                String metaWalk0 = chipInfo("距離 約" + tp.walk0.dist + "m") + chipInfo("時間 " + tp.walk0.min + "分");
+                printStep(out, "徒歩", mainWalk0, metaWalk0);
+            }
+
+            String mainRide1 = esc(tp.leg1.fromStopName) + " " + hhmm(tp.leg1.depTime) + arrow
+                    + esc(tp.leg1.toStopName) + " " + hhmm(tp.leg1.arrTime);
+            String metaRide1 = chipLine(tp.leg1.routeName, tp.leg1.routeColor)
+                    + chipTrip(tp.leg1.tripName)
+                    + chipInfo("時間 " + minutesBetween(tp.leg1.depTime, tp.leg1.arrTime) + "分");
+            printStep(out, "乗車", mainRide1, metaRide1);
+
+            if (!isZeroWalk(tp.walk1)) {
+                String mainWalk1 = esc(tp.walk1.fromName) + arrow + esc(tp.walk1.toName);
+                String metaWalk1 = chipInfo("距離 約" + tp.walk1.dist + "m") + chipInfo("時間 " + tp.walk1.min + "分");
+                printStep(out, "徒歩", mainWalk1, metaWalk1);
+            }
+
+            String mainBike = esc(tp.bike.fromPortName) + " " + hhmm(tp.bike.startTime) + arrow
+                    + esc(tp.bike.toPortName) + " " + hhmm(tp.bike.endTime);
+            String metaBike = chipInfo("距離 約" + tp.bike.distanceM + "m")
+                    + chipInfo("時間 " + tp.bike.rideMinutes + "分")
+                    + chipInfo("事業者 " + tp.bike.operatorName)
+                    + chipContact(tp.bike.operatorContact);
+            printStep(out, "自転車", mainBike, metaBike);
+
+            if (!isZeroWalk(tp.walk2)) {
+                String mainWalk2 = esc(tp.walk2.fromName) + arrow + esc(tp.walk2.toName);
+                String metaWalk2 = chipInfo("距離 約" + tp.walk2.dist + "m") + chipInfo("時間 " + tp.walk2.min + "分");
+                printStep(out, "徒歩", mainWalk2, metaWalk2);
+            }
         } else if (item.payload instanceof TransferBikeTransit) {
             TransferBikeTransit tp = (TransferBikeTransit) item.payload;
-            if (!isZeroWalk(tp.walk0))
-                printStep(out, "徒歩", tp.walk0.fromName + " → " + tp.walk0.toName,
-                        tp.walk0.min + "分 / 約" + tp.walk0.dist + "m");
-            printStep(out, "自転車",
-                    tp.bike.fromPortName + " " + hhmm(tp.bike.startTime) + " → " + tp.bike.toPortName + " "
-                            + hhmm(tp.bike.endTime),
-                    "シェアサイクル(" + tp.bike.operatorName + "), " + tp.bike.rideMinutes + "分 / 約" + tp.bike.distanceM
-                            + "m");
-            if (!isZeroWalk(tp.walk1))
-                printStep(out, "徒歩", tp.walk1.fromName + " → " + tp.walk1.toName,
-                        tp.walk1.min + "分 / 約" + tp.walk1.dist + "m");
-            printStep(out, "乗車", tp.leg2.fromStopName + " " + hhmm(tp.leg2.depTime) + " → " + tp.leg2.toStopName + " "
-                    + hhmm(tp.leg2.arrTime), tp.leg2.routeName + " " + tp.leg2.tripName);
-            if (!isZeroWalk(tp.walk2))
-                printStep(out, "徒歩", tp.walk2.fromName + " → " + tp.walk2.toName,
-                        tp.walk2.min + "分 / 約" + tp.walk2.dist + "m");
+            if (!isZeroWalk(tp.walk0)) {
+                String mainWalk0 = esc(tp.walk0.fromName) + arrow + esc(tp.walk0.toName);
+                String metaWalk0 = chipInfo("距離 約" + tp.walk0.dist + "m") + chipInfo("時間 " + tp.walk0.min + "分");
+                printStep(out, "徒歩", mainWalk0, metaWalk0);
+            }
+
+            String mainBike = esc(tp.bike.fromPortName) + " " + hhmm(tp.bike.startTime) + arrow
+                    + esc(tp.bike.toPortName) + " " + hhmm(tp.bike.endTime);
+            String metaBike = chipInfo("距離 約" + tp.bike.distanceM + "m")
+                    + chipInfo("時間 " + tp.bike.rideMinutes + "分")
+                    + chipInfo("事業者 " + tp.bike.operatorName)
+                    + chipContact(tp.bike.operatorContact);
+            printStep(out, "自転車", mainBike, metaBike);
+
+            if (!isZeroWalk(tp.walk1)) {
+                String mainWalk1 = esc(tp.walk1.fromName) + arrow + esc(tp.walk1.toName);
+                String metaWalk1 = chipInfo("距離 約" + tp.walk1.dist + "m") + chipInfo("時間 " + tp.walk1.min + "分");
+                printStep(out, "徒歩", mainWalk1, metaWalk1);
+            }
+
+            String mainRide = esc(tp.leg2.fromStopName) + " " + hhmm(tp.leg2.depTime) + arrow
+                    + esc(tp.leg2.toStopName) + " " + hhmm(tp.leg2.arrTime);
+            String metaRide = chipLine(tp.leg2.routeName, tp.leg2.routeColor)
+                    + chipTrip(tp.leg2.tripName)
+                    + chipInfo("時間 " + minutesBetween(tp.leg2.depTime, tp.leg2.arrTime) + "分");
+            printStep(out, "乗車", mainRide, metaRide);
+
+            if (!isZeroWalk(tp.walk2)) {
+                String mainWalk2 = esc(tp.walk2.fromName) + arrow + esc(tp.walk2.toName);
+                String metaWalk2 = chipInfo("距離 約" + tp.walk2.dist + "m") + chipInfo("時間 " + tp.walk2.min + "分");
+                printStep(out, "徒歩", mainWalk2, metaWalk2);
+            }
         }
         out.println("</div>");
+
+        // ===== シェアサイクル予約セクション =====
+        boolean hasBikeSegment = (item.payload instanceof BikeDirectPlan) ||
+                                 (item.payload instanceof TransferTransitBike) ||
+                                 (item.payload instanceof TransferBikeTransit);
+
+        if (hasBikeSegment) {
+            String bikeOperatorName = "";
+            String bikeOperatorContact = "";
+            int startPortId = 0;
+            int bikeOperatorId = 0;
+
+            if (item.payload instanceof BikeDirectPlan) {
+                BikeDirectPlan bp = (BikeDirectPlan) item.payload;
+                bikeOperatorName = bp.bike.operatorName;
+                bikeOperatorContact = bp.bike.operatorContact;
+                startPortId = -1; // ビューから取得されない場合
+                bikeOperatorId = bp.bike.operatorId;
+            } else if (item.payload instanceof TransferTransitBike) {
+                TransferTransitBike tp = (TransferTransitBike) item.payload;
+                bikeOperatorName = tp.bike.operatorName;
+                bikeOperatorContact = tp.bike.operatorContact;
+                startPortId = -1;
+                bikeOperatorId = tp.bike.operatorId;
+            } else if (item.payload instanceof TransferBikeTransit) {
+                TransferBikeTransit tp = (TransferBikeTransit) item.payload;
+                bikeOperatorName = tp.bike.operatorName;
+                bikeOperatorContact = tp.bike.operatorContact;
+                startPortId = -1;
+                bikeOperatorId = tp.bike.operatorId;
+            }
+
+            out.println("<div class='reservation-section'>");
+            out.println("<div class='reservation-title'>🚲 シェアサイクルを予約</div>");
+            out.println("<div style='margin-bottom:12px;'>");
+            out.println("<p style='margin:0 0 6px 0;color:#065f46;font-size:14px;font-weight:600;'>" + esc(bikeOperatorName) + "</p>");
+            out.println("<p style='margin:0;color:#059669;font-size:13px;'>" + esc(bikeOperatorContact) + "</p>");
+            out.println("</div>");
+            out.println("<div class='reservation-actions'>");
+            out.println("<button class='btn-reserve' id='reserveBtn' onclick='reserveBike(" + bikeOperatorId + ")'>予約する</button>");
+            out.println("<button class='btn-action' id='startBtn' style='display:none;' onclick='startBikeUsage()'>利用開始</button>");
+            out.println("<button class='btn-action' id='returnBtn' style='display:none;' onclick='returnBike()'>返却</button>");
+            out.println("<button class='btn-cancel' id='cancelBtn' style='display:none;' onclick='cancelReservation()'>キャンセル</button>");
+            out.println("</div>");
+            out.println("<div class='reservation-status' id='statusMsg'></div>");
+            out.println("</div>");
+
+            out.println("<script>");
+            out.println("var reservationState = 'not_reserved';");
+            out.println("var currentReservationId = null;");
+            out.println("");
+            out.println("function reserveBike(operatorId) {");
+            out.println("  var xhr = new XMLHttpRequest();");
+            out.println("  xhr.open('POST', '" + req.getContextPath() + "/bikereservation', true);");
+            out.println("  xhr.setRequestHeader('Content-Type', 'application/json');");
+            out.println("  xhr.onreadystatechange = function() {");
+            out.println("    if (xhr.readyState === 4) {");
+            out.println("      var response = JSON.parse(xhr.responseText);");
+            out.println("      if (response.success) {");
+            out.println("        currentReservationId = response.reservation_id;");
+            out.println("        reservationState = 'reserved';");
+            out.println("        updateButtonStates();");
+            out.println("        document.getElementById('statusMsg').textContent = '✓ 予約しました。利用を開始してください。';");
+            out.println("      } else {");
+            out.println("        alert('予約に失敗しました: ' + response.error);");
+            out.println("      }");
+            out.println("    }");
+            out.println("  };");
+            out.println("  xhr.send(JSON.stringify({action: 'reserve', operator_id: operatorId}));");
+            out.println("}");
+            out.println("");
+            out.println("function startBikeUsage() {");
+            out.println("  if (!currentReservationId) return;");
+            out.println("  var xhr = new XMLHttpRequest();");
+            out.println("  xhr.open('POST', '" + req.getContextPath() + "/bikereservation', true);");
+            out.println("  xhr.setRequestHeader('Content-Type', 'application/json');");
+            out.println("  xhr.onreadystatechange = function() {");
+            out.println("    if (xhr.readyState === 4) {");
+            out.println("      var response = JSON.parse(xhr.responseText);");
+            out.println("      if (response.success) {");
+            out.println("        reservationState = 'in_use';");
+            out.println("        updateButtonStates();");
+            out.println("        document.getElementById('statusMsg').textContent = '✓ 利用を開始しました。返却してください。';");
+            out.println("      } else {");
+            out.println("        alert('利用開始に失敗しました: ' + response.error);");
+            out.println("      }");
+            out.println("    }");
+            out.println("  };");
+            out.println("  xhr.send(JSON.stringify({action: 'start', reservation_id: currentReservationId}));");
+            out.println("}");
+            out.println("");
+            out.println("function returnBike() {");
+            out.println("  if (!currentReservationId) return;");
+            out.println("  var xhr = new XMLHttpRequest();");
+            out.println("  xhr.open('POST', '" + req.getContextPath() + "/bikereservation', true);");
+            out.println("  xhr.setRequestHeader('Content-Type', 'application/json');");
+            out.println("  xhr.onreadystatechange = function() {");
+            out.println("    if (xhr.readyState === 4) {");
+            out.println("      var response = JSON.parse(xhr.responseText);");
+            out.println("      if (response.success) {");
+            out.println("        reservationState = 'returned';");
+            out.println("        updateButtonStates();");
+            out.println("        document.getElementById('statusMsg').textContent = '✓ 自転車を返却しました。ご利用ありがとうございました。';");
+            out.println("      } else {");
+            out.println("        alert('返却に失敗しました: ' + response.error);");
+            out.println("      }");
+            out.println("    }");
+            out.println("  };");
+            out.println("  xhr.send(JSON.stringify({action: 'return', reservation_id: currentReservationId}));");
+            out.println("}");
+            out.println("");
+            out.println("function cancelReservation() {");
+            out.println("  if (!currentReservationId) return;");
+            out.println("  if (!confirm('予約をキャンセルしますか？')) return;");
+            out.println("  var xhr = new XMLHttpRequest();");
+            out.println("  xhr.open('POST', '" + req.getContextPath() + "/bikereservation', true);");
+            out.println("  xhr.setRequestHeader('Content-Type', 'application/json');");
+            out.println("  xhr.onreadystatechange = function() {");
+            out.println("    if (xhr.readyState === 4) {");
+            out.println("      var response = JSON.parse(xhr.responseText);");
+            out.println("      if (response.success) {");
+            out.println("        reservationState = 'not_reserved';");
+            out.println("        currentReservationId = null;");
+            out.println("        updateButtonStates();");
+            out.println("        document.getElementById('statusMsg').textContent = '';");
+            out.println("      } else {");
+            out.println("        alert('キャンセルに失敗しました: ' + response.error);");
+            out.println("      }");
+            out.println("    }");
+            out.println("  };");
+            out.println("  xhr.send(JSON.stringify({action: 'cancel', reservation_id: currentReservationId}));");
+            out.println("}");
+            out.println("");
+            out.println("function updateButtonStates() {");
+            out.println("  var reserveBtn = document.getElementById('reserveBtn');");
+            out.println("  var startBtn = document.getElementById('startBtn');");
+            out.println("  var returnBtn = document.getElementById('returnBtn');");
+            out.println("  var cancelBtn = document.getElementById('cancelBtn');");
+            out.println("");
+            out.println("  if (reservationState === 'not_reserved') {");
+            out.println("    reserveBtn.style.display = 'inline-block';");
+            out.println("    startBtn.style.display = 'none';");
+            out.println("    returnBtn.style.display = 'none';");
+            out.println("    cancelBtn.style.display = 'none';");
+            out.println("  } else if (reservationState === 'reserved') {");
+            out.println("    reserveBtn.style.display = 'none';");
+            out.println("    startBtn.style.display = 'inline-block';");
+            out.println("    returnBtn.style.display = 'none';");
+            out.println("    cancelBtn.style.display = 'inline-block';");
+            out.println("  } else if (reservationState === 'in_use') {");
+            out.println("    reserveBtn.style.display = 'none';");
+            out.println("    startBtn.style.display = 'none';");
+            out.println("    returnBtn.style.display = 'inline-block';");
+            out.println("    cancelBtn.style.display = 'none';");
+            out.println("  } else if (reservationState === 'returned') {");
+            out.println("    reserveBtn.style.display = 'none';");
+            out.println("    startBtn.style.display = 'none';");
+            out.println("    returnBtn.style.display = 'none';");
+            out.println("    cancelBtn.style.display = 'none';");
+            out.println("  }");
+            out.println("}");
+            out.println("</script>");
+        }
+
         out.println("</div>");
         out.println("</body></html>");
+    }
+
+    private String toStr(Object obj) {
+        return obj == null ? "" : obj.toString();
+    }
+
+    private String preferNonEmpty(String primary, String fallback) {
+        if (primary != null && !primary.trim().isEmpty()) {
+            return primary;
+        }
+        return fallback == null ? "" : fallback;
     }
 
     // 文字エラー対策1
@@ -1267,17 +1550,17 @@ public class RouteSearchServlet extends HttpServlet {
     // 距離 -> 徒歩時間
     private int walkingMinutes(double meters, double meter_correction, double walk_meter_per_minutes) {
         if (meters <= 0)
-            return 0;
+            return 1;
         int minutes = (int) Math.ceil(meters * meter_correction / walk_meter_per_minutes);
-        return Math.max(0, minutes);
+        return Math.max(1, minutes);
     }
 
     // 距離 -> 自転車時間
     private int cyclingMinutes(int meters, double bike_meter_correction, double bike_meter_per_minutes) {
         if (meters <= 0)
-            return 0;
+            return 1;
         int minutes = (int) Math.ceil(meters * bike_meter_correction / bike_meter_per_minutes);
-        return Math.max(0, minutes);
+        return Math.max(1, minutes);
     }
 
     // --------------------- 候補検索系 --------------------
@@ -1791,16 +2074,18 @@ public class RouteSearchServlet extends HttpServlet {
         final int portId;
         final int operatorId;
         final String operatorName;
+        final String operatorContact;
         final String portName;
         final double lat;
         final double lon;
         final int distance; // centerからの直線距離m
 
-        PortCandidate(int portId, int operatorId, String operatorName, String portName,
+        PortCandidate(int portId, int operatorId, String operatorName, String operatorContact, String portName,
                 double lat, double lon, int distance) {
             this.portId = portId;
             this.operatorId = operatorId;
             this.operatorName = operatorName;
+            this.operatorContact = operatorContact;
             this.portName = portName;
             this.lat = lat;
             this.lon = lon;
@@ -1815,11 +2100,9 @@ public class RouteSearchServlet extends HttpServlet {
         double dLat = radiusM / 111000.0;
         double dLon = radiusM / (111000.0 * Math.cos(Math.toRadians(centerLat)));
 
-        String sql = "SELECT port_id, operator_id, operator_name, port_name, port_latitude, port_longitude, bikes, free_docks "
-                +
-                "FROM port_status " +
-                "WHERE port_latitude BETWEEN ? AND ? " +
-                "  AND port_longitude BETWEEN ? AND ? ";
+        String sql = "SELECT * FROM port_status " +
+            "WHERE port_latitude BETWEEN ? AND ? " +
+            "  AND port_longitude BETWEEN ? AND ? ";
 
         if (needBikes)
             sql += " AND bikes > 0 ";
@@ -1835,6 +2118,9 @@ public class RouteSearchServlet extends HttpServlet {
             ps.setDouble(idx++, centerLon + dLon);
 
             try (ResultSet rs = ps.executeQuery()) {
+                java.sql.ResultSetMetaData meta = rs.getMetaData();
+                boolean hasOperatorContact = hasColumn(meta, "operator_contact");
+
                 while (rs.next()) {
                     int pid = rs.getInt("port_id");
                     int opid = rs.getInt("operator_id");
@@ -1842,10 +2128,11 @@ public class RouteSearchServlet extends HttpServlet {
                     String pn = rs.getString("port_name");
                     double lat = rs.getDouble("port_latitude");
                     double lon = rs.getDouble("port_longitude");
+                    String contact = hasOperatorContact ? rs.getString("operator_contact") : null;
 
                     int dist = (int) Math.round(distanceMeters(centerLat, centerLon, lat, lon));
                     if (dist <= radiusM) {
-                        tmp.add(new PortCandidate(pid, opid, opn, pn, lat, lon, dist));
+                        tmp.add(new PortCandidate(pid, opid, opn, contact, pn, lat, lon, dist));
                     }
                 }
             }
@@ -1859,7 +2146,9 @@ public class RouteSearchServlet extends HttpServlet {
 
     // 自転車移動のクラス (出発ポート, 到着ポート, 距離, 分, 出発時間, 到着時間)
     private static class BikePath {
+        final int operatorId;
         final String operatorName;
+        final String operatorContact;
         final String fromPortName;
         final String toPortName;
         final int distanceM;
@@ -1867,12 +2156,14 @@ public class RouteSearchServlet extends HttpServlet {
         final String startTime; // "HH:mm" (解錠後)
         final String endTime; // "HH:mm" (到着)
 
-        BikePath(String operatorName,
+        BikePath(int operatorId, String operatorName, String operatorContact,
                 String fromPortName,
                 String toPortName,
                 int distanceM, int rideMinutes,
                 String startTime, String endTime) {
+            this.operatorId = operatorId;
             this.operatorName = operatorName;
+            this.operatorContact = operatorContact;
             this.fromPortName = fromPortName;
             this.toPortName = toPortName;
             this.distanceM = distanceM;
@@ -1900,11 +2191,6 @@ public class RouteSearchServlet extends HttpServlet {
             this.endTime = endTime;
         }
     }
-
-
-
-
-
 
     // (5) 公共交通 → 自転車の結果
     private static class TransferTransitBike {
@@ -1990,6 +2276,28 @@ public class RouteSearchServlet extends HttpServlet {
             default:
                 return "#9ca3af";
         }
+    }
+
+    private boolean hasColumn(java.sql.ResultSetMetaData meta, String columnLabel) throws SQLException {
+        for (int i = 1; i <= meta.getColumnCount(); i++) {
+            if (columnLabel.equalsIgnoreCase(meta.getColumnLabel(i))) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private String normalizeContact(String contact, String operatorName) {
+        if (contact != null) {
+            String trimmed = contact.trim();
+            if (!trimmed.isEmpty()) {
+                return trimmed;
+            }
+        }
+        if (operatorName != null && !operatorName.isEmpty()) {
+            return operatorName + " (連絡先未登録)";
+        }
+        return "連絡先未登録";
     }
 
     // --- 経路表示（HTMLタグ）用ヘルパ ---
@@ -2093,13 +2401,50 @@ public class RouteSearchServlet extends HttpServlet {
         return h.toString();
     }
 
-    // HTML表示の簡略化
-    private void printStep(PrintWriter out, String kind, String main, String meta) {
+    private String chipLine(String routeName, String routeColor) {
+        if (routeName == null || routeName.trim().isEmpty())
+            return "";
+        String c = safeColor(routeColor);
+        return "<span class=\"chip line\" style=\"--line:" + c + "\"><span class=\"dot\"></span>"
+                + esc(routeName) + "</span>";
+    }
+
+    private String chipTrip(String tripName) {
+        if (tripName == null || tripName.trim().isEmpty())
+            return "";
+        return "<span class=\"chip trip\">便名 " + esc(tripName) + "</span>";
+    }
+
+    private String chipInfo(String text) {
+        if (text == null || text.trim().isEmpty())
+            return "";
+        return "<span class=\"chip info\">" + esc(text) + "</span>";
+    }
+
+    private String chipContact(String contact) {
+        if (contact == null || contact.trim().isEmpty())
+            return "";
+        return "<span class=\"chip contact\">連絡先 " + esc(contact) + "</span>";
+    }
+
+    private void printStep(PrintWriter out, String kind, String mainHtml, String metaHtml) {
         out.println("<div class=\"step\">"
                 + "<span class=\"kind\">" + esc(kind) + "</span>"
-                + "<span class=\"main\">" + esc(main) + "</span>"
-                + "<span class=\"meta\">" + esc(meta) + "</span>"
+                + "<span class=\"main\">" + mainHtml + "</span>"
+                + "<span class=\"meta\">" + metaHtml + "</span>"
                 + "</div>");
+    }
+
+    private String summaryItem(String label, String value, String sub) {
+        StringBuilder sb = new StringBuilder();
+        sb.append("<div class=\"summary-item\">");
+        sb.append("<div class=\"summary-label\">").append(esc(label)).append("</div>");
+        sb.append("<div class=\"summary-value\">").append(esc(value)).append("</div>");
+        if (sub != null && !sub.trim().isEmpty()) {
+            sb.append("<div class=\"summary-sub\">").append(esc(sub)).append("</div>");
+        }
+        sb.append("</div>");
+        return sb.toString();
     }
 
     // 徒歩のみ の結果を表示
