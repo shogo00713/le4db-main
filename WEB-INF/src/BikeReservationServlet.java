@@ -158,9 +158,10 @@ public class BikeReservationServlet extends HttpServlet {
         try {
             conn = openConn();
 
-            // 予約情報を取得
-            String selectSql = "SELECT bike_id, operator_id, start_port_id FROM share_bike_reservation "
-                    + "WHERE reservation_id = ? AND status = 'reserved'";
+                // 予約情報を取得（30分以内の予約のみ有効）
+                String selectSql = "SELECT bike_id, operator_id, start_port_id FROM share_bike_reservation "
+                    + "WHERE reservation_id = ? AND status = 'reserved' "
+                    + "AND reserved_at > CURRENT_TIMESTAMP - INTERVAL '30 minutes'";
             int bikeId = -1;
             int operatorId = -1;
             Integer startPortId = null;
@@ -177,7 +178,7 @@ public class BikeReservationServlet extends HttpServlet {
             }
 
             if (bikeId == -1) {
-                sendJsonResponse(out, false, "Reservation not found or invalid state", null);
+                sendJsonResponse(out, false, "Reservation expired or invalid state", null);
                 return;
             }
 

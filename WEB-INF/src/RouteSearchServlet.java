@@ -199,6 +199,8 @@ public class RouteSearchServlet extends HttpServlet {
         out.println(".detail-header{font-size:22px;font-weight:700;margin-bottom:10px;color:var(--primary2);}");
         out.println(".detail-summary{font-size:16px;color:var(--muted);margin-bottom:18px;}");
         out.println(".back-btn{display:inline-block;margin-bottom:18px;padding:10px 22px;background:linear-gradient(90deg, var(--primary), var(--primary2));color:#fff;border-radius:999px;font-weight:700;text-decoration:none;box-shadow:0 4px 12px rgba(59,130,246,.10);transition:filter .12s, box-shadow .12s;}");
+        out.println(".reservation-timers{display:flex;gap:8px;align-items:center;margin-top:8px;}");
+        out.println(".timer-badge{display:none;padding:6px 10px;border-radius:999px;background:#0ea5e9;color:#fff;font-weight:700;font-size:12px;}");
         out.println(".back-btn:hover{filter:saturate(1.08);box-shadow:0 8px 24px rgba(59,130,246,.18);}");
         out.println(".back-btn:active{filter:brightness(.98);}");
         out.println(".steps{display:flex;flex-direction:column;gap:14px;margin-top:14px;}");
@@ -1074,6 +1076,7 @@ public class RouteSearchServlet extends HttpServlet {
         out.println("<!DOCTYPE html><html lang='ja'><head>");
         out.println("<meta charset='UTF-8'><meta name='viewport' content='width=device-width, initial-scale=1'>");
         out.println("<title>Route Detail</title>");
+
         out.println("<style>");
         out.println(":root{--bg:#f3f6fa;--panel:#fff;--panelSolid:#fff;--text:#222;--muted:#7a869a;--border:#e3e8ee;--hairline:#e3e8ee;--shadow:0 8px 32px rgba(60,80,120,.10);--shadow2:0 2px 8px rgba(60,80,120,.08);--radius:18px;--gap:18px;--primary:#3b82f6;--primary2:#2563eb;--ring:rgba(59,130,246,.18);--accent:#fbbf24;}");
         out.println("body{margin:0;background:var(--bg);color:var(--text);font-family:'Segoe UI',Roboto,'Noto Sans JP',Meiryo,sans-serif;-webkit-font-smoothing:antialiased;moz-osx-font-smoothing:grayscale;}");
@@ -1101,6 +1104,12 @@ public class RouteSearchServlet extends HttpServlet {
         out.println(".chip.trip{background:rgba(59,130,246,.12);border-color:rgba(59,130,246,.32);color:#1d4ed8;}");
         out.println(".chip.info{font-weight:600;}");
         out.println(".chip.contact{background:rgba(16,185,129,.12);border-color:rgba(16,185,129,.35);color:#065f46;}");
+        out.println(".reservation-actions{display:flex;align-items:center;gap:14px;flex-wrap:wrap;}");
+        out.println(".timer-pill{display:inline-flex;align-items:baseline;gap:10px;padding:10px 14px;border-radius:999px;border:1px solid rgba(0,0,0,.08);background:#fff;box-shadow:0 2px 10px rgba(0,0,0,.06);}");
+        out.println(".timer-pill.reserve{background:rgba(59,130,246,.10);border-color:rgba(59,130,246,.25);color:#1d4ed8;}");
+        out.println(".timer-pill.use{background:rgba(16,185,129,.12);border-color:rgba(16,185,129,.25);color:#065f46;}");
+        out.println(".timer-label{font-size:12px;opacity:.85;font-weight:700;}");
+        out.println(".timer-num{font-size:16px;font-weight:800;letter-spacing:.06em;font-variant-numeric:tabular-nums;font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,'Liberation Mono','Courier New',monospace;}");
         out.println(".reservation-section{margin-top:28px;padding:22px;background:linear-gradient(135deg,rgba(16,185,129,.12) 0%,rgba(59,130,246,.12) 100%);border-radius:16px;border:2px solid rgba(16,185,129,.35);}");
         out.println(".reservation-title{font-size:16px;font-weight:700;color:#065f46;margin:0 0 14px 0;}");
         out.println(".reservation-actions{display:flex;flex-wrap:wrap;gap:12px;}");
@@ -1113,6 +1122,7 @@ public class RouteSearchServlet extends HttpServlet {
         out.println(".btn-cancel{padding:12px 24px;background:#fff;border:2px solid #ef4444;color:#dc2626;border-radius:999px;font-size:14px;font-weight:700;cursor:pointer;transition:all .2s ease;}");
         out.println(".btn-cancel:hover{background:#fef2f2;transform:translateY(-1px);}");
         out.println(".reservation-status{font-size:13px;color:#059669;font-weight:600;margin-top:10px;}");
+        out.println(".cancel-wrap{display:inline-flex;align-items:center;gap:12px;flex-wrap:nowrap;}");
         out.println("</style>");
         out.println("</head><body>");
 
@@ -1357,8 +1367,12 @@ public class RouteSearchServlet extends HttpServlet {
             out.println("<button class='btn-reserve' id='reserveBtn' onclick='reserveBike(" + bikeOperatorId + ")'>予約する</button>");
             out.println("<button class='btn-action' id='startBtn' style='display:none;' onclick='startBikeUsage()'>利用開始</button>");
             out.println("<button class='btn-action' id='returnBtn' style='display:none;' onclick='returnBike()'>返却</button>");
+            out.println("<span class='cancel-wrap'>");
             out.println("<button class='btn-cancel' id='cancelBtn' style='display:none;' onclick='cancelReservation()'>キャンセル</button>");
-            out.println("</div>");
+            out.println("<span id='reserveTimer' class='timer-pill reserve' style='display:none;'></span>");
+            out.println("<span id='useTimer' class='timer-pill use' style='display:none;'></span>");
+            out.println("</span>");
+            out.println("<div class='reservation-note' style='margin-top:8px;font-size:12px;color:#6b7280;'>※ 予約は30分以内に利用開始してください（30分を過ぎると無効になります）。</div>");
             out.println("<div class='reservation-status' id='statusMsg'></div>");
             out.println("</div>");
 
@@ -1366,6 +1380,16 @@ public class RouteSearchServlet extends HttpServlet {
             out.println("var reservationState = 'not_reserved';");
             out.println("var currentReservationId = null;");
             out.println("var endPortId = " + (endPortId > 0 ? endPortId : "-1") + ";");
+            out.println("var reserveTimerId = null;");
+            out.println("var reserveExpiryAt = null;");
+            out.println("var useTimerId = null;");
+            out.println("var useStartAt = null;");
+            out.println("");
+            out.println("function fmtMMSS(total){var m=Math.floor(total/60),s=total%60;return (m<10?'0'+m:m)+':'+(s<10?'0'+s:s);} ");
+            out.println("function startReserveCountdown(seconds){ clearReserveCountdown(); var el=document.getElementById('reserveTimer'); reserveExpiryAt = Date.now()+seconds*1000; el.style.display='inline-block'; reserveTimerId = setInterval(function(){ var remain=Math.max(0, Math.floor((reserveExpiryAt-Date.now())/1000)); el.textContent='予約残り '+fmtMMSS(remain); if(remain<=0){ clearReserveCountdown(); reservationState='not_reserved'; currentReservationId=null; updateButtonStates(); document.getElementById('statusMsg').textContent='予約の有効期限が切れました。再度予約してください。'; } }, 1000); } ");
+            out.println("function clearReserveCountdown(){ if(reserveTimerId){ clearInterval(reserveTimerId); reserveTimerId=null;} var el=document.getElementById('reserveTimer'); if(el){ el.style.display='none'; el.textContent=''; } } ");
+            out.println("function startUseTimer(){ clearUseTimer(); var el=document.getElementById('useTimer'); useStartAt=Date.now(); el.style.display='inline-block'; useTimerId=setInterval(function(){ var sec=Math.floor((Date.now()-useStartAt)/1000); el.textContent='利用時間 '+fmtMMSS(sec); }, 1000);} ");
+            out.println("function clearUseTimer(){ if(useTimerId){ clearInterval(useTimerId); useTimerId=null;} var el=document.getElementById('useTimer'); if(el){ el.style.display='none'; el.textContent=''; } } ");
             out.println("");
             out.println("function reserveBike(operatorId) {");
             out.println("  var xhr = new XMLHttpRequest();");
@@ -1378,7 +1402,8 @@ public class RouteSearchServlet extends HttpServlet {
             out.println("        currentReservationId = response.reservation_id;");
             out.println("        reservationState = 'reserved';");
             out.println("        updateButtonStates();");
-            out.println("        document.getElementById('statusMsg').textContent = '✓ 予約しました。利用を開始してください。';");
+            out.println("        startReserveCountdown(30*60);");
+            out.println("        document.getElementById('statusMsg').textContent = '✓ 予約しました。30分以内に利用を開始してください。';");
             out.println("      } else {");
             out.println("        alert('予約に失敗しました: ' + response.error);");
             out.println("      }");
@@ -1397,7 +1422,9 @@ public class RouteSearchServlet extends HttpServlet {
             out.println("      var response = JSON.parse(xhr.responseText);");
             out.println("      if (response.success) {");
             out.println("        reservationState = 'in_use';");
+            out.println("        clearReserveCountdown();");
             out.println("        updateButtonStates();");
+            out.println("        startUseTimer();");
             out.println("        document.getElementById('statusMsg').textContent = '✓ 利用を開始しました。返却してください。';");
             out.println("      } else {");
             out.println("        alert('利用開始に失敗しました: ' + response.error);");
@@ -1418,6 +1445,7 @@ public class RouteSearchServlet extends HttpServlet {
             out.println("      if (response.success) {");
             out.println("        reservationState = 'returned';");
             out.println("        updateButtonStates();");
+            out.println("        clearUseTimer();");
             out.println("        document.getElementById('statusMsg').textContent = '✓ 自転車を返却しました。ご利用ありがとうございました。';");
             out.println("      } else {");
             out.println("        alert('返却に失敗しました: ' + response.error);");
@@ -1441,6 +1469,7 @@ public class RouteSearchServlet extends HttpServlet {
             out.println("      if (response.success) {");
             out.println("        reservationState = 'not_reserved';");
             out.println("        currentReservationId = null;");
+            out.println("        clearReserveCountdown();");
             out.println("        updateButtonStates();");
             out.println("        document.getElementById('statusMsg').textContent = '';");
             out.println("      } else {");
