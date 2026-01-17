@@ -12,6 +12,7 @@ import static util.GeoUtils.walkingMinutes;
 import static util.GeoUtils.ridingMinutes;
 
 import model.*;
+import dao.*;
 
 import java.io.IOException;
 import java.io.PrintWriter;
@@ -351,7 +352,7 @@ public class RouteSearchServlet extends HttpServlet {
                 // 出発地選択
                 if (originstopid != null) {
                     out.println("<input type=\"hidden\" name=\"originstopid\" value=\"" + originstopid + "\"/>");
-                    Stop fixedoriginStop = getStopByStopId(conn, originstopid);
+                Stop fixedoriginStop = StopQueries.getStopById(conn, originstopid);
                     if (fixedoriginStop != null) {
                         out.println("<div class=\"field\"><label class=\"label\">出発 (確定)</label>");
                         out.println("<div class=\"fixed\">" + esc(fixedoriginStop.name) + " (" + esc(fixedoriginStop.type) + ")</div></div>");
@@ -366,7 +367,7 @@ public class RouteSearchServlet extends HttpServlet {
                 // 到着地選択
                 if (deststopid != null) {
                     out.println("<input type=\"hidden\" name=\"deststopid\" value=\"" + deststopid + "\"/>");
-                    Stop fixedDestStop = getStopByStopId(conn, deststopid);
+                    Stop fixedDestStop = StopQueries.getStopById(conn, deststopid);
                     if (fixedDestStop != null) {
                         out.println("<div class=\"field\"><label class=\"label\">到着 (確定)</label>");
                         out.println("<div class=\"fixed\">" + esc(fixedDestStop.name) + " (" + esc(fixedDestStop.type) + ")</div></div>");
@@ -405,8 +406,8 @@ public class RouteSearchServlet extends HttpServlet {
             conn = DatabaseConfig.getConnection();
             
             // 出発地/到着地 を確定 -> その検索に入る
-            result.originStop = getStopByStopId(conn, originstopid);
-            result.destStop   = getStopByStopId(conn, deststopid);
+            result.originStop = StopQueries.getStopById(conn, originstopid);
+            result.destStop   = StopQueries.getStopById(conn, deststopid);
 
             // セッションに最後に使った停留所名を保存
             result.lastOriginStopName = result.originStop != null ? result.originStop.name : "";
@@ -1269,33 +1270,9 @@ public class RouteSearchServlet extends HttpServlet {
 
     // --------------------- Stop / Port 系 --------------------
 
-    // stopId から停留所情報を取得
-    private Stop getStopByStopId(Connection conn, int stopId) throws SQLException {
-        String sql = "SELECT stop_id, stop_name, stop_latitude, stop_longitude, stop_type "
-                + "FROM stop_information "
-                + "WHERE stop_id = ? "
-                + "LIMIT 1";
-
-        try (PreparedStatement ps = conn.prepareStatement(sql)) {
-            int idx = 1;
-            ps.setInt(idx++, stopId);
-
-            try (ResultSet rs = ps.executeQuery()) {
-                if (!rs.next())
-                    return null;
-
-                String name = rs.getString("stop_name");
-                double lat = rs.getDouble("stop_latitude");
-                double lon = rs.getDouble("stop_longitude");
-                String type = rs.getString("stop_type");
-                return new Stop(name, type, lat, lon);
-            }
-        }
-    }
-
     // stopId 近くの停留所を列挙
     private List<NearByStops> getNearByStopsByStopId(Connection conn, int centerStopId, int radiusM, int limit) throws SQLException {
-        Stop centerstop = getStopByStopId(conn, centerStopId);
+        Stop centerstop = StopQueries.getStopById(conn, centerStopId);
         if (centerstop == null)
             return new ArrayList<>();
 

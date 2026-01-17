@@ -12,8 +12,10 @@ public class Stop {
     public final String type;
     public final double lat;
     public final double lon;
+    public final int id;
     
-    public Stop(String name, String type, double lat, double lon) {
+    public Stop(int id, String name, String type, double lat, double lon) {
+        this.id = id;
         this.name = name;
         this.type = type;
         this.lat = lat;
