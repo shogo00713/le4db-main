@@ -14,7 +14,7 @@ package model;
  */
 public class TransferTransitBike {
     public final WalkPath walk0;
-    public final DirectPath leg1;
+    public final DirectTransitPath leg1;
     public final WalkPath walk1;
     public final BikePath bike;
     public final WalkPath walk2;
@@ -22,7 +22,7 @@ public class TransferTransitBike {
     public final String startTime;
     public final String endTime;
 
-    public TransferTransitBike(WalkPath walk0, DirectPath leg1, WalkPath walk1, BikePath bike, WalkPath walk2, int totalMin, String startTime, String endTime) {
+    public TransferTransitBike(WalkPath walk0, DirectTransitPath leg1, WalkPath walk1, BikePath bike, WalkPath walk2, int totalMin, String startTime, String endTime) {
         this.walk0 = walk0;
         this.leg1 = leg1;
         this.walk1 = walk1;

@@ -57,4 +57,17 @@ public class HtmlUtils {
     public static String toStr(Object obj) {
         return obj == null ? "" : obj.toString();
     }
+
+    /**
+     * 優先非空文字列取得
+     * @param primary
+     * @param fallback
+     * @return
+     */
+    public static String preferNonEmpty(String primary, String fallback) {
+        if (primary != null && !primary.trim().isEmpty()) {
+            return primary;
+        }
+        return fallback == null ? "" : fallback;
+    }
 }

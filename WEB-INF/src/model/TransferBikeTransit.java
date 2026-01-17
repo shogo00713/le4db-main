@@ -16,13 +16,13 @@ public class TransferBikeTransit {
     public final WalkPath walk0;
     public final BikePath bike;
     public final WalkPath walk1;
-    public final DirectPath leg2;
+    public final DirectTransitPath leg2;
     public final WalkPath walk2;
     public final int totalMin;
     public final String startTime;
     public final String endTime;
 
-    public TransferBikeTransit(WalkPath walk0, BikePath bike, WalkPath walk1, DirectPath leg2, WalkPath walk2, int totalMin, String startTime, String endTime) {
+    public TransferBikeTransit(WalkPath walk0, BikePath bike, WalkPath walk1, DirectTransitPath leg2, WalkPath walk2, int totalMin, String startTime, String endTime) {
         this.walk0 = walk0;
         this.bike = bike;
         this.walk1 = walk1;

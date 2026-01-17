@@ -13,7 +13,7 @@ package model;
  * @toStopName 到着停留所名
  * @arrTime 到着時刻 ("HH:mm")
  */
-public class DirectPath {
+public class DirectTransitPath {
     public final int tripId;
     public final String routeName;
     public final String routeColor;
@@ -25,7 +25,7 @@ public class DirectPath {
     public final String toStopName;
     public final String arrTime;
 
-    public DirectPath(int tripId, String routeName, String routeColor, String tripName, int fromStopId, String fromStopName, String depTime, int toStopId, String toStopName, String arrTime) {
+    public DirectTransitPath(int tripId, String routeName, String routeColor, String tripName, int fromStopId, String fromStopName, String depTime, int toStopId, String toStopName, String arrTime) {
         this.tripId = tripId;
         this.routeName = routeName;
         this.routeColor = routeColor;

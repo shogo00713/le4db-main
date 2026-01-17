@@ -11,13 +11,13 @@ package model;
  */
 public class DirectPlan {
     public final WalkPath walk0;
-    public final DirectPath leg;
+    public final DirectTransitPath leg;
     public final WalkPath walk2;
     public final int totalMin;
     public final String startTime;
     public final String endTime;
 
-    public DirectPlan(WalkPath walk0, DirectPath leg, WalkPath walk2, int totalMin, String startTime, String endTime) {
+    public DirectPlan(WalkPath walk0, DirectTransitPath leg, WalkPath walk2, int totalMin, String startTime, String endTime) {
         this.walk0 = walk0;
         this.leg = leg;
         this.walk2 = walk2;
