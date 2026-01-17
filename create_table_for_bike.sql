@@ -151,6 +151,7 @@ SELECT
     p.port_id,
     po.operator_id,
     o.operator_name,
+    o.operator_contact,
     p.port_name,
     p.port_latitude,
     p.port_longitude,
@@ -161,7 +162,7 @@ FROM port_information p
 JOIN port_operation po ON po.port_id = p.port_id
 JOIN share_bike_operator o ON o.operator_id = po.operator_id
 LEFT JOIN share_bike b ON b.current_port_id = p.port_id AND b.operator_id = po.operator_id
-GROUP BY p.port_id, po.operator_id, o.operator_name, p.port_name, p.port_latitude, p.port_longitude, p.capacity;
+GROUP BY p.port_id, po.operator_id, o.operator_name, o.operator_contact, p.port_name, p.port_latitude, p.port_longitude, p.capacity;
 
 
 -- =====================================================
