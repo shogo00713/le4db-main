@@ -512,7 +512,7 @@ public class RouteSearchServlet extends HttpServlet {
                     // 自転車移動の情報
                         String operatorContact = normalizeContact(fromPort.operatorContact, fromPort.operatorName);
                         BikePath bike = new BikePath(fromPort.operatorId, fromPort.operatorName, operatorContact,
-                            fromPort.portName, toPort.portName,
+                            fromPort.portId, fromPort.portName, toPort.portId, toPort.portName,
                             rideDistance, rideMin, bikeStartTime, bikeEndTime);
 
                     // 移動全体の情報
@@ -765,7 +765,7 @@ public class RouteSearchServlet extends HttpServlet {
                             String operatorContact = normalizeContact(startPort.operatorContact, startPort.operatorName);
                             BikePath bike = new BikePath(startPort.operatorId, startPort.operatorName,
                                     operatorContact,
-                                    startPort.portName, returnPort.portName,
+                                    startPort.portId, startPort.portName, returnPort.portId, returnPort.portName,
                                     rideDist, rideMin, bikeStartTime, bikeEndTime);
 
                             TransferTransitBike plan = new TransferTransitBike(walkToBoardStop, leg1, walkTransfer,
@@ -902,7 +902,9 @@ public class RouteSearchServlet extends HttpServlet {
                             startPort.operatorId,
                             startPort.operatorName,
                             operatorContact,
+                            startPort.portId,
                             startPort.portName,
+                            returnPort.portId,
                             returnPort.portName,
                             rideDist, rideMin, bikeStart, bikeEndTime);
 
@@ -1345,16 +1347,22 @@ public class RouteSearchServlet extends HttpServlet {
                 bikeOperatorName = bp.bike.operatorName;
                 bikeOperatorContact = bp.bike.operatorContact;
                 bikeOperatorId = bp.bike.operatorId;
+                startPortId = bp.bike.fromPortId;
+                endPortId = bp.bike.toPortId;
             } else if (item.payload instanceof TransferTransitBike) {
                 TransferTransitBike tp = (TransferTransitBike) item.payload;
                 bikeOperatorName = tp.bike.operatorName;
                 bikeOperatorContact = tp.bike.operatorContact;
                 bikeOperatorId = tp.bike.operatorId;
+                startPortId = tp.bike.fromPortId;
+                endPortId = tp.bike.toPortId;
             } else if (item.payload instanceof TransferBikeTransit) {
                 TransferBikeTransit tp = (TransferBikeTransit) item.payload;
                 bikeOperatorName = tp.bike.operatorName;
                 bikeOperatorContact = tp.bike.operatorContact;
                 bikeOperatorId = tp.bike.operatorId;
+                startPortId = tp.bike.fromPortId;
+                endPortId = tp.bike.toPortId;
             }
 
             out.println("<div class='reservation-section'>");
@@ -1379,6 +1387,7 @@ public class RouteSearchServlet extends HttpServlet {
             out.println("<script>");
             out.println("var reservationState = 'not_reserved';");
             out.println("var currentReservationId = null;");
+            out.println("var startPortId = " + (startPortId > 0 ? startPortId : "-1") + ";");
             out.println("var endPortId = " + (endPortId > 0 ? endPortId : "-1") + ";");
             out.println("var reserveTimerId = null;");
             out.println("var reserveExpiryAt = null;");
@@ -1409,7 +1418,9 @@ public class RouteSearchServlet extends HttpServlet {
             out.println("      }");
             out.println("    }");
             out.println("  };");
-            out.println("  xhr.send(JSON.stringify({action: 'reserve', operator_id: operatorId}));");
+            out.println("  var payload = {action: 'reserve', operator_id: operatorId};");
+            out.println("  if (startPortId && startPortId > 0) payload.start_port_id = startPortId;");
+            out.println("  xhr.send(JSON.stringify(payload));");
             out.println("}");
             out.println("");
             out.println("function startBikeUsage() {");
@@ -2179,7 +2190,9 @@ public class RouteSearchServlet extends HttpServlet {
         final int operatorId;
         final String operatorName;
         final String operatorContact;
+        final int fromPortId;
         final String fromPortName;
+        final int toPortId;
         final String toPortName;
         final int distanceM;
         final int rideMinutes;
@@ -2187,14 +2200,16 @@ public class RouteSearchServlet extends HttpServlet {
         final String endTime; // "HH:mm" (到着)
 
         BikePath(int operatorId, String operatorName, String operatorContact,
-                String fromPortName,
-                String toPortName,
+                int fromPortId, String fromPortName,
+                int toPortId, String toPortName,
                 int distanceM, int rideMinutes,
                 String startTime, String endTime) {
             this.operatorId = operatorId;
             this.operatorName = operatorName;
             this.operatorContact = operatorContact;
+            this.fromPortId = fromPortId;
             this.fromPortName = fromPortName;
+            this.toPortId = toPortId;
             this.toPortName = toPortName;
             this.distanceM = distanceM;
             this.rideMinutes = rideMinutes;

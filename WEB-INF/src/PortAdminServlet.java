@@ -252,7 +252,7 @@ public class PortAdminServlet extends HttpServlet {
         out.println("<div class=\"header-actions\">");
         out.println("<a class=\"btn2\" href=\"" + ctx + "/adminlogout\">ログアウト</a>");
         out.println("<a class=\"btn2\"  href=\"" + ctx + "/routesearch\">ルート検索に戻る</a>");
-        out.println("<a class=\"btn2\" href=\"" + ctx + "/portlog?op=" + opId + "\">配車ログ</a>");
+        out.println("<a class=\"btn2\" href=\"" + ctx + "/portlog\">配車ログ</a>");
         out.println("</div>");
         out.println("</div>"); // header
 
@@ -288,7 +288,8 @@ public class PortAdminServlet extends HttpServlet {
         // --- 配車（移動）フォーム ---
         out.println("<div class=\"row\" style=\"margin-top:14px;\">");
         out.println("<div class=\"alert\" style=\"background:#fff7ed;border-color:rgba(245,158,11,.28);color:#92400e;\">"
-                + "配車 : UPDATE × 2 と ログの INSERT をトランザクションで実行"
+                + "配車 : UPDATE × 2 と ログの INSERT をトランザクションで実行<br/>"
+                + "<span style='font-size:12px;'>※ ルート検索で提示された経路に基づく配車が記録されます（source='user'）。管理者による配車はsource='admin'として記録されます。</span>"
                 + "</div>");
         out.println("</div>");
 

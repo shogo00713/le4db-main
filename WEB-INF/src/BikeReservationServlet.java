@@ -70,9 +70,16 @@ public class BikeReservationServlet extends HttpServlet {
             String operatorIdStr = extractJsonValue(jsonStr, "operator_id");
             String reservationIdStr = extractJsonValue(jsonStr, "reservation_id");
             String returnPortIdStr = extractJsonValue(jsonStr, "return_port_id");
+            String startPortIdStr = extractJsonValue(jsonStr, "start_port_id");
 
             if ("reserve".equals(action)) {
-                handleReserve(Integer.parseInt(operatorIdStr), out);
+                Integer startPortId = null;
+                if (startPortIdStr != null && !startPortIdStr.isEmpty()) {
+                    try {
+                        startPortId = Integer.parseInt(startPortIdStr);
+                    } catch (NumberFormatException ignore) {}
+                }
+                handleReserve(Integer.parseInt(operatorIdStr), startPortId, out);
             } else if ("start".equals(action)) {
                 handleStart(Long.parseLong(reservationIdStr), out);
             } else if ("return".equals(action)) {
@@ -96,17 +103,28 @@ public class BikeReservationServlet extends HttpServlet {
         }
     }
 
-    private void handleReserve(int operatorId, PrintWriter out) throws SQLException {
+    private void handleReserve(int operatorId, Integer startPortId, PrintWriter out) throws SQLException {
         Connection conn = null;
         try {
             conn = openConn();
 
             // 利用可能な自転車を取得 (docked 状態)
-            String selectBikeSql = "SELECT bike_id FROM share_bike "
-                    + "WHERE operator_id = ? AND status = 'docked' LIMIT 1";
+            // startPortIdが指定されている場合は、そのポートにある自転車のみを検索
+            String selectBikeSql;
+            if (startPortId != null && startPortId > 0) {
+                selectBikeSql = "SELECT bike_id FROM share_bike "
+                        + "WHERE operator_id = ? AND status = 'docked' AND current_port_id = ? LIMIT 1";
+            } else {
+                selectBikeSql = "SELECT bike_id FROM share_bike "
+                        + "WHERE operator_id = ? AND status = 'docked' LIMIT 1";
+            }
             int bikeId = -1;
+            Integer actualStartPortId = null;
             try (PreparedStatement ps = conn.prepareStatement(selectBikeSql)) {
                 ps.setInt(1, operatorId);
+                if (startPortId != null && startPortId > 0) {
+                    ps.setInt(2, startPortId);
+                }
                 try (ResultSet rs = ps.executeQuery()) {
                     if (rs.next()) {
                         bikeId = rs.getInt("bike_id");
@@ -119,15 +137,33 @@ public class BikeReservationServlet extends HttpServlet {
                 return;
             }
 
-            // 予約を記録
+            // 自転車の現在のポートを取得
+            String getCurrentPortSql = "SELECT current_port_id FROM share_bike WHERE bike_id = ? AND operator_id = ?";
+            try (PreparedStatement ps = conn.prepareStatement(getCurrentPortSql)) {
+                ps.setInt(1, bikeId);
+                ps.setInt(2, operatorId);
+                try (ResultSet rs = ps.executeQuery()) {
+                    if (rs.next()) {
+                        int cp = rs.getInt("current_port_id");
+                        if (!rs.wasNull()) actualStartPortId = cp;
+                    }
+                }
+            }
+
+            // 予約を記録（start_port_idも記録）
             String insertReservationSql = "INSERT INTO share_bike_reservation "
-                    + "(bike_id, operator_id, status, reserved_at) "
-                    + "VALUES (?, ?, 'reserved', CURRENT_TIMESTAMP) "
+                    + "(bike_id, operator_id, status, reserved_at, start_port_id) "
+                    + "VALUES (?, ?, 'reserved', CURRENT_TIMESTAMP, ?) "
                     + "RETURNING reservation_id";
             long reservationId = -1;
             try (PreparedStatement ps = conn.prepareStatement(insertReservationSql)) {
                 ps.setInt(1, bikeId);
                 ps.setInt(2, operatorId);
+                if (actualStartPortId != null) {
+                    ps.setInt(3, actualStartPortId);
+                } else {
+                    ps.setNull(3, java.sql.Types.INTEGER);
+                }
                 try (ResultSet rs = ps.executeQuery()) {
                     if (rs.next()) {
                         reservationId = rs.getLong("reservation_id");

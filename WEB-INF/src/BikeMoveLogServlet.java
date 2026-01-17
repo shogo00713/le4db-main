@@ -80,15 +80,24 @@ public class BikeMoveLogServlet extends HttpServlet {
     protected void doGet(HttpServletRequest request, HttpServletResponse response)
             throws ServletException, IOException {
 
+        // ===== セッション認証チェック =====
+        javax.servlet.http.HttpSession session = request.getSession(false);
+        if (session == null || session.getAttribute("operatorId") == null) {
+            response.sendRedirect(request.getContextPath() + "/adminlogin");
+            return;
+        }
+
+        Integer sessionOperatorId = (Integer) session.getAttribute("operatorId");
+        String sessionOperatorName = (String) session.getAttribute("operatorName");
+
         response.setContentType("text/html;charset=UTF-8");
         PrintWriter out = response.getWriter();
 
         String q = safe(request.getParameter("q"), "").trim();           // port名検索
-        String opStr = safe(request.getParameter("op"), "");             // operator_id フィルタ（任意）
         String msg = safe(request.getParameter("msg"), "");
 
-        int opId = -1;
-        if (opStr.matches("\\d+")) opId = Integer.parseInt(opStr);
+        // セッション認証済みなので、常にセッションの事業者IDを使用
+        int opId = sessionOperatorId;
 
         String ctx = request.getContextPath();
         String basePath = ctx + "/portlog";
@@ -124,6 +133,7 @@ public class BikeMoveLogServlet extends HttpServlet {
             "FROM bike_move_log l " +
             "LEFT JOIN (SELECT DISTINCT operator_id, operator_name FROM port_status) op " +
             "  ON op.operator_id = l.operator_id " +
+            "WHERE l.operator_id = ? " +
             "GROUP BY l.operator_id, op.operator_name " +
             "ORDER BY sum_bikes DESC, cnt DESC " +
             "LIMIT 10";
@@ -204,15 +214,17 @@ public class BikeMoveLogServlet extends HttpServlet {
                 }
             }
 
-            try (PreparedStatement ps = conn.prepareStatement(aggSql);
-                 ResultSet rs = ps.executeQuery()) {
-                while (rs.next()) {
-                    Agg a = new Agg();
-                    a.operatorId = rs.getInt("operator_id");
-                    a.operatorName = rs.getString("operator_name");
-                    a.cnt = rs.getInt("cnt");
-                    a.sum = rs.getInt("sum_bikes");
-                    aggs.add(a);
+            try (PreparedStatement ps = conn.prepareStatement(aggSql)) {
+                ps.setInt(1, opId);
+                try (ResultSet rs = ps.executeQuery()) {
+                    while (rs.next()) {
+                        Agg a = new Agg();
+                        a.operatorId = rs.getInt("operator_id");
+                        a.operatorName = rs.getString("operator_name");
+                        a.cnt = rs.getInt("cnt");
+                        a.sum = rs.getInt("sum_bikes");
+                        aggs.add(a);
+                    }
                 }
             }
 
@@ -308,7 +320,8 @@ public class BikeMoveLogServlet extends HttpServlet {
         out.println("<div class=\"row\" style=\"justify-content:space-between;\">");
         out.println("<div>");
         out.println("<h1 class=\"title\">配車ログ（bike_move_log）</h1>");
-        out.println("<p class=\"muted\">検索(SELECT+JOIN) / 削除(DELETE) / 集約(GROUP BY) をここでデモできます</p>");
+        out.println("<p class=\"muted\">事業者: " + esc(sessionOperatorName) + "</p>");
+        out.println("<p class=\"muted\">検索(SELECT+JOIN) / 集約(GROUP BY) をここでデモできます</p>");
         out.println("</div>");
         out.println("<div class=\"row\">");
         out.println("<a class=\"btn2\" href=\"" + ctx + "/portadmin/\">ポート管理へ戻る</a>");
@@ -350,23 +363,9 @@ public class BikeMoveLogServlet extends HttpServlet {
         out.println("<form method=\"GET\" action=\"" + basePath + "\">");
         out.println("<div class=\"row\">");
         out.println("<input type=\"text\" name=\"q\" placeholder=\"ポート名で検索（例: 京都駅）\" value=\"" + esc(q) + "\"/>");
-        out.println("<input type=\"number\" name=\"op\" placeholder=\"operator_id（任意）\" value=\"" + (opId == -1 ? "" : opId) + "\" style=\"width:180px;\"/>");
         out.println("<button class=\"btn\" type=\"submit\">検索</button>");
         out.println("</div>");
         out.println("</form>");
-
-        // 集約結果（上位だけ）
-        out.println("<div class=\"row\">");
-        out.println("<div class=\"alert\" style=\"background:#fff7ed;border-color:rgba(245,158,11,.28);color:#92400e;\">");
-        out.println("<b>集約（operator別）</b>：移動回数と合計台数（COUNT / SUM）<br/>");
-        for (int i = 0; i < aggs.size(); i++) {
-            Agg a = aggs.get(i);
-            out.println("<span class=\"mini\">#" + (i+1) + " </span>"
-                    + esc(a.operatorName) + "（" + a.operatorId + "）: "
-                    + a.cnt + "回 / 合計 " + a.sum + "台<br/>");
-        }
-        out.println("</div>");
-        out.println("</div>");
 
         // ログ表
         out.println("<div class=\"table-wrap\"><table>");
@@ -399,11 +398,16 @@ public class BikeMoveLogServlet extends HttpServlet {
     // POST: 削除不可（以前のDELETEデモは廃止）
     protected void doPost(HttpServletRequest request, HttpServletResponse response)
             throws ServletException, IOException {
+        // ===== セッション認証チェック =====
+        javax.servlet.http.HttpSession session = request.getSession(false);
+        if (session == null || session.getAttribute("operatorId") == null) {
+            response.sendRedirect(request.getContextPath() + "/adminlogin");
+            return;
+        }
+
         request.setCharacterEncoding("UTF-8");
         String q = safe(request.getParameter("q"), "").trim();
-        String op = safe(request.getParameter("op"), "").trim();
-        String keep = "q=" + URLEncoder.encode(q, "UTF-8")
-                    + "&op=" + URLEncoder.encode(op, "UTF-8");
+        String keep = "q=" + URLEncoder.encode(q, "UTF-8");
         response.sendRedirect(request.getContextPath() + "/portlog?" + keep + "&msg=" +
                 URLEncoder.encode("配車ログは削除できません", "UTF-8"));
     }
