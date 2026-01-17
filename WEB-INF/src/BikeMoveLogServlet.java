@@ -12,7 +12,6 @@ import javax.servlet.http.HttpServlet;
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
 
-@SuppressWarnings("serial")
 public class BikeMoveLogServlet extends HttpServlet {
 
     public void init() throws ServletException {
@@ -99,24 +98,9 @@ public class BikeMoveLogServlet extends HttpServlet {
             "ORDER BY l.moved_at DESC " +
             "LIMIT 80";
 
-        // ---- 集約（GROUP BY / COUNT / SUM）----
-        // operatorごとの移動回数＆合計台数（全ログ）
-        class Agg { int operatorId; String operatorName; int cnt; int sum; }
-        List<Agg> aggs = new ArrayList<>();
-
-        String aggSql =
-            "SELECT l.operator_id, COALESCE(op.operator_name,'(unknown)') AS operator_name, " +
-            "       COUNT(*) AS cnt, SUM(l.moved_bikes) AS sum_bikes " +
-            "FROM bike_move_log l " +
-            "LEFT JOIN (SELECT DISTINCT operator_id, operator_name FROM port_status) op " +
-            "  ON op.operator_id = l.operator_id " +
-            "WHERE l.operator_id = ? " +
-            "GROUP BY l.operator_id, op.operator_name " +
-            "ORDER BY sum_bikes DESC, cnt DESC " +
-            "LIMIT 10";
 
         // ---- ユーザー利用のみの分析（source='user'）----
-        class PortStat { int portId; String portName; int operatorId; String operatorName; int total; int trips; }
+        class PortStat { int portId; String portName; String operatorName; int total; int trips; }
         List<PortStat> topDepartures = new ArrayList<>();
         List<PortStat> topReturns = new ArrayList<>();
         List<PortStat> leastUsed = new ArrayList<>();
@@ -191,19 +175,6 @@ public class BikeMoveLogServlet extends HttpServlet {
                 }
             }
 
-            try (PreparedStatement ps = conn.prepareStatement(aggSql)) {
-                ps.setInt(1, opId);
-                try (ResultSet rs = ps.executeQuery()) {
-                    while (rs.next()) {
-                        Agg a = new Agg();
-                        a.operatorId = rs.getInt("operator_id");
-                        a.operatorName = rs.getString("operator_name");
-                        a.cnt = rs.getInt("cnt");
-                        a.sum = rs.getInt("sum_bikes");
-                        aggs.add(a);
-                    }
-                }
-            }
 
             // ユーザー利用のみ: 出発上位
             try (PreparedStatement ps = conn.prepareStatement(topDepartSql)) {
@@ -214,7 +185,7 @@ public class BikeMoveLogServlet extends HttpServlet {
                         PortStat s = new PortStat();
                         s.portId = rs.getInt("port_id");
                         s.portName = rs.getString("port_name");
-                        s.operatorId = rs.getInt("operator_id");
+                        rs.getInt("operator_id");
                         s.operatorName = rs.getString("operator_name");
                         s.total = rs.getInt("total_bikes");
                         s.trips = rs.getInt("trips");
@@ -232,7 +203,7 @@ public class BikeMoveLogServlet extends HttpServlet {
                         PortStat s = new PortStat();
                         s.portId = rs.getInt("port_id");
                         s.portName = rs.getString("port_name");
-                        s.operatorId = rs.getInt("operator_id");
+                        rs.getInt("operator_id");
                         s.operatorName = rs.getString("operator_name");
                         s.total = rs.getInt("total_bikes");
                         s.trips = rs.getInt("trips");
@@ -250,7 +221,7 @@ public class BikeMoveLogServlet extends HttpServlet {
                         PortStat s = new PortStat();
                         s.portId = rs.getInt("port_id");
                         s.portName = rs.getString("port_name");
-                        s.operatorId = rs.getInt("operator_id");
+                        rs.getInt("operator_id");
                         s.operatorName = rs.getString("operator_name");
                         s.total = rs.getInt("total_bikes");
                         s.trips = rs.getInt("trips");

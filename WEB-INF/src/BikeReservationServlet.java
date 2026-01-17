@@ -12,7 +12,6 @@ import javax.servlet.http.HttpServlet;
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
 
-@SuppressWarnings("serial")
 public class BikeReservationServlet extends HttpServlet {
 
     public void init() throws ServletException {
@@ -353,18 +352,16 @@ public class BikeReservationServlet extends HttpServlet {
             String selectSql = "SELECT bike_id, operator_id FROM share_bike_reservation "
                     + "WHERE reservation_id = ? AND status = 'reserved'";
             int bikeId = -1;
-            int operatorId = -1;
             try (PreparedStatement ps = conn.prepareStatement(selectSql)) {
                 ps.setLong(1, reservationId);
                 try (ResultSet rs = ps.executeQuery()) {
                     if (rs.next()) {
                         bikeId = rs.getInt("bike_id");
-                        operatorId = rs.getInt("operator_id");
                     }
                 }
             }
 
-            if (bikeId == -1) {
+                if (bikeId == -1) {
                 sendJsonResponse(out, false, "Reservation not found or cannot be cancelled", null);
                 return;
             }
