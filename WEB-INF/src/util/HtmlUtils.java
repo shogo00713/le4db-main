@@ -1,15 +1,5 @@
 package util;
 
-/*
-
-    HTML関連の便利メソッドまとめ
-
-    escapeメソッド : HTMLエスケープ処理
-    safeメソッド   : null安全な文字列取得
-    optionメソッド : HTMLのselect要素のoption生成
-
-*/
-
 public class HtmlUtils {
     
     public static String esc(String text) {

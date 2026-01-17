@@ -1,5 +1,12 @@
 import static util.HtmlUtils.esc;
 import static util.HtmlUtils.option;
+import static util.TimeUtils.addMinutes;
+import static util.TimeUtils.diffMinutes;
+import static util.TimeUtils.now;
+import static util.TimeUtils.hhmm;
+import static util.GeoUtils.distanceMeters;
+import static util.GeoUtils.walkingMinutes;
+import static util.GeoUtils.ridingMinutes;
 
 import java.io.IOException;
 import java.io.PrintWriter;
@@ -8,7 +15,6 @@ import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.time.LocalTime;
-import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
@@ -293,7 +299,7 @@ public class RouteSearchServlet extends HttpServlet {
         if (timemode.equals("spec") && !timevalue.equals("")) {
             baseTime = timevalue;
         } else {
-            baseTime = LocalTime.now().format(DateTimeFormatter.ofPattern("HH:mm"));
+            baseTime = now();
         }
 
         // -----------------------------------------------------------------------------------------------
@@ -481,7 +487,7 @@ public class RouteSearchServlet extends HttpServlet {
                     if (fromPort.portId == toPort.portId)
                         continue;
 
-                    int rideMin = cyclingMinutes(rideDistance, BIKE_METER_CORRECTION, BIKE_METER_PER_MINUTE);
+                    int rideMin = ridingMinutes(rideDistance, BIKE_METER_CORRECTION, BIKE_METER_PER_MINUTE);
                     String bikeEndTime = addMinutes(addMinutes(bikeStartTime, rideMin), BIKE_LOCK_MIN);
 
                     int walkToDestinationDistance = distanceMeters(toPort.lat, toPort.lon, destStop.lat, destStop.lon);
@@ -490,7 +496,7 @@ public class RouteSearchServlet extends HttpServlet {
                     WalkPath walkToDestination = new WalkPath(toPort.portName, destStop.name, walkToDestinationDistance,
                             walkToDestinationMin);
                     String endTime = addMinutes(bikeEndTime, walkToDestinationMin);
-                    int totalMin = minutesBetween(baseTime, endTime);
+                    int totalMin = diffMinutes(baseTime, endTime);
 
                     // 自転車移動の情報
                         String operatorContact = normalizeContact(fromPort.operatorContact, fromPort.operatorName);
@@ -549,7 +555,7 @@ public class RouteSearchServlet extends HttpServlet {
                     String destArrivalTime = addMinutes(leg.arrTime, walkToDestMin);
                     WalkPath walkToDest = new WalkPath(alightStop.name, destStop.name, alightStop.distance,
                             walkToDestMin);
-                    int totalMin = minutesBetween(originDepartTime, destArrivalTime);
+                    int totalMin = diffMinutes(originDepartTime, destArrivalTime);
 
                     DirectPlan directPlan = new DirectPlan(walkToBoardStop, leg, walkToDest, totalMin, originDepartTime,
                             destArrivalTime);
@@ -635,7 +641,7 @@ public class RouteSearchServlet extends HttpServlet {
                             WalkPath walkToDest = new WalkPath(secondAlightStop.name, destStop.name,
                                     secondAlightStop.distance, walkToDestMin);
 
-                            int totalMin = minutesBetween(originDepartTime, destArrivalTime);
+                            int totalMin = diffMinutes(originDepartTime, destArrivalTime);
 
                             String key = leg1.tripId + ":" + leg1.fromStopId + ":" + leg1.toStopId + "|" + leg2.tripId
                                     + ":" + leg2.fromStopId + ":" + leg2.toStopId;
@@ -728,7 +734,7 @@ public class RouteSearchServlet extends HttpServlet {
                             if (rideDist > BIKE_MAX_RIDE_M)
                                 continue;
 
-                            int rideMin = cyclingMinutes(rideDist, BIKE_METER_CORRECTION, BIKE_METER_PER_MINUTE);
+                            int rideMin = ridingMinutes(rideDist, BIKE_METER_CORRECTION, BIKE_METER_PER_MINUTE);
                             String bikeEndTime = addMinutes(bikeStartTime, rideMin + BIKE_LOCK_MIN);
 
                             int walkToDestDistance = (int) Math
@@ -738,7 +744,7 @@ public class RouteSearchServlet extends HttpServlet {
                                     walkToDestMin);
 
                             String arrivalTimeToDest = addMinutes(bikeEndTime, walkToDestMin);
-                            int totalMin = minutesBetween(originDepartTime, arrivalTimeToDest);
+                            int totalMin = diffMinutes(originDepartTime, arrivalTimeToDest);
 
                             String key = "TB:" + leg1.tripId + "|" + startPort.operatorId + ":" + startPort.portId
                                     + "->" + returnPort.portId;
@@ -829,7 +835,7 @@ public class RouteSearchServlet extends HttpServlet {
                     if (startPort.portId == returnPort.portId)
                         continue;
 
-                    int rideMin = cyclingMinutes(rideDist, BIKE_METER_CORRECTION, BIKE_METER_PER_MINUTE);
+                    int rideMin = ridingMinutes(rideDist, BIKE_METER_CORRECTION, BIKE_METER_PER_MINUTE);
                     String bikeEndTime = addMinutes(bikeStart, rideMin + BIKE_LOCK_MIN);
 
                     List<NearbyStop> boardStops = nearbyStopsByLatLon(conn, returnPort.lat, returnPort.lon,
@@ -862,7 +868,7 @@ public class RouteSearchServlet extends HttpServlet {
                                     walkToDestMin);
 
                             String endTime = addMinutes(leg2.arrTime, walkToDestMin);
-                            int totalMin = minutesBetween(baseTime, endTime);
+                            int totalMin = diffMinutes(baseTime, endTime);
 
                             if (bestEnd == null || LocalTime.parse(endTime).isBefore(LocalTime.parse(bestEnd))) {
                                 bestEnd = endTime;
@@ -1178,7 +1184,7 @@ public class RouteSearchServlet extends HttpServlet {
                     + " " + hhmm(dp.leg.arrTime);
             String metaRide = chipLine(dp.leg.routeName, dp.leg.routeColor)
                     + chipTrip(dp.leg.tripName)
-                    + chipInfo("時間 " + minutesBetween(dp.leg.depTime, dp.leg.arrTime) + "分");
+                    + chipInfo("時間 " + diffMinutes(dp.leg.depTime, dp.leg.arrTime) + "分");
             printStep(out, "乗車", mainRide, metaRide);
 
             if (!isZeroWalk(dp.walk2)) {
@@ -1198,7 +1204,7 @@ public class RouteSearchServlet extends HttpServlet {
                     + esc(tp.leg1.toStopName) + " " + hhmm(tp.leg1.arrTime);
             String metaRide1 = chipLine(tp.leg1.routeName, tp.leg1.routeColor)
                     + chipTrip(tp.leg1.tripName)
-                    + chipInfo("時間 " + minutesBetween(tp.leg1.depTime, tp.leg1.arrTime) + "分");
+                    + chipInfo("時間 " + diffMinutes(tp.leg1.depTime, tp.leg1.arrTime) + "分");
             printStep(out, "乗車", mainRide1, metaRide1);
 
             if (!isZeroWalk(tp.walk1)) {
@@ -1213,7 +1219,7 @@ public class RouteSearchServlet extends HttpServlet {
                     + esc(tp.leg2.toStopName) + " " + hhmm(tp.leg2.arrTime);
             String metaRide2 = chipLine(tp.leg2.routeName, tp.leg2.routeColor)
                     + chipTrip(tp.leg2.tripName)
-                    + chipInfo("時間 " + minutesBetween(tp.leg2.depTime, tp.leg2.arrTime) + "分");
+                    + chipInfo("時間 " + diffMinutes(tp.leg2.depTime, tp.leg2.arrTime) + "分");
             printStep(out, "乗車", mainRide2, metaRide2);
 
             if (!isZeroWalk(tp.walk2)) {
@@ -1254,7 +1260,7 @@ public class RouteSearchServlet extends HttpServlet {
                     + esc(tp.leg1.toStopName) + " " + hhmm(tp.leg1.arrTime);
             String metaRide1 = chipLine(tp.leg1.routeName, tp.leg1.routeColor)
                     + chipTrip(tp.leg1.tripName)
-                    + chipInfo("時間 " + minutesBetween(tp.leg1.depTime, tp.leg1.arrTime) + "分");
+                    + chipInfo("時間 " + diffMinutes(tp.leg1.depTime, tp.leg1.arrTime) + "分");
             printStep(out, "乗車", mainRide1, metaRide1);
 
             if (!isZeroWalk(tp.walk1)) {
@@ -1302,7 +1308,7 @@ public class RouteSearchServlet extends HttpServlet {
                     + esc(tp.leg2.toStopName) + " " + hhmm(tp.leg2.arrTime);
             String metaRide = chipLine(tp.leg2.routeName, tp.leg2.routeColor)
                     + chipTrip(tp.leg2.tripName)
-                    + chipInfo("時間 " + minutesBetween(tp.leg2.depTime, tp.leg2.arrTime) + "分");
+                    + chipInfo("時間 " + diffMinutes(tp.leg2.depTime, tp.leg2.arrTime) + "分");
             printStep(out, "乗車", mainRide, metaRide);
 
             if (!isZeroWalk(tp.walk2)) {
@@ -1518,59 +1524,6 @@ public class RouteSearchServlet extends HttpServlet {
             return primary;
         }
         return fallback == null ? "" : fallback;
-    }
-
-    // 時間管理の関数
-    private String addMinutes(String HHmm, int minutes) {
-        LocalTime time = LocalTime.parse(HHmm); // "HH:mm"
-        return time.plusMinutes(minutes).format(DateTimeFormatter.ofPattern("HH:mm"));
-    }
-
-    // HH:mm 統一
-    private String hhmm(String t) {
-        if (t == null)
-            return "";
-        return (t.length() >= 5) ? t.substring(0, 5) : t;
-    }
-
-    // 時刻の間を返す
-    private int minutesBetween(String startHHmm, String endHHmm) {
-        LocalTime s = LocalTime.parse(startHHmm);
-        LocalTime e = LocalTime.parse(endHHmm);
-        long m = java.time.Duration.between(s, e).toMinutes();
-        if (m < 0)
-            m += 24 * 60;
-        return (int) m;
-    }
-
-    // --------------------- 基本系 --------------------
-
-    // 緯度経度 -> 距離 (メートル)
-    private int distanceMeters(double lat1, double lon1, double lat2, double lon2) {
-        double R = 6371000.0;
-        double diflat = Math.toRadians(lat2 - lat1);
-        double diflon = Math.toRadians(lon2 - lon1);
-        double a = Math.sin(diflat / 2) * Math.sin(diflat / 2)
-                + Math.cos(Math.toRadians(lat1)) * Math.cos(Math.toRadians(lat2)) * Math.sin(diflon / 2)
-                        * Math.sin(diflon / 2);
-        double c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-        return (int) (R * c);
-    }
-
-    // 距離 -> 徒歩時間
-    private int walkingMinutes(double meters, double meter_correction, double walk_meter_per_minutes) {
-        if (meters <= 0)
-            return 1;
-        int minutes = (int) Math.ceil(meters * meter_correction / walk_meter_per_minutes);
-        return Math.max(1, minutes);
-    }
-
-    // 距離 -> 自転車時間
-    private int cyclingMinutes(int meters, double bike_meter_correction, double bike_meter_per_minutes) {
-        if (meters <= 0)
-            return 1;
-        int minutes = (int) Math.ceil(meters * bike_meter_correction / bike_meter_per_minutes);
-        return Math.max(1, minutes);
     }
 
     // --------------------- 候補検索系 --------------------

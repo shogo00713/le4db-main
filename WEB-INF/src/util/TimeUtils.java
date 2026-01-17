@@ -1,18 +1,6 @@
 package util;
-
 import java.time.LocalTime;
 import java.time.format.DateTimeFormatter;
-
-/*
-
-    時刻操作関連の便利メソッドまとめ
-    
-    addMinutesメソッド  : 指定時刻に分数を加算
-    diffMinutesメソッド : 2つの時刻の差分計算 (分)
-    nowメソッド         : 現在時刻取得 (HH:mm形式)
-
-*/
-
 
 public class TimeUtils {
     
@@ -36,6 +24,7 @@ public class TimeUtils {
     
     /**
      * 2つの時刻の差分を分単位で計算
+     * 日跨ぎも対応
      * @param startTime 開始時刻（HH:mm）
      * @param endTime 終了時刻（HH:mm）
      * @return 差分（分）
@@ -44,7 +33,9 @@ public class TimeUtils {
         try {
             LocalTime start = LocalTime.parse(startTime, TIME_FORMATTER);
             LocalTime end = LocalTime.parse(endTime, TIME_FORMATTER);
-            return (int) java.time.Duration.between(start, end).toMinutes();
+            long m =java.time.Duration.between(start, end).toMinutes();
+            if (m < 0) m += 24 * 60; // 日跨ぎ対応
+            return (int) m;
         } catch (Exception e) {
             return 0;
         }
@@ -56,4 +47,17 @@ public class TimeUtils {
     public static String now() {
         return LocalTime.now().format(TIME_FORMATTER);
     }
+
+    /**
+     * HH:mm形式に統一
+     * @param t  時間文字列
+     * @return 必ずHH:mm形式の時間文字列
+     */
+    public static String hhmm(String t) {
+        if (t == null)
+            return "";
+        return (t.length() >= 5) ? t.substring(0, 5) : t;
+    }
+
+
 }
