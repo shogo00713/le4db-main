@@ -48,4 +48,13 @@ public class HtmlUtils {
     public static String nvl(String s){
         return s==null ? "" : s;
     }
+
+    /**
+     * オブジェクトを文字列に変換（nullは空文字）
+     * @param obj 入力オブジェクト
+     * @return objがnullの場合は空文字、それ以外はobj.toString()
+     */
+    public static String toStr(Object obj) {
+        return obj == null ? "" : obj.toString();
+    }
 }
