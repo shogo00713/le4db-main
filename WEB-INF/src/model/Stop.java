@@ -6,6 +6,7 @@ package model;
  * @type 停留所タイプ (バス停, 鉄道駅など)
  * @lat 緯度
  * @lon 経度
+ * @id 停留所ID
  */
 public class Stop {
     public final String name;

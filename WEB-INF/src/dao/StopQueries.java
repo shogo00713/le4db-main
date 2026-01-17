@@ -16,8 +16,8 @@ public class StopQueries {
      * @return 停留所情報、存在しない場合は null
      */
     public static Stop getStopById(Connection conn, int stopId) throws SQLException {
-        String sql = "SELECT stop_id, stop_name, stop_type, stop_lat, stop_lon " +
-                     "FROM stops " +
+        String sql = "SELECT stop_id, stop_name, stop_type, stop_latitude, stop_longitude " +
+                     "FROM stop_information " +
                      "WHERE stop_id = ?";
         
         try (PreparedStatement ps = conn.prepareStatement(sql)) {
@@ -29,8 +29,8 @@ public class StopQueries {
                         rs.getInt("stop_id"),
                         rs.getString("stop_name"),
                         rs.getString("stop_type"),
-                        rs.getDouble("stop_lat"),
-                        rs.getDouble("stop_lon")
+                        rs.getDouble("stop_latitude"),
+                        rs.getDouble("stop_longitude")
                     );
                 }
             }
@@ -49,19 +49,20 @@ public class StopQueries {
     public static List<Stop> findNearbyStops(Connection conn, 
             double lat, double lon, int radiusM) throws SQLException {
         
-        String sql = "SELECT stop_id, stop_name, stop_type, stop_lat, stop_lon, " +
-                     "       SQRT(POW(stop_lat - ?, 2) + POW(stop_lon - ?, 2)) * 111000 AS dist " +
-                     "FROM stops " +
-                     "HAVING dist <= ? " +
-                     "ORDER BY dist ASC";
+    String sql = "SELECT stop_id, stop_name, stop_type, stop_latitude, stop_longitude, dist " +
+                 "FROM ( " +
+                 "  SELECT stop_id, stop_name, stop_type, stop_latitude, stop_longitude, " +
+                 "         SQRT(POW(stop_latitude - ?, 2) + POW(stop_longitude - ?, 2)) * 111000 AS dist " +
+                 "  FROM stop_information " +
+                 ") sub " +
+                 "WHERE dist <= ? " +
+                 "ORDER BY dist ASC";
         
         List<Stop> results = new ArrayList<>();
         try (PreparedStatement ps = conn.prepareStatement(sql)) {
             ps.setDouble(1, lat);
             ps.setDouble(2, lon);
-            ps.setDouble(3, lat);
-            ps.setDouble(4, lon);
-            ps.setInt(5, radiusM);
+            ps.setInt(3, radiusM);
             
             try (ResultSet rs = ps.executeQuery()) {
                 while (rs.next()) {
@@ -69,8 +70,8 @@ public class StopQueries {
                         rs.getInt("stop_id"),
                         rs.getString("stop_name"),
                         rs.getString("stop_type"),
-                        rs.getDouble("stop_lat"),
-                        rs.getDouble("stop_lon")
+                        rs.getDouble("stop_latitude"),
+                        rs.getDouble("stop_longitude")
                     ));
                 }
             }
@@ -84,15 +85,24 @@ public class StopQueries {
      * @param stopName 停留所名
      * @return 見つかった停留所のリスト
      */
-    public static List<Stop> findByName(Connection conn, String stopName) throws SQLException {
-        String sql = "SELECT stop_id, stop_name, stop_type, stop_lat, stop_lon " +
-                     "FROM stops " +
-                     "WHERE stop_name LIKE ? " +
-                     "ORDER BY stop_name ASC";
+    public static List<Stop> findByName(Connection conn, String stopName, int limit) throws SQLException {
+        String sql = "SELECT stop_id, stop_name, stop_type, stop_latitude, stop_longitude "
+                   + "FROM stop_information "
+                   + "WHERE stop_name ILIKE ? "
+                   + "ORDER BY CASE "
+                   + "WHEN stop_name = ? THEN 0 "
+                   + "WHEN stop_name ILIKE ? THEN 1 "
+                   + "ELSE 2 END, "
+                   + "CHAR_LENGTH(stop_name) ASC "
+                   + "LIMIT ? ";
         
         List<Stop> results = new ArrayList<>();
         try (PreparedStatement ps = conn.prepareStatement(sql)) {
-            ps.setString(1, "%" + stopName + "%");
+            int idx = 1;
+            ps.setString(idx++, "%" + stopName + "%"); // 部分一致
+            ps.setString(idx++, stopName); // 完全一致
+            ps.setString(idx++, stopName + "%"); // 前方一致
+            ps.setInt(idx++, limit);
             
             try (ResultSet rs = ps.executeQuery()) {
                 while (rs.next()) {
@@ -100,8 +110,8 @@ public class StopQueries {
                         rs.getInt("stop_id"),
                         rs.getString("stop_name"),
                         rs.getString("stop_type"),
-                        rs.getDouble("stop_lat"),
-                        rs.getDouble("stop_lon")
+                        rs.getDouble("stop_latitude"),
+                        rs.getDouble("stop_longitude")
                     ));
                 }
             }
