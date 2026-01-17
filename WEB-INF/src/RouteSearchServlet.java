@@ -1326,26 +1326,24 @@ public class RouteSearchServlet extends HttpServlet {
         if (hasBikeSegment) {
             String bikeOperatorName = "";
             String bikeOperatorContact = "";
-            int startPortId = 0;
+            int startPortId = -1;
+            int endPortId = -1;
             int bikeOperatorId = 0;
 
             if (item.payload instanceof BikeDirectPlan) {
                 BikeDirectPlan bp = (BikeDirectPlan) item.payload;
                 bikeOperatorName = bp.bike.operatorName;
                 bikeOperatorContact = bp.bike.operatorContact;
-                startPortId = -1; // ビューから取得されない場合
                 bikeOperatorId = bp.bike.operatorId;
             } else if (item.payload instanceof TransferTransitBike) {
                 TransferTransitBike tp = (TransferTransitBike) item.payload;
                 bikeOperatorName = tp.bike.operatorName;
                 bikeOperatorContact = tp.bike.operatorContact;
-                startPortId = -1;
                 bikeOperatorId = tp.bike.operatorId;
             } else if (item.payload instanceof TransferBikeTransit) {
                 TransferBikeTransit tp = (TransferBikeTransit) item.payload;
                 bikeOperatorName = tp.bike.operatorName;
                 bikeOperatorContact = tp.bike.operatorContact;
-                startPortId = -1;
                 bikeOperatorId = tp.bike.operatorId;
             }
 
@@ -1367,6 +1365,7 @@ public class RouteSearchServlet extends HttpServlet {
             out.println("<script>");
             out.println("var reservationState = 'not_reserved';");
             out.println("var currentReservationId = null;");
+            out.println("var endPortId = " + (endPortId > 0 ? endPortId : "-1") + ";");
             out.println("");
             out.println("function reserveBike(operatorId) {");
             out.println("  var xhr = new XMLHttpRequest();");
@@ -1425,7 +1424,9 @@ public class RouteSearchServlet extends HttpServlet {
             out.println("      }");
             out.println("    }");
             out.println("  };");
-            out.println("  xhr.send(JSON.stringify({action: 'return', reservation_id: currentReservationId}));");
+            out.println("  var payload = {action: 'return', reservation_id: currentReservationId};");
+            out.println("  if (endPortId && endPortId > 0) payload.return_port_id = endPortId;");
+            out.println("  xhr.send(JSON.stringify(payload));");
             out.println("}");
             out.println("");
             out.println("function cancelReservation() {");

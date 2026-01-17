@@ -59,9 +59,10 @@ public class BikeMoveLogServlet extends HttpServlet {
         final int toPortId;
         final String toName;
         final int movedBikes;
+        final String source;
 
         LogRow(int logId, String movedAt, int operatorId, String operatorName,
-               int fromPortId, String fromName, int toPortId, String toName, int movedBikes) {
+               int fromPortId, String fromName, int toPortId, String toName, int movedBikes, String source) {
             this.logId = logId;
             this.movedAt = movedAt;
             this.operatorId = operatorId;
@@ -71,6 +72,7 @@ public class BikeMoveLogServlet extends HttpServlet {
             this.toPortId = toPortId;
             this.toName = toName;
             this.movedBikes = movedBikes;
+            this.source = source;
         }
     }
 
@@ -100,7 +102,7 @@ public class BikeMoveLogServlet extends HttpServlet {
             "  l.operator_id, COALESCE(op.operator_name, '(unknown)') AS operator_name, " +
             "  l.from_port_id, COALESCE(pf.port_name, '(unknown)') AS from_name, " +
             "  l.to_port_id, COALESCE(pt.port_name, '(unknown)') AS to_name, " +
-            "  l.moved_bikes " +
+            "  l.moved_bikes, l.source " +
             "FROM bike_move_log l " +
             "LEFT JOIN (SELECT DISTINCT operator_id, operator_name FROM port_status) op " +
             "  ON op.operator_id = l.operator_id " +
@@ -112,7 +114,7 @@ public class BikeMoveLogServlet extends HttpServlet {
             "LIMIT 80";
 
         // ---- 集約（GROUP BY / COUNT / SUM）----
-        // operatorごとの移動回数＆合計台数
+        // operatorごとの移動回数＆合計台数（全ログ）
         class Agg { int operatorId; String operatorName; int cnt; int sum; }
         List<Agg> aggs = new ArrayList<>();
 
@@ -125,6 +127,54 @@ public class BikeMoveLogServlet extends HttpServlet {
             "GROUP BY l.operator_id, op.operator_name " +
             "ORDER BY sum_bikes DESC, cnt DESC " +
             "LIMIT 10";
+
+        // ---- ユーザー利用のみの分析（source='user'）----
+        class PortStat { int portId; String portName; int operatorId; String operatorName; int total; int trips; }
+        List<PortStat> topDepartures = new ArrayList<>();
+        List<PortStat> topReturns = new ArrayList<>();
+        List<PortStat> leastUsed = new ArrayList<>();
+
+        String topDepartSql =
+            "SELECT l.from_port_id AS port_id, COALESCE(p.port_name,'(unknown)') AS port_name, " +
+            "       l.operator_id, COALESCE(op.operator_name,'(unknown)') AS operator_name, " +
+            "       SUM(l.moved_bikes) AS total_bikes, COUNT(*) AS trips " +
+            "FROM bike_move_log l " +
+            "LEFT JOIN port_information p ON p.port_id = l.from_port_id " +
+            "LEFT JOIN (SELECT DISTINCT operator_id, operator_name FROM port_status) op ON op.operator_id = l.operator_id " +
+            "WHERE l.source = 'user' AND (? = -1 OR l.operator_id = ?) " +
+            "GROUP BY l.from_port_id, p.port_name, l.operator_id, op.operator_name " +
+            "ORDER BY total_bikes DESC, trips DESC " +
+            "LIMIT 3";
+
+        String topReturnSql =
+            "SELECT l.to_port_id AS port_id, COALESCE(p.port_name,'(unknown)') AS port_name, " +
+            "       l.operator_id, COALESCE(op.operator_name,'(unknown)') AS operator_name, " +
+            "       SUM(l.moved_bikes) AS total_bikes, COUNT(*) AS trips " +
+            "FROM bike_move_log l " +
+            "LEFT JOIN port_information p ON p.port_id = l.to_port_id " +
+            "LEFT JOIN (SELECT DISTINCT operator_id, operator_name FROM port_status) op ON op.operator_id = l.operator_id " +
+            "WHERE l.source = 'user' AND (? = -1 OR l.operator_id = ?) " +
+            "GROUP BY l.to_port_id, p.port_name, l.operator_id, op.operator_name " +
+            "ORDER BY total_bikes DESC, trips DESC " +
+            "LIMIT 3";
+
+        String leastUsedSql =
+            "SELECT po.port_id, COALESCE(pi.port_name,'(unknown)') AS port_name, po.operator_id, " +
+            "       COALESCE(op.operator_name,'(unknown)') AS operator_name, COALESCE(usage.total_bikes,0) AS total_bikes, " +
+            "       COALESCE(usage.trips,0) AS trips " +
+            "FROM port_operation po " +
+            "JOIN port_information pi ON pi.port_id = po.port_id " +
+            "LEFT JOIN ( " +
+            "  SELECT t.port_id, t.operator_id, SUM(t.moved_bikes) AS total_bikes, COUNT(*) AS trips FROM ( " +
+            "    SELECT l.from_port_id AS port_id, l.operator_id, l.moved_bikes FROM bike_move_log l WHERE l.source='user' " +
+            "    UNION ALL " +
+            "    SELECT l.to_port_id   AS port_id, l.operator_id, l.moved_bikes FROM bike_move_log l WHERE l.source='user' " +
+            "  ) t GROUP BY t.port_id, t.operator_id " +
+            ") usage ON usage.port_id = po.port_id AND usage.operator_id = po.operator_id " +
+            "LEFT JOIN (SELECT DISTINCT operator_id, operator_name FROM port_status) op ON op.operator_id = po.operator_id " +
+            "WHERE (? = -1 OR po.operator_id = ?) " +
+            "ORDER BY total_bikes ASC, po.port_id ASC " +
+            "LIMIT 3";
 
         try (Connection conn = openConn()) {
 
@@ -147,7 +197,8 @@ public class BikeMoveLogServlet extends HttpServlet {
                             rs.getString("from_name"),
                             rs.getInt("to_port_id"),
                             rs.getString("to_name"),
-                            rs.getInt("moved_bikes")
+                            rs.getInt("moved_bikes"),
+                            rs.getString("source")
                         ));
                     }
                 }
@@ -162,6 +213,60 @@ public class BikeMoveLogServlet extends HttpServlet {
                     a.cnt = rs.getInt("cnt");
                     a.sum = rs.getInt("sum_bikes");
                     aggs.add(a);
+                }
+            }
+
+            // ユーザー利用のみ: 出発上位
+            try (PreparedStatement ps = conn.prepareStatement(topDepartSql)) {
+                ps.setInt(1, opId);
+                ps.setInt(2, opId);
+                try (ResultSet rs = ps.executeQuery()) {
+                    while (rs.next()) {
+                        PortStat s = new PortStat();
+                        s.portId = rs.getInt("port_id");
+                        s.portName = rs.getString("port_name");
+                        s.operatorId = rs.getInt("operator_id");
+                        s.operatorName = rs.getString("operator_name");
+                        s.total = rs.getInt("total_bikes");
+                        s.trips = rs.getInt("trips");
+                        topDepartures.add(s);
+                    }
+                }
+            }
+
+            // ユーザー利用のみ: 返却上位
+            try (PreparedStatement ps = conn.prepareStatement(topReturnSql)) {
+                ps.setInt(1, opId);
+                ps.setInt(2, opId);
+                try (ResultSet rs = ps.executeQuery()) {
+                    while (rs.next()) {
+                        PortStat s = new PortStat();
+                        s.portId = rs.getInt("port_id");
+                        s.portName = rs.getString("port_name");
+                        s.operatorId = rs.getInt("operator_id");
+                        s.operatorName = rs.getString("operator_name");
+                        s.total = rs.getInt("total_bikes");
+                        s.trips = rs.getInt("trips");
+                        topReturns.add(s);
+                    }
+                }
+            }
+
+            // ユーザー利用のみ: 未使用寄り（合計が少ない）
+            try (PreparedStatement ps = conn.prepareStatement(leastUsedSql)) {
+                ps.setInt(1, opId);
+                ps.setInt(2, opId);
+                try (ResultSet rs = ps.executeQuery()) {
+                    while (rs.next()) {
+                        PortStat s = new PortStat();
+                        s.portId = rs.getInt("port_id");
+                        s.portName = rs.getString("port_name");
+                        s.operatorId = rs.getInt("operator_id");
+                        s.operatorName = rs.getString("operator_name");
+                        s.total = rs.getInt("total_bikes");
+                        s.trips = rs.getInt("trips");
+                        leastUsed.add(s);
+                    }
                 }
             }
 
@@ -212,6 +317,35 @@ public class BikeMoveLogServlet extends HttpServlet {
 
         if (!msg.isEmpty()) out.println("<div class=\"alert\">" + esc(msg) + "</div>");
 
+        // 分析結果（ユーザー利用のみ）
+        out.println("<div class=\"row\">");
+        out.println("<div class=\"alert\" style=\"background:#ecfeff;border-color:rgba(14,165,233,.28);color:#0c4a6e;\">");
+        out.println("<b>分析（ユーザー利用のみ）</b>：事業者の活用検討に役立つサマリ<br/>");
+        out.println("<div class=\"row\" style=\"gap:24px;\">");
+        // 出発上位
+        out.println("<div><span class=\"mini\"><b>出発が多いポート TOP3</b></span><br/>");
+        for (PortStat s : topDepartures) {
+            out.println(esc(s.portName) + " <span class=\"mini\">(#" + s.portId + ")</span> - "
+                + esc(s.operatorName) + "：合計 " + s.total + "台 / " + s.trips + "回<br/>");
+        }
+        out.println("</div>");
+        // 返却上位
+        out.println("<div><span class=\"mini\"><b>返却が多いポート TOP3</b></span><br/>");
+        for (PortStat s : topReturns) {
+            out.println(esc(s.portName) + " <span class=\"mini\">(#" + s.portId + ")</span> - "
+                + esc(s.operatorName) + "：合計 " + s.total + "台 / " + s.trips + "回<br/>");
+        }
+        out.println("</div>");
+        // 未使用寄り
+        out.println("<div><span class=\"mini\"><b>未使用寄りポート TOP3</b></span><br/>");
+        for (PortStat s : leastUsed) {
+            out.println(esc(s.portName) + " <span class=\"mini\">(#" + s.portId + ")</span> - "
+                + esc(s.operatorName) + "：合計 " + s.total + "台 / " + s.trips + "回<br/>");
+        }
+        out.println("</div>");
+        out.println("</div>");
+        out.println("</div>");
+
         // 検索フォーム
         out.println("<form method=\"GET\" action=\"" + basePath + "\">");
         out.println("<div class=\"row\">");
@@ -237,7 +371,7 @@ public class BikeMoveLogServlet extends HttpServlet {
         // ログ表
         out.println("<div class=\"table-wrap\"><table>");
         out.println("<tr>");
-        out.println("<th>log_id</th><th>日時</th><th>operator</th><th>from</th><th>to</th><th>台数</th><th>削除</th>");
+        out.println("<th>log_id</th><th>日時</th><th>operator</th><th>from</th><th>to</th><th>台数</th><th>種別</th>");
         out.println("</tr>");
 
         for (LogRow r : rows) {
@@ -248,73 +382,29 @@ public class BikeMoveLogServlet extends HttpServlet {
             out.println("<td>" + esc(r.fromName) + " <span class=\"mini\">(" + r.fromPortId + ")</span></td>");
             out.println("<td>" + esc(r.toName) + " <span class=\"mini\">(" + r.toPortId + ")</span></td>");
             out.println("<td>" + r.movedBikes + "</td>");
+            String kind = (r.source == null || r.source.isEmpty()) ? "admin" : r.source;
+            out.println("<td>" + esc(kind) + "</td>");
 
-            out.println("<td>");
-            out.println("<form method=\"POST\" action=\"" + basePath + "\" onsubmit=\"return confirm('このログを削除しますか？');\">");
-            out.println("<input type=\"hidden\" name=\"action\" value=\"delete\"/>");
-            out.println("<input type=\"hidden\" name=\"log_id\" value=\"" + r.logId + "\"/>");
-            out.println("<input type=\"hidden\" name=\"q\" value=\"" + esc(q) + "\"/>");
-            out.println("<input type=\"hidden\" name=\"op\" value=\"" + (opId == -1 ? "" : opId) + "\"/>");
-            out.println("<button class=\"btn2\" type=\"submit\">削除</button>");
-            out.println("</form>");
-            out.println("</td>");
+            // 削除機能は廃止
 
             out.println("</tr>");
         }
 
         out.println("</table></div>");
-        out.println("<p class=\"mini\" style=\"margin-top:12px;\">※ DELETE のデモ：ログ削除ボタン（bike_move_log から削除）</p>");
+        out.println("<p class=\"mini\" style=\"margin-top:12px;\">※ 配車ログは監査のため削除できません</p>");
 
         out.println("</div></div></body></html>");
     }
 
-    // POST: ログ削除（DELETE）
+    // POST: 削除不可（以前のDELETEデモは廃止）
     protected void doPost(HttpServletRequest request, HttpServletResponse response)
             throws ServletException, IOException {
-
         request.setCharacterEncoding("UTF-8");
-
-        String action = safe(request.getParameter("action"), "");
-        if (!"delete".equals(action)) {
-            response.sendRedirect(request.getContextPath() + "/portlog");
-            return;
-        }
-
         String q = safe(request.getParameter("q"), "").trim();
         String op = safe(request.getParameter("op"), "").trim();
-
         String keep = "q=" + URLEncoder.encode(q, "UTF-8")
                     + "&op=" + URLEncoder.encode(op, "UTF-8");
-
-        String idStr = request.getParameter("log_id");
-        int logId;
-        try {
-            logId = Integer.parseInt(idStr);
-        } catch (Exception e) {
-            response.sendRedirect(request.getContextPath() + "/portlog?" + keep + "&msg=" +
-                    URLEncoder.encode("log_id が不正です", "UTF-8"));
-            return;
-        }
-
-        String delSql = "DELETE FROM bike_move_log WHERE log_id = ?";
-
-        try (Connection conn = openConn();
-             PreparedStatement ps = conn.prepareStatement(delSql)) {
-
-            ps.setInt(1, logId);
-            int n = ps.executeUpdate();
-
-            if (n == 0) {
-                response.sendRedirect(request.getContextPath() + "/portlog?" + keep + "&msg=" +
-                        URLEncoder.encode("削除できませんでした（log_idが見つからない）", "UTF-8"));
-            } else {
-                response.sendRedirect(request.getContextPath() + "/portlog?" + keep + "&msg=" +
-                        URLEncoder.encode("削除しました（log_id=" + logId + "）", "UTF-8"));
-            }
-
-        } catch (Exception e) {
-            response.sendRedirect(request.getContextPath() + "/portlog?" + keep + "&msg=" +
-                    URLEncoder.encode("DBエラー(DELETE): " + e.getMessage(), "UTF-8"));
-        }
+        response.sendRedirect(request.getContextPath() + "/portlog?" + keep + "&msg=" +
+                URLEncoder.encode("配車ログは削除できません", "UTF-8"));
     }
 }

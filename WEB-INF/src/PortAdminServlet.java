@@ -252,7 +252,7 @@ public class PortAdminServlet extends HttpServlet {
         out.println("<div class=\"header-actions\">");
         out.println("<a class=\"btn2\" href=\"" + ctx + "/adminlogout\">ログアウト</a>");
         out.println("<a class=\"btn2\"  href=\"" + ctx + "/routesearch\">ルート検索に戻る</a>");
-        out.println("<a class=\"btn2\" href=\"" + ctx + "/portlog\">配車ログ</a>");
+        out.println("<a class=\"btn2\" href=\"" + ctx + "/portlog?op=" + opId + "\">配車ログ</a>");
         out.println("</div>");
         out.println("</div>"); // header
 
@@ -403,7 +403,7 @@ public class PortAdminServlet extends HttpServlet {
                 "WHERE sb.ctid = picked.ctid";
 
             String insertLog =
-                "INSERT INTO bike_move_log(operator_id, from_port_id, to_port_id, moved_bikes) VALUES(?,?,?,?)";
+                "INSERT INTO bike_move_log(operator_id, from_port_id, to_port_id, moved_bikes, source) VALUES(?,?,?,?, ?)";
 
             try (Connection conn = openConn()) {
                 conn.setAutoCommit(false);
@@ -478,6 +478,7 @@ public class PortAdminServlet extends HttpServlet {
                     ps3.setInt(2, fromId);
                     ps3.setInt(3, toId);
                     ps3.setInt(4, moved);
+                    ps3.setString(5, "admin");
                     ps3.executeUpdate();
                 }
 

@@ -101,6 +101,7 @@ CREATE TABLE IF NOT EXISTS bike_move_log (
   to_port_id    integer NOT NULL,                         -- 移動先ポートID,
   moved_bikes   integer NOT NULL CHECK (moved_bikes > 0), -- 移動台数,
   moved_at      timestamp NOT NULL DEFAULT now(),          -- 移動日時,
+  source        varchar(10) NOT NULL DEFAULT 'admin',      -- 生成種別 (admin/user)
   
 -- < 主キー & 外部キー >
   PRIMARY KEY (log_id),
@@ -199,3 +200,25 @@ CREATE INDEX IF NOT EXISTS bike_reservation_bike_idx ON share_bike_reservation(b
 
 -- シェアサイクル予約の予約日時検索
 CREATE INDEX IF NOT EXISTS bike_reservation_reserved_at_idx ON share_bike_reservation(reserved_at DESC);
+
+-- =====================================================
+-- 削除禁止トリガー（bike_move_log）
+-- =====================================================
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_proc WHERE proname = 'forbid_delete_bike_move_log'
+  ) THEN
+    CREATE FUNCTION forbid_delete_bike_move_log() RETURNS trigger AS $$
+    BEGIN
+      RAISE EXCEPTION 'bike_move_log cannot be deleted';
+      RETURN NULL;
+    END;
+    $$ LANGUAGE plpgsql;
+  END IF;
+END $$;
+
+DROP TRIGGER IF EXISTS trg_forbid_delete_bike_move_log ON bike_move_log;
+CREATE TRIGGER trg_forbid_delete_bike_move_log
+  BEFORE DELETE ON bike_move_log
+  FOR EACH ROW EXECUTE FUNCTION forbid_delete_bike_move_log();
