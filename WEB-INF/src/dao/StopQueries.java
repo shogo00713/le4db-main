@@ -1,6 +1,10 @@
 package dao;
 
+import model.NearByStops;
 import model.Stop;
+
+import static util.GeoUtils.distanceMeters;
+
 import java.sql.*;
 import java.util.*;
 
@@ -118,4 +122,119 @@ public class StopQueries {
         }
         return results;
     }
+
+
+    /**
+     * 停留所IDから近くの停留所を検索
+     * @param conn データベース接続
+     * @param centerStopId 中心停留所ID
+     * @param radiusM 検索範囲（メートル）
+     * @param limit 取得する結果の最大数
+     * @return 見つかった近くの停留所のリスト（距離の近い順）
+     */
+    public static List<NearByStops> getNearByStops(Connection conn, int centerStopId, int radiusM, int limit) throws SQLException {
+        Stop centerstop = StopQueries.getStopById(conn, centerStopId);
+        if (centerstop == null)
+            return new ArrayList<>();
+
+        // 半径radiusMを緯度経度の範囲に雑に変換（高速化）
+        double dLat = radiusM / 111000.0;
+        double dLon = radiusM / (111000.0 * Math.cos(Math.toRadians(centerstop.lat)));
+
+        String sql = "SELECT stop_id, stop_name, stop_latitude, stop_longitude "
+                + "FROM stop_information "
+                + "WHERE stop_latitude BETWEEN ? AND ? "
+                + "  AND stop_longitude BETWEEN ? AND ?";
+
+        List<NearByStops> tmp = new ArrayList<>();
+
+        try (PreparedStatement ps = conn.prepareStatement(sql)) {
+            int idx = 1;
+            ps.setDouble(idx++, centerstop.lat - dLat);
+            ps.setDouble(idx++, centerstop.lat + dLat);
+            ps.setDouble(idx++, centerstop.lon - dLon);
+            ps.setDouble(idx++, centerstop.lon + dLon);
+
+            try (ResultSet rs = ps.executeQuery()) {
+                while (rs.next()) {
+                    int sid = rs.getInt("stop_id");
+                    String name = rs.getString("stop_name");
+                    double lat = rs.getDouble("stop_latitude");
+                    double lon = rs.getDouble("stop_longitude");
+
+                    int meters = (int) Math.round(distanceMeters(centerstop.lat, centerstop.lon, lat, lon));
+                    if (meters <= radiusM) {
+                        tmp.add(new NearByStops(sid, name, meters, lat, lon));
+                    }
+                }
+            }
+        }
+
+        // 近い順
+        tmp.sort((a, b) -> Integer.compare(a.distance, b.distance));
+
+        if (tmp.isEmpty() || tmp.get(0).stopId != centerStopId) {
+            tmp.add(0, new NearByStops(centerStopId, centerstop.name, 0, centerstop.lat, centerstop.lon));
+        }
+
+        if (tmp.size() > limit)
+            return new ArrayList<>(tmp.subList(0, limit));
+        return tmp;
+    }
+
+
+
+    // 出発停留所から降りれる停留所を列挙
+    public static List<Stop> listTransferCandidates(Connection conn, int fromStopId, String baseTime, String day, int limit) throws SQLException {
+
+        String sql = ""
+                + "SELECT DISTINCT "
+                + "  t.trip_id AS trip_id, "
+                + "  sa_to.stop_id AS mid_stop_id, "
+                + "  st.stop_name AS mid_stop_name, "
+                + "  st.stop_type AS mid_stop_type, "
+                + "  st.stop_latitude AS mid_stop_lat, "
+                + "  st.stop_longitude AS mid_stop_lon, "
+                + "  sa_to.arrival_time AS arr_time "
+                + "FROM stop_at sa_from "
+                + "JOIN stop_at sa_to ON sa_to.trip_id = sa_from.trip_id "
+                + "JOIN stop_information st ON st.stop_id = sa_to.stop_id "
+                + "JOIN trip_information t ON t.trip_id = sa_from.trip_id "
+                + "WHERE sa_from.stop_id = ? "
+                + "  AND sa_from.departure_time >= ?::time "
+                + "  AND sa_from.arrival_order < sa_to.arrival_order ";
+
+        if ("平日".equals(day)) {
+            sql += " AND t.trip_datetime IN ('全日','平日') ";
+        } else if ("休日".equals(day)) {
+            sql += " AND t.trip_datetime IN ('全日','休日') ";
+        }
+
+        sql += " ORDER BY sa_to.arrival_time ASC LIMIT ?";
+
+        List<Stop> results = new ArrayList<>();
+        try (PreparedStatement ps = conn.prepareStatement(sql)) {
+            int idx = 1;
+            ps.setInt(idx++, fromStopId);
+            ps.setString(idx++, baseTime);
+            ps.setInt(idx++, limit);
+
+            try (ResultSet rs = ps.executeQuery()) {
+                while (rs.next()) {
+
+                    results.add(new Stop (
+                            rs.getInt("mid_stop_id"),
+                            rs.getString("mid_stop_name"),
+                            rs.getString("mid_stop_type"),
+                            rs.getDouble("mid_stop_lat"),
+                            rs.getDouble("mid_stop_lon")));
+
+                }
+            }
+        }
+        return results;
+    }
+
+
+
 }

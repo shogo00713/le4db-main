@@ -9,8 +9,8 @@ public class RouteResult {
     public List<ResultItem> displayedResults;
     public List<NearByStops> stopsNearOrigin;
     public List<NearByStops> stopsNearDest;
-    public List<PortCandidate> portsNearOrigin;
-    public List<PortCandidate> portsNearDest;
+    public List<NearByPorts> portsNearOrigin;
+    public List<NearByPorts> portsNearDest;
     public String lastOriginStopName;
     public String lastOriginStopType;
     public String lastDestStopName;

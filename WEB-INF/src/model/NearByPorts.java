@@ -11,7 +11,7 @@ package model;
  * @lon 経度
  * @distance centerからの直線距離(m)
  */
-public class PortCandidate {
+public class NearByPorts {
     public final int portId;
     public final int operatorId;
     public final String operatorName;
@@ -21,7 +21,7 @@ public class PortCandidate {
     public final double lon;
     public final int distance;
 
-    public PortCandidate(int portId, int operatorId, String operatorName, String operatorContact, String portName, double lat, double lon, int distance) {
+    public NearByPorts(int portId, int operatorId, String operatorName, String operatorContact, String portName, double lat, double lon, int distance) {
         this.portId = portId;
         this.operatorId = operatorId;
         this.operatorName = operatorName;

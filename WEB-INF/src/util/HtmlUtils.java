@@ -1,5 +1,7 @@
 package util;
 
+import java.sql.SQLException;
+
 public class HtmlUtils {
     
     /**
@@ -70,4 +72,21 @@ public class HtmlUtils {
         }
         return fallback == null ? "" : fallback;
     }
+
+    /**
+     * カラム存在チェック
+     * @param meta
+     * @param columnLabel
+     * @return
+     * @throws SQLException
+     */
+    public static boolean hasColumn(java.sql.ResultSetMetaData meta, String columnLabel) throws SQLException {
+        for (int i = 1; i <= meta.getColumnCount(); i++) {
+            if (columnLabel.equalsIgnoreCase(meta.getColumnLabel(i))) {
+                return true;
+            }
+        }
+        return false;
+    }
+
 }
