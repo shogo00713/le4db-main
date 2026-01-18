@@ -134,7 +134,7 @@ public class BikeMoveLogServlet extends HttpServlet {
             "  SELECT port_id, operator_id, SUM(moved_bikes) AS total_bikes, COUNT(*) AS trips " +
             "  FROM usage GROUP BY port_id, operator_id " +
             ") u ON u.port_id = po.port_id AND u.operator_id = po.operator_id " +
-            "LEFT JOIN (SELECT DISTINCT operator_id, operator_name FROM port_status) op ON op.operator_id = po.operator_id " +
+            "LEFT JOIN (SELECT DISTINCT operator_id, operator_name FROM v_port_status) op ON op.operator_id = po.operator_id " +
             "WHERE (? = -1 OR po.operator_id = ?) " +
             "ORDER BY total_bikes ASC, po.port_id ASC " +
             "LIMIT 3";

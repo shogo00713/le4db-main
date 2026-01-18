@@ -1,38 +1,60 @@
 -- =====================================================
--- 管理者権限テーブル
+-- アカウント
 -- =====================================================
-CREATE TABLE IF NOT EXISTS admin_credentials (
-    operator_id   INTEGER,
-    operator_name VARCHAR(255) NOT NULL,
+CREATE TABLE accounts (
+    account_id    INTEGER,
+    account_name  VARCHAR(30) NOT NULL,
     password      VARCHAR(255) NOT NULL,
-    created_at    TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
 
--- < 外部キー >
-    PRIMARY KEY (operator_id),
-    FOREIGN KEY (operator_id) REFERENCES share_bike_operator(operator_id)
+-- < 主キー >
+    PRIMARY KEY (account_id)
 );
 
 -- =====================================================
--- 管理者ビュー
+-- アカウント対応
 -- =====================================================
-CREATE OR REPLACE VIEW v_admin_credentials AS
+CREATE TABLE bike_operator_accounts (
+    operator_id INTEGER,
+    account_id  INTEGER,
+
+-- < 主キー & 外部キー >
+    PRIMARY KEY (operator_id, account_id),
+    FOREIGN KEY (operator_id) REFERENCES share_bike_operator(operator_id),
+    FOREIGN KEY (account_id) REFERENCES accounts(account_id)
+);
+
+
+
+-- =====================================================
+-- アカウント管理ビュー（運営者 × アカウント）
+-- =====================================================
+CREATE OR REPLACE VIEW v_operator_accounts AS
 SELECT
-    a.operator_id,
-    COALESCE(o.operator_name, a.operator_name) AS operator_name,
+    o.operator_id,
+    o.operator_name,
     o.operator_contact,
-    a.password,
-    a.created_at
-FROM admin_credentials a
-LEFT JOIN share_bike_operator o USING (operator_id);
+    a.account_id,
+    a.account_name,
+    a.password
+FROM share_bike_operator o
+LEFT JOIN bike_operator_accounts boa ON boa.operator_id = o.operator_id
+LEFT JOIN accounts a ON a.account_id = boa.account_id;
+
+
 
 -- =====================================================
--- 初期管理者アカウントの挿入例
+-- データ例：アカウント
 -- =====================================================
-INSERT INTO admin_credentials (operator_id, operator_name, password) 
-SELECT operator_id, operator_name, 'admin123' 
-FROM share_bike_operator
-ON CONFLICT (operator_id) DO NOTHING;
+INSERT INTO accounts (account_id, account_name, password)
+VALUES
+  (1, 'HAPPY_ADMIN_1', 'happyworld'),
+  (2, 'HELLO_ADMIN_1', 'helloworld');
 
 
-UPDATE admin_credentials SET password = 'happyworld' WHERE operator_id = 1;
-UPDATE admin_credentials SET password = 'helloworld' WHERE operator_id = 2;
+-- =====================================================
+-- データ例：アカウント対応
+-- =====================================================
+INSERT INTO bike_operator_accounts (operator_id, account_id)
+VALUES
+  (1, 1),  -- HAPPY CYCLING の管理者
+  (2, 2);  -- HELLO CYCLING の管理者

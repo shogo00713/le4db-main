@@ -120,12 +120,12 @@ public class AdminLoginServlet extends HttpServlet {
             return;
         }
 
-        // パスワードをデータベースから取得（admin_credentials テーブル）
+        // パスワードをデータベースから取得（v_operator_accounts ビュー）
         String storedPassword = null;
         String operatorName = null;
 
         try (Connection conn = DatabaseConfig.getConnection()) {
-            String sql = "SELECT password, operator_name FROM v_admin_credentials WHERE operator_id = ?";
+            String sql = "SELECT password, operator_name FROM v_operator_accounts WHERE operator_id = ?";
             try (PreparedStatement ps = conn.prepareStatement(sql)) {
                 ps.setInt(1, operatorId);
                 try (ResultSet rs = ps.executeQuery()) {
