@@ -82,22 +82,16 @@ public class BikeMoveLogServlet extends HttpServlet {
         List<LogRow> rows = new ArrayList<>();
 
         String listSql =
-            "SELECT " +
-            "  l.log_id, to_char(l.moved_at, 'YYYY-MM-DD HH24:MI:SS') AS moved_at, " +
-            "  l.operator_id, COALESCE(op.operator_name, '(unknown)') AS operator_name, " +
-            "  l.from_port_id, COALESCE(pf.port_name, '(unknown)') AS from_name, " +
-            "  l.to_port_id, COALESCE(pt.port_name, '(unknown)') AS to_name, " +
-            "  l.moved_bikes, l.source " +
-            "FROM bike_move_log l " +
-            "LEFT JOIN (SELECT DISTINCT operator_id, operator_name FROM port_status) op " +
-            "  ON op.operator_id = l.operator_id " +
-            "LEFT JOIN port_information pf ON pf.port_id = l.from_port_id " +
-            "LEFT JOIN port_information pt ON pt.port_id = l.to_port_id " +
-            "WHERE (? = -1 OR l.operator_id = ?) " +
-            "  AND (? = '' OR pf.port_name ILIKE ? OR pt.port_name ILIKE ?) " +
-            "ORDER BY l.moved_at DESC " +
-            "LIMIT 80";
-
+                "SELECT log_id, to_char(moved_at,'YYYY-MM-DD HH24:MI:SS') AS moved_at, "
+              + "   operator_id, operator_name, "
+              + "   from_port_id, from_port_name AS from_name, "
+              + "   to_port_id,   to_port_name   AS to_name, "
+              + "    moved_bikes, source "
+              + "FROM v_bike_move "
+              + "WHERE (? = -1 OR operator_id = ?) "
+              + "AND (? = '' OR from_port_name ILIKE ? OR to_port_name ILIKE ?) "
+              + "ORDER BY moved_at DESC "
+              + "LIMIT 80 ";
 
         // ---- ユーザー利用のみの分析（source='user'）----
         class PortStat { int portId; String portName; String operatorName; int total; int trips; }
@@ -106,42 +100,40 @@ public class BikeMoveLogServlet extends HttpServlet {
         List<PortStat> leastUsed = new ArrayList<>();
 
         String topDepartSql =
-            "SELECT l.from_port_id AS port_id, COALESCE(p.port_name,'(unknown)') AS port_name, " +
-            "       l.operator_id, COALESCE(op.operator_name,'(unknown)') AS operator_name, " +
-            "       SUM(l.moved_bikes) AS total_bikes, COUNT(*) AS trips " +
-            "FROM bike_move_log l " +
-            "LEFT JOIN port_information p ON p.port_id = l.from_port_id " +
-            "LEFT JOIN (SELECT DISTINCT operator_id, operator_name FROM port_status) op ON op.operator_id = l.operator_id " +
-            "WHERE l.source = 'user' AND (? = -1 OR l.operator_id = ?) " +
-            "GROUP BY l.from_port_id, p.port_name, l.operator_id, op.operator_name " +
+            "SELECT from_port_id AS port_id, from_port_name AS port_name, " +
+            "       operator_id, operator_name, " +
+            "       SUM(moved_bikes) AS total_bikes, COUNT(*) AS trips " +
+            "FROM v_bike_move " +
+            "WHERE source = 'user' AND (? = -1 OR operator_id = ?) " +
+            "GROUP BY from_port_id, from_port_name, operator_id, operator_name " +
             "ORDER BY total_bikes DESC, trips DESC " +
             "LIMIT 3";
 
         String topReturnSql =
-            "SELECT l.to_port_id AS port_id, COALESCE(p.port_name,'(unknown)') AS port_name, " +
-            "       l.operator_id, COALESCE(op.operator_name,'(unknown)') AS operator_name, " +
-            "       SUM(l.moved_bikes) AS total_bikes, COUNT(*) AS trips " +
-            "FROM bike_move_log l " +
-            "LEFT JOIN port_information p ON p.port_id = l.to_port_id " +
-            "LEFT JOIN (SELECT DISTINCT operator_id, operator_name FROM port_status) op ON op.operator_id = l.operator_id " +
-            "WHERE l.source = 'user' AND (? = -1 OR l.operator_id = ?) " +
-            "GROUP BY l.to_port_id, p.port_name, l.operator_id, op.operator_name " +
+            "SELECT to_port_id AS port_id, to_port_name AS port_name, " +
+            "       operator_id, operator_name, " +
+            "       SUM(moved_bikes) AS total_bikes, COUNT(*) AS trips " +
+            "FROM v_bike_move " +
+            "WHERE source = 'user' AND (? = -1 OR operator_id = ?) " +
+            "GROUP BY to_port_id, to_port_name, operator_id, operator_name " +
             "ORDER BY total_bikes DESC, trips DESC " +
             "LIMIT 3";
 
         String leastUsedSql =
+            "WITH usage AS ( " +
+            "  SELECT from_port_id AS port_id, operator_id, moved_bikes FROM v_bike_move WHERE source='user' " +
+            "  UNION ALL " +
+            "  SELECT to_port_id   AS port_id, operator_id, moved_bikes FROM v_bike_move WHERE source='user' " +
+            ") " +
             "SELECT po.port_id, COALESCE(pi.port_name,'(unknown)') AS port_name, po.operator_id, " +
-            "       COALESCE(op.operator_name,'(unknown)') AS operator_name, COALESCE(usage.total_bikes,0) AS total_bikes, " +
-            "       COALESCE(usage.trips,0) AS trips " +
+            "       COALESCE(op.operator_name,'(unknown)') AS operator_name, COALESCE(u.total_bikes,0) AS total_bikes, " +
+            "       COALESCE(u.trips,0) AS trips " +
             "FROM port_operation po " +
             "JOIN port_information pi ON pi.port_id = po.port_id " +
             "LEFT JOIN ( " +
-            "  SELECT t.port_id, t.operator_id, SUM(t.moved_bikes) AS total_bikes, COUNT(*) AS trips FROM ( " +
-            "    SELECT l.from_port_id AS port_id, l.operator_id, l.moved_bikes FROM bike_move_log l WHERE l.source='user' " +
-            "    UNION ALL " +
-            "    SELECT l.to_port_id   AS port_id, l.operator_id, l.moved_bikes FROM bike_move_log l WHERE l.source='user' " +
-            "  ) t GROUP BY t.port_id, t.operator_id " +
-            ") usage ON usage.port_id = po.port_id AND usage.operator_id = po.operator_id " +
+            "  SELECT port_id, operator_id, SUM(moved_bikes) AS total_bikes, COUNT(*) AS trips " +
+            "  FROM usage GROUP BY port_id, operator_id " +
+            ") u ON u.port_id = po.port_id AND u.operator_id = po.operator_id " +
             "LEFT JOIN (SELECT DISTINCT operator_id, operator_name FROM port_status) op ON op.operator_id = po.operator_id " +
             "WHERE (? = -1 OR po.operator_id = ?) " +
             "ORDER BY total_bikes ASC, po.port_id ASC " +

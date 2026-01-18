@@ -138,10 +138,9 @@ public class RouteSearchServlet extends HttpServlet {
         out.println("</div>");
 
         // (4) 時刻選択 time_val
-        boolean showTimeVal = "spec".equals(timemode);
         out.println("<div class=\"field\">");
         out.println("<label class=\"label\" for=\"time_val\">指定時刻（時刻条件=指定時刻のとき）</label>");
-        out.println("<input class=\"input\" id=\"time_val\" type=\"time\" name=\"time_val\" value=\"" + esc(timevalue) + "\"" + (showTimeVal ? "" : " disabled") + "/>");
+        out.println("<input class=\"input\" id=\"time_val\" type=\"time\" name=\"time_val\" value=\"" + esc(timevalue) + "\"/>");
         out.println("</div>");
 
         // 検索ボタン

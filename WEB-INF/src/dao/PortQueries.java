@@ -28,7 +28,7 @@ public class PortQueries {
         double dLat = radiusM / 111000.0;
         double dLon = radiusM / (111000.0 * Math.cos(Math.toRadians(centerLat)));
 
-        String sql = "SELECT * FROM port_status " +
+        String sql = "SELECT * FROM v_port_status " +
             "WHERE port_latitude BETWEEN ? AND ? " +
             "  AND port_longitude BETWEEN ? AND ? ";
 

@@ -2,12 +2,28 @@
 -- 管理者権限テーブル
 -- =====================================================
 CREATE TABLE IF NOT EXISTS admin_credentials (
-    operator_id INTEGER PRIMARY KEY,
+    operator_id   INTEGER,
     operator_name VARCHAR(255) NOT NULL,
-    password VARCHAR(255) NOT NULL,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    password      VARCHAR(255) NOT NULL,
+    created_at    TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+
+-- < 外部キー >
+    PRIMARY KEY (operator_id),
     FOREIGN KEY (operator_id) REFERENCES share_bike_operator(operator_id)
 );
+
+-- =====================================================
+-- 管理者ビュー
+-- =====================================================
+CREATE OR REPLACE VIEW v_admin_credentials AS
+SELECT
+    a.operator_id,
+    COALESCE(o.operator_name, a.operator_name) AS operator_name,
+    o.operator_contact,
+    a.password,
+    a.created_at
+FROM admin_credentials a
+LEFT JOIN share_bike_operator o USING (operator_id);
 
 -- =====================================================
 -- 初期管理者アカウントの挿入例

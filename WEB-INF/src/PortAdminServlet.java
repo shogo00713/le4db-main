@@ -61,7 +61,10 @@ public class PortAdminServlet extends HttpServlet {
     }
 
     private int countBikesAtPort(Connection conn, int portId) throws SQLException {
-        String sql = "SELECT COUNT(*) AS c FROM share_bike WHERE current_port_id = ?";
+        String sql = "SELECT COUNT(*) AS c " +
+                    "FROM bike_parking bp " +
+                    "JOIN share_bike sb ON sb.bike_id = bp.bike_id " +
+                    "WHERE bp.current_port_id = ? AND sb.status = 'docked'";
         try (PreparedStatement ps = conn.prepareStatement(sql)) {
             ps.setInt(1, portId);
             try (ResultSet rs = ps.executeQuery()) {
@@ -127,8 +130,8 @@ public class PortAdminServlet extends HttpServlet {
         // sort はホワイトリストで安全に
         String orderBy;
         switch (sort) {
-            case "id":        orderBy = "port_id"; break;
-            case "name":      orderBy = "port_name, operator_name"; break;
+            case "id":         orderBy = "port_id"; break;
+            case "name":       orderBy = "port_name, operator_name"; break;
             case "bikes_desc": orderBy = "bikes DESC, operator_name, port_name"; break;
             case "bikes_asc":  orderBy = "bikes ASC, operator_name, port_name";  break;
             case "free_desc":  orderBy = "free_docks DESC, operator_name, port_name"; break;
@@ -141,7 +144,7 @@ public class PortAdminServlet extends HttpServlet {
         // port_status を読む（routesearch と同じ）
         String sql =
             "SELECT port_id, operator_id, operator_name, port_name, bikes, free_docks " +
-            "FROM port_status " +
+            "FROM v_port_status " +
             "WHERE 1=1 " +
             (opId != null ? " AND operator_id = ? " : "") +
             " AND (? = '' OR port_name ILIKE ?) " +
@@ -328,22 +331,26 @@ public class PortAdminServlet extends HttpServlet {
                 return;
             }
 
-            // moved台ぶんだけ、fromの自転車をtoへ移す（主キー不明でも動くようにctidを使う）
             String moveBikesSql =
                 "WITH picked AS ( " +
-                "  SELECT ctid FROM share_bike " +
-                "  WHERE current_port_id = ? " +
-                "  ORDER BY ctid " +
+                "  SELECT bp.bike_id " +
+                "  FROM bike_parking bp " +
+                "  JOIN share_bike sb ON sb.bike_id = bp.bike_id " +
+                "  WHERE bp.current_port_id = ? AND sb.status = 'docked' " +
+                "  ORDER BY bp.bike_id " +
                 "  LIMIT ? " +
                 "  FOR UPDATE " +
                 ") " +
-                "UPDATE share_bike sb " +
-                "SET current_port_id = ? " +
+                "UPDATE bike_parking bp " +
+                "SET current_port_id = ?, parked_at = CURRENT_TIMESTAMP " +
                 "FROM picked " +
-                "WHERE sb.ctid = picked.ctid";
+                "WHERE bp.bike_id = picked.bike_id";
 
-            String insertLog =
-                "INSERT INTO bike_move_log(operator_id, from_port_id, to_port_id, moved_bikes, source) VALUES(?,?,?,?, ?)";
+            // 移動ログを4テーブルに分割挿入
+            String insertRecord = "INSERT INTO move_record(moved_bikes, source) VALUES(?, ?) RETURNING log_id";
+            String insertOperator = "INSERT INTO move_operator(log_id, operator_id) VALUES(?, ?)";
+            String insertFrom = "INSERT INTO move_from(log_id, from_port_id) VALUES(?, ?)";
+            String insertTo = "INSERT INTO move_to(log_id, to_port_id) VALUES(?, ?)";
 
             Connection conn = null;
             try {
@@ -400,6 +407,7 @@ public class PortAdminServlet extends HttpServlet {
                     return;
                 }
 
+                // 自転車を移動
                 int updated;
                 try (PreparedStatement ps = conn.prepareStatement(moveBikesSql)) {
                     ps.setInt(1, fromId);
@@ -415,13 +423,33 @@ public class PortAdminServlet extends HttpServlet {
                     return;
                 }
 
-                try (PreparedStatement ps3 = conn.prepareStatement(insertLog)) {
-                    ps3.setInt(1, fromOp);
-                    ps3.setInt(2, fromId);
-                    ps3.setInt(3, toId);
-                    ps3.setInt(4, moved);
-                    ps3.setString(5, "admin");
-                    ps3.executeUpdate();
+                // ログを4テーブルに記録
+                long logId;
+                try (PreparedStatement ps = conn.prepareStatement(insertRecord)) {
+                    ps.setInt(1, moved);
+                    ps.setString(2, "admin");
+                    try (ResultSet rs = ps.executeQuery()) {
+                        if (!rs.next()) throw new SQLException("log_id取得失敗");
+                        logId = rs.getLong("log_id");
+                    }
+                }
+
+                try (PreparedStatement ps = conn.prepareStatement(insertOperator)) {
+                    ps.setLong(1, logId);
+                    ps.setInt(2, fromOp);
+                    ps.executeUpdate();
+                }
+
+                try (PreparedStatement ps = conn.prepareStatement(insertFrom)) {
+                    ps.setLong(1, logId);
+                    ps.setInt(2, fromId);
+                    ps.executeUpdate();
+                }
+
+                try (PreparedStatement ps = conn.prepareStatement(insertTo)) {
+                    ps.setLong(1, logId);
+                    ps.setInt(2, toId);
+                    ps.executeUpdate();
                 }
 
                 conn.commit();

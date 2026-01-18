@@ -68,12 +68,44 @@ VALUES
 -- =====================================================
 -- 自転車情報
 -- =====================================================
-INSERT INTO share_bike(operator_id, current_port_id, status)
 -- HAPPY(1): 初期として 60台を port 1..15 に配置（docked）
-SELECT 1, ((g-1) % 15) + 1, 'docked'
-FROM generate_series(1,60) g;
+INSERT INTO share_bike(status, updated_at)
+SELECT 'docked', CURRENT_TIMESTAMP
+FROM generate_series(1, 60) g;
 
-INSERT INTO share_bike(operator_id, current_port_id, status)
+-- HAPPY(1): bike_management に登録（bike_id 1-60）
+WITH happy_bikes AS (
+  SELECT bike_id FROM share_bike WHERE bike_id <= 60 ORDER BY bike_id
+)
+INSERT INTO bike_management(bike_id, operator_id)
+SELECT bike_id, 1 FROM happy_bikes;
+
+-- HAPPY(1): bike_parking に登録（ポート1-15に配置）
+WITH happy_bikes AS (
+  SELECT ROW_NUMBER() OVER (ORDER BY bike_id ASC) AS seq, bike_id
+  FROM share_bike WHERE bike_id <= 60
+)
+INSERT INTO bike_parking(bike_id, operator_id, current_port_id, parked_at)
+SELECT bike_id, 1, ((seq - 1) % 15) + 1, CURRENT_TIMESTAMP
+FROM happy_bikes;
+
 -- HELLO(2): 初期として 60台を port 16..30 に配置（docked）
-SELECT 2, 15 + (((g-1) % 15) + 1), 'docked'
-FROM generate_series(1,60) g;
+INSERT INTO share_bike(status, updated_at)
+SELECT 'docked', CURRENT_TIMESTAMP
+FROM generate_series(1, 60) g;
+
+-- HELLO(2): bike_management に登録（bike_id 61以上）
+WITH hello_bikes AS (
+  SELECT bike_id FROM share_bike WHERE bike_id > 60 ORDER BY bike_id
+)
+INSERT INTO bike_management(bike_id, operator_id)
+SELECT bike_id, 2 FROM hello_bikes;
+
+-- HELLO(2): bike_parking に登録（ポート16-30に配置）
+WITH hello_bikes AS (
+  SELECT ROW_NUMBER() OVER (ORDER BY bike_id ASC) AS seq, bike_id
+  FROM share_bike WHERE bike_id > 60
+)
+INSERT INTO bike_parking(bike_id, operator_id, current_port_id, parked_at)
+SELECT bike_id, 2, 15 + ((seq - 1) % 15) + 1, CURRENT_TIMESTAMP
+FROM hello_bikes;

@@ -86,10 +86,10 @@ public class BikeReservationServlet extends HttpServlet {
             // startPortIdが指定されている場合は、そのポートにある自転車のみを検索
             String selectBikeSql;
             if (startPortId != null && startPortId > 0) {
-                selectBikeSql = "SELECT bike_id FROM share_bike "
+                selectBikeSql = "SELECT bike_id FROM v_bike_status "
                         + "WHERE operator_id = ? AND status = 'docked' AND current_port_id = ? LIMIT 1";
             } else {
-                selectBikeSql = "SELECT bike_id FROM share_bike "
+                selectBikeSql = "SELECT bike_id FROM v_bike_status "
                         + "WHERE operator_id = ? AND status = 'docked' LIMIT 1";
             }
             int bikeId = -1;
@@ -112,7 +112,7 @@ public class BikeReservationServlet extends HttpServlet {
             }
 
             // 自転車の現在のポートを取得
-            String getCurrentPortSql = "SELECT current_port_id FROM share_bike WHERE bike_id = ? AND operator_id = ?";
+            String getCurrentPortSql = "SELECT current_port_id FROM v_bike_status WHERE bike_id = ? AND operator_id = ?";
             try (PreparedStatement ps = conn.prepareStatement(getCurrentPortSql)) {
                 ps.setInt(1, bikeId);
                 ps.setInt(2, operatorId);
@@ -124,20 +124,11 @@ public class BikeReservationServlet extends HttpServlet {
                 }
             }
 
-            // 予約を記録（start_port_idも記録）
-            String insertReservationSql = "INSERT INTO share_bike_reservation "
-                    + "(bike_id, operator_id, status, reserved_at, start_port_id) "
-                    + "VALUES (?, ?, 'reserved', CURRENT_TIMESTAMP, ?) "
-                    + "RETURNING reservation_id";
+            // 予約を3テーブルに記録（reservation_info + reservation_bike + reservation_start_port）
             long reservationId = -1;
+            String insertReservationSql = "INSERT INTO reservation_info(status, reserved_at) "
+                    + "VALUES('reserved', CURRENT_TIMESTAMP) RETURNING reservation_id";
             try (PreparedStatement ps = conn.prepareStatement(insertReservationSql)) {
-                ps.setInt(1, bikeId);
-                ps.setInt(2, operatorId);
-                if (actualStartPortId != null) {
-                    ps.setInt(3, actualStartPortId);
-                } else {
-                    ps.setNull(3, java.sql.Types.INTEGER);
-                }
                 try (ResultSet rs = ps.executeQuery()) {
                     if (rs.next()) {
                         reservationId = rs.getLong("reservation_id");
@@ -148,6 +139,26 @@ public class BikeReservationServlet extends HttpServlet {
             if (reservationId == -1) {
                 sendJsonResponse(out, false, "Failed to create reservation", null);
                 return;
+            }
+
+            // reservation_bikeに記録
+            String insertResBikeSql = "INSERT INTO reservation_bike(reservation_id, bike_id, operator_id) VALUES(?, ?, ?)";
+            try (PreparedStatement ps = conn.prepareStatement(insertResBikeSql)) {
+                ps.setLong(1, reservationId);
+                ps.setInt(2, bikeId);
+                ps.setInt(3, operatorId);
+                ps.executeUpdate();
+            }
+
+            // reservation_start_portに記録（ポートが判明している場合のみ）
+            if (actualStartPortId != null) {
+                String insertStartPortSql = "INSERT INTO reservation_start_port(reservation_id, operator_id, start_port_id) VALUES(?, ?, ?)";
+                try (PreparedStatement ps = conn.prepareStatement(insertStartPortSql)) {
+                    ps.setLong(1, reservationId);
+                    ps.setInt(2, operatorId);
+                    ps.setInt(3, actualStartPortId);
+                    ps.executeUpdate();
+                }
             }
 
             sendJsonResponse(out, true, "Reservation successful", String.valueOf(reservationId));
@@ -169,7 +180,7 @@ public class BikeReservationServlet extends HttpServlet {
             conn = DatabaseConfig.getConnection();
 
                 // 予約情報を取得（30分以内の予約のみ有効）
-                String selectSql = "SELECT bike_id, operator_id, start_port_id FROM share_bike_reservation "
+                String selectSql = "SELECT bike_id, operator_id, start_port_id FROM v_bike_reservation "
                     + "WHERE reservation_id = ? AND status = 'reserved' "
                     + "AND reserved_at > CURRENT_TIMESTAMP - INTERVAL '30 minutes'";
             int bikeId = -1;
@@ -194,7 +205,7 @@ public class BikeReservationServlet extends HttpServlet {
 
             // 自転車の現在のポートを取得（貸出前のポート＝start_port）
             if (startPortId == null) {
-                String getCurrentPortSql = "SELECT current_port_id FROM share_bike WHERE bike_id = ? AND operator_id = ?";
+                String getCurrentPortSql = "SELECT current_port_id FROM v_bike_status WHERE bike_id = ? AND operator_id = ?";
                 try (PreparedStatement ps = conn.prepareStatement(getCurrentPortSql)) {
                     ps.setInt(1, bikeId);
                     ps.setInt(2, operatorId);
@@ -208,25 +219,38 @@ public class BikeReservationServlet extends HttpServlet {
             }
 
             // 予約状態を in_use に更新
-            String updateSql = "UPDATE share_bike_reservation "
-                    + "SET status = 'in_use', started_at = CURRENT_TIMESTAMP, start_port_id = ? "
+            String updateSql = "UPDATE reservation_info "
+                    + "SET status = 'in_use', started_at = CURRENT_TIMESTAMP "
                     + "WHERE reservation_id = ?";
             try (PreparedStatement ps = conn.prepareStatement(updateSql)) {
-                if (startPortId == null) {
-                    ps.setNull(1, java.sql.Types.INTEGER);
-                } else {
-                    ps.setInt(1, startPortId);
-                }
-                ps.setLong(2, reservationId);
+                ps.setLong(1, reservationId);
                 ps.executeUpdate();
             }
 
+            // start_port_idを記録（まだ記録されていない場合）
+            if (startPortId != null) {
+                String insertStartPortSql = "INSERT INTO reservation_start_port(reservation_id, operator_id, start_port_id) "
+                        + "VALUES(?, ?, ?) ON CONFLICT (reservation_id) DO UPDATE SET start_port_id = EXCLUDED.start_port_id";
+                try (PreparedStatement ps = conn.prepareStatement(insertStartPortSql)) {
+                    ps.setLong(1, reservationId);
+                    ps.setInt(2, operatorId);
+                    ps.setInt(3, startPortId);
+                    ps.executeUpdate();
+                }
+            }
+
             // 自転車の状態を rented に変更
-            String updateBikeSql = "UPDATE share_bike SET status = 'rented', current_port_id = NULL, updated_at = CURRENT_TIMESTAMP "
-                    + "WHERE bike_id = ? AND operator_id = ?";
+            String updateBikeSql = "UPDATE share_bike SET status = 'rented', updated_at = CURRENT_TIMESTAMP "
+                    + "WHERE bike_id = ?";
             try (PreparedStatement ps = conn.prepareStatement(updateBikeSql)) {
                 ps.setInt(1, bikeId);
-                ps.setInt(2, operatorId);
+                ps.executeUpdate();
+            }
+
+            // bike_parkingのcurrent_port_idをNULLに（レンタル中はポートなし）
+            String updateParkingSql = "UPDATE bike_parking SET current_port_id = NULL, parked_at = NULL WHERE bike_id = ?";
+            try (PreparedStatement ps = conn.prepareStatement(updateParkingSql)) {
+                ps.setInt(1, bikeId);
                 ps.executeUpdate();
             }
 
@@ -253,7 +277,7 @@ public class BikeReservationServlet extends HttpServlet {
             // 後で呼び出し元で追加処理
 
             // 予約情報を取得
-            String selectSql = "SELECT bike_id, operator_id, start_port_id FROM share_bike_reservation "
+            String selectSql = "SELECT bike_id, operator_id, start_port_id FROM v_bike_reservation "
                     + "WHERE reservation_id = ? AND status = 'in_use'";
             int bikeId = -1;
             int operatorId = -1;
@@ -296,37 +320,76 @@ public class BikeReservationServlet extends HttpServlet {
             }
 
             // 予約状態を returned に更新
-            String updateSql = "UPDATE share_bike_reservation "
-                    + "SET status = 'returned', returned_at = CURRENT_TIMESTAMP, end_port_id = ? "
+            String updateSql = "UPDATE reservation_info "
+                    + "SET status = 'returned', returned_at = CURRENT_TIMESTAMP "
                     + "WHERE reservation_id = ?";
             try (PreparedStatement ps = conn.prepareStatement(updateSql)) {
-                ps.setInt(1, returnPortId == -1 ? 1 : returnPortId);
-                ps.setLong(2, reservationId);
+                ps.setLong(1, reservationId);
                 ps.executeUpdate();
             }
 
-            // 自転車の状態を docked に変更し、ポートを更新
-            String updateBikeSql = "UPDATE share_bike SET status = 'docked', current_port_id = ?, updated_at = CURRENT_TIMESTAMP "
-                    + "WHERE bike_id = ? AND operator_id = ?";
+            // end_port_idを記録
+            String insertEndPortSql = "INSERT INTO reservation_end_port(reservation_id, operator_id, end_port_id) VALUES(?, ?, ?)";
+            try (PreparedStatement ps = conn.prepareStatement(insertEndPortSql)) {
+                ps.setLong(1, reservationId);
+                ps.setInt(2, operatorId);
+                ps.setInt(3, returnPortId == -1 ? 1 : returnPortId);
+                ps.executeUpdate();
+            }
+
+            // 自転車の状態を docked に変更
+            String updateBikeSql = "UPDATE share_bike SET status = 'docked', updated_at = CURRENT_TIMESTAMP "
+                    + "WHERE bike_id = ?";
             try (PreparedStatement ps = conn.prepareStatement(updateBikeSql)) {
+                ps.setInt(1, bikeId);
+                ps.executeUpdate();
+            }
+
+            // bike_parkingを更新してポート情報を記録
+            String updateParkingSql = "UPDATE bike_parking SET current_port_id = ?, parked_at = CURRENT_TIMESTAMP WHERE bike_id = ?";
+            try (PreparedStatement ps = conn.prepareStatement(updateParkingSql)) {
                 ps.setInt(1, returnPortId == -1 ? 1 : returnPortId);
                 ps.setInt(2, bikeId);
-                ps.setInt(3, operatorId);
                 ps.executeUpdate();
             }
 
-            // ユーザー利用による自転車の移動を配車ログに1件として記録（source='user'）
+            // ユーザー利用による自転車の移動を配車ログに記録（source='user'）
             int fromPortId = (startPortId == null ? -1 : startPortId.intValue());
             int toPortId = (returnPortId == -1 ? 1 : returnPortId);
             if (fromPortId > 0 && toPortId > 0 && fromPortId != toPortId) {
-                String insertLogSql = "INSERT INTO bike_move_log (operator_id, from_port_id, to_port_id, moved_bikes, moved_at, source) "
-                                    + "VALUES (?, ?, ?, 1, CURRENT_TIMESTAMP, ?)";
-                try (PreparedStatement ps = conn.prepareStatement(insertLogSql)) {
-                    ps.setInt(1, operatorId);
-                    ps.setInt(2, fromPortId);
-                    ps.setInt(3, toPortId);
-                    ps.setString(4, "user");
-                    ps.executeUpdate();
+                // move_recordに記録
+                String insertRecordSql = "INSERT INTO move_record(moved_bikes, source) VALUES(1, 'user') RETURNING log_id";
+                long logId = -1;
+                try (PreparedStatement ps = conn.prepareStatement(insertRecordSql)) {
+                    try (ResultSet rs = ps.executeQuery()) {
+                        if (rs.next()) logId = rs.getLong("log_id");
+                    }
+                }
+
+                if (logId > 0) {
+                    // move_operatorに記録
+                    String insertOpSql = "INSERT INTO move_operator(log_id, operator_id) VALUES(?, ?)";
+                    try (PreparedStatement ps = conn.prepareStatement(insertOpSql)) {
+                        ps.setLong(1, logId);
+                        ps.setInt(2, operatorId);
+                        ps.executeUpdate();
+                    }
+
+                    // move_fromに記録
+                    String insertFromSql = "INSERT INTO move_from(log_id, from_port_id) VALUES(?, ?)";
+                    try (PreparedStatement ps = conn.prepareStatement(insertFromSql)) {
+                        ps.setLong(1, logId);
+                        ps.setInt(2, fromPortId);
+                        ps.executeUpdate();
+                    }
+
+                    // move_toに記録
+                    String insertToSql = "INSERT INTO move_to(log_id, to_port_id) VALUES(?, ?)";
+                    try (PreparedStatement ps = conn.prepareStatement(insertToSql)) {
+                        ps.setLong(1, logId);
+                        ps.setInt(2, toPortId);
+                        ps.executeUpdate();
+                    }
                 }
             }
 
@@ -349,7 +412,7 @@ public class BikeReservationServlet extends HttpServlet {
             conn = DatabaseConfig.getConnection();
 
             // 予約情報を取得
-            String selectSql = "SELECT bike_id, operator_id FROM share_bike_reservation "
+            String selectSql = "SELECT bike_id, operator_id FROM v_bike_reservation "
                     + "WHERE reservation_id = ? AND status = 'reserved'";
             int bikeId = -1;
             try (PreparedStatement ps = conn.prepareStatement(selectSql)) {
@@ -366,8 +429,8 @@ public class BikeReservationServlet extends HttpServlet {
                 return;
             }
 
-            // 予約を削除（または marked as cancelled）
-            String deleteSql = "DELETE FROM share_bike_reservation WHERE reservation_id = ?";
+            // 予約を削除（reservation_info削除でCASCADEにより関連テーブルも削除）
+            String deleteSql = "DELETE FROM reservation_info WHERE reservation_id = ?";
             try (PreparedStatement ps = conn.prepareStatement(deleteSql)) {
                 ps.setLong(1, reservationId);
                 ps.executeUpdate();

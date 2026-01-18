@@ -68,7 +68,7 @@ public class AdminLoginServlet extends HttpServlet {
 
         // operator 一覧をデータベースから取得
         try (Connection conn = DatabaseConfig.getConnection()) {
-            String sql = "SELECT DISTINCT operator_id, operator_name FROM port_status ORDER BY operator_name";
+            String sql = "SELECT DISTINCT operator_id, operator_name FROM v_port_status ORDER BY operator_name";
             try (PreparedStatement ps = conn.prepareStatement(sql);
                  ResultSet rs = ps.executeQuery()) {
 
@@ -125,7 +125,7 @@ public class AdminLoginServlet extends HttpServlet {
         String operatorName = null;
 
         try (Connection conn = DatabaseConfig.getConnection()) {
-            String sql = "SELECT password, operator_name FROM admin_credentials WHERE operator_id = ?";
+            String sql = "SELECT password, operator_name FROM v_admin_credentials WHERE operator_id = ?";
             try (PreparedStatement ps = conn.prepareStatement(sql)) {
                 ps.setInt(1, operatorId);
                 try (ResultSet rs = ps.executeQuery()) {
