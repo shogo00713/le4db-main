@@ -29,5 +29,6 @@ CASCADE;
 
 -- 管理者関連
 DROP TABLE IF EXISTS 
-    admin_credentials
+    accounts,
+    bike_operator_accounts
 CASCADE;

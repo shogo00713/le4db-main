@@ -63,23 +63,23 @@ CREATE TABLE share_bike (
 
 
 -- =====================================================
--- バイク管理 (シェアサイクル事業者 x バイク情報)
+-- 自転車管理 (シェアサイクル事業者 x 自転車情報)
 -- =====================================================
 CREATE TABLE bike_management (
-    bike_id     INTEGER NOT NULL, -- バイクID (主キー)
+    bike_id     INTEGER NOT NULL, -- 自転車ID (主キー)
     operator_id INTEGER NOT NULL, -- 事業者ID
 
 -- < 主キー & 外部キー >
     PRIMARY KEY (bike_id),
     FOREIGN KEY (operator_id) REFERENCES share_bike_operator(operator_id),
     FOREIGN KEY (bike_id) REFERENCES share_bike(bike_id),
-    UNIQUE (bike_id, operator_id) -- 事業者を跨いだバイクIDの重複を防止    
+    UNIQUE (bike_id, operator_id) -- 事業者を跨いだ自転車IDの重複を防止    
 );
 
 
 
 -- =====================================================
--- 駐輪 (バイク情報 x ポート情報)
+-- 駐輪 (自転車情報 x ポート情報)
 -- =====================================================
 CREATE TABLE bike_parking (
     bike_id          INTEGER NOT NULL,                             -- 自転車ID (主キー)
@@ -96,7 +96,7 @@ CREATE TABLE bike_parking (
 
 
 -- =====================================================
--- 自転車移動記録
+-- 移動ログ
 -- =====================================================
 CREATE TABLE move_record (
     log_id        BIGSERIAL,                            -- ログID (主キー)
@@ -114,7 +114,7 @@ CREATE TABLE move_record (
 
 
 -- =====================================================
--- 自転車移動記録の事業者
+-- 移動自転車の所属
 -- =====================================================
 CREATE TABLE move_operator (
     log_id      BIGINT NOT NULL,
@@ -129,7 +129,7 @@ CREATE TABLE move_operator (
 
 
 -- =====================================================
--- 自転車移動記録の出発地
+-- 移動自転車の出発ポート
 -- =====================================================
 CREATE TABLE move_from (
     log_id       BIGINT NOT NULL,  -- ログID
@@ -144,7 +144,7 @@ CREATE TABLE move_from (
 
 
 -- =====================================================
--- 自転車移動記録の到着地
+-- 移動自転車の返却ポート
 -- =====================================================
 CREATE TABLE move_to (
     log_id     BIGINT NOT NULL,  -- ログID
@@ -180,24 +180,22 @@ CREATE TABLE reservation_info (
 
 
 -- =====================================================
--- 予約の自転車
+-- 予約自転車
 -- =====================================================
 CREATE TABLE reservation_bike (
     reservation_id BIGINT NOT NULL,  -- 予約ID
     bike_id        INTEGER NOT NULL, -- 自転車ID
-    operator_id    INTEGER NOT NULL, -- 事業者ID
 
 -- < 主キー & 外部キー >
     PRIMARY KEY (reservation_id),
     FOREIGN KEY (reservation_id) REFERENCES reservation_info(reservation_id),
-    FOREIGN KEY (bike_id) REFERENCES share_bike(bike_id),
-    FOREIGN KEY (operator_id) REFERENCES share_bike_operator(operator_id)
+    FOREIGN KEY (bike_id) REFERENCES share_bike(bike_id)
 );
 
 
 
 -- =====================================================
--- 予約の出発ポート
+-- 予約自転車の出発ポート
 -- =====================================================
 CREATE TABLE reservation_start_port (
     reservation_id BIGINT NOT NULL,   -- 予約ID
@@ -213,7 +211,7 @@ CREATE TABLE reservation_start_port (
 
 
 -- =====================================================
--- 予約の返却ポート
+-- 予約自転車の返却ポート
 -- =====================================================
 CREATE TABLE reservation_end_port (
     reservation_id BIGINT NOT NULL,  -- 予約ID
@@ -309,7 +307,6 @@ SELECT
     ri.started_at,
     ri.returned_at,
     rb.bike_id,
-    rb.operator_id,
     o.operator_name,
     rsp.start_port_id,
     ps.port_name AS start_port_name,
@@ -317,7 +314,8 @@ SELECT
     pe.port_name AS end_port_name
 FROM reservation_info ri
 LEFT JOIN reservation_bike rb ON rb.reservation_id = ri.reservation_id
-LEFT JOIN share_bike_operator o ON o.operator_id = rb.operator_id
+LEFT JOIN bike_management bm ON bm.bike_id = rb.bike_id
+LEFT JOIN share_bike_operator o ON o.operator_id = bm.operator_id
 LEFT JOIN reservation_start_port rsp ON rsp.reservation_id = ri.reservation_id
 LEFT JOIN port_information ps ON ps.port_id = rsp.start_port_id
 LEFT JOIN reservation_end_port rep ON rep.reservation_id = ri.reservation_id
@@ -328,7 +326,6 @@ LEFT JOIN port_information pe ON pe.port_id = rep.end_port_id;
 -- =====================================================
 -- 索引
 -- =====================================================
-
 -- ポートの緯度経度検索
 CREATE INDEX port_latlon_idx ON port_information(port_latitude, port_longitude);
 -- ポート運営の事業者検索
@@ -353,4 +350,3 @@ CREATE INDEX reservation_info_status_idx ON reservation_info(status);
 CREATE INDEX reservation_info_reserved_at_idx ON reservation_info(reserved_at DESC);
 -- 予約の自転車検索
 CREATE INDEX reservation_bike_bike_idx ON reservation_bike(bike_id);
-CREATE INDEX reservation_bike_operator_idx ON reservation_bike(operator_id);
