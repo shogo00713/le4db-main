@@ -99,6 +99,13 @@ body{margin:0;font-family:'Segoe UI',Roboto,'Noto Sans JP',Meiryo,sans-serif;-we
 .page-route-search .reservation-timers{display:flex;gap:8px;align-items:center;margin-top:8px;}
 .page-route-search .timer-badge{display:none;padding:6px 10px;border-radius:999px;background:#0ea5e9;color:#fff;font-weight:700;font-size:12px;}
 
+/* タイマー（グローバル） */
+.timer-pill{display:inline-flex;align-items:center;justify-content:center;gap:12px;padding:12px 24px;border-radius:999px;font-size:14px;font-weight:800;line-height:1;border:1px solid rgba(0,0,0,.08);background:#fff;color:#111827;box-shadow:0 2px 10px rgba(0,0,0,.06);height:48px;white-space:nowrap;}
+.timer-pill.reserve{background:rgba(59,130,246,.10);border-color:rgba(59,130,246,.25);color:#1d4ed8;}
+.timer-pill.use{background:rgba(16,185,129,.12);border-color:rgba(16,185,129,.25);color:#065f46;}
+.timer-pill.is-warn{background:#fffbeb;border-color:#fcd34d;color:#92400e;}
+.timer-pill.is-danger{background:#fef2f2;border-color:#fecaca;color:#991b1b;}
+
 /* ルート詳細ページ */
 .page-route-detail{background:var(--bg);color:var(--text);}
 .page-route-detail .detail-card{max-width:960px;margin:32px auto;padding:28px 32px;background:var(--panel);border-radius:20px;box-shadow:var(--shadow);border:1px solid var(--border);}
