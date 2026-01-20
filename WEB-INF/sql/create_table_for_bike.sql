@@ -188,7 +188,7 @@ CREATE TABLE reservation_bike (
 
 -- < 主キー & 外部キー >
     PRIMARY KEY (reservation_id),
-    FOREIGN KEY (reservation_id) REFERENCES reservation_info(reservation_id),
+    FOREIGN KEY (reservation_id) REFERENCES reservation_info(reservation_id) ON DELETE CASCADE,
     FOREIGN KEY (bike_id) REFERENCES share_bike(bike_id)
 );
 
@@ -204,7 +204,7 @@ CREATE TABLE reservation_start_port (
 
 -- < 主キー & 外部キー >
     PRIMARY KEY (reservation_id),
-    FOREIGN KEY (reservation_id) REFERENCES reservation_info(reservation_id),
+    FOREIGN KEY (reservation_id) REFERENCES reservation_info(reservation_id) ON DELETE CASCADE,
     FOREIGN KEY (operator_id, start_port_id) REFERENCES port_operation(operator_id, port_id)
 );
 
@@ -220,7 +220,7 @@ CREATE TABLE reservation_end_port (
 
 -- < 主キー & 外部キー >
     PRIMARY KEY (reservation_id),
-    FOREIGN KEY (reservation_id) REFERENCES reservation_info(reservation_id),
+    FOREIGN KEY (reservation_id) REFERENCES reservation_info(reservation_id) ON DELETE CASCADE,
     FOREIGN KEY (operator_id, end_port_id) REFERENCES port_operation(operator_id, port_id)
 );
 
