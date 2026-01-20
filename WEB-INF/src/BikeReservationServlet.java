@@ -142,11 +142,10 @@ public class BikeReservationServlet extends HttpServlet {
             }
 
             // reservation_bikeに記録
-            String insertResBikeSql = "INSERT INTO reservation_bike(reservation_id, bike_id, operator_id) VALUES(?, ?, ?)";
+            String insertResBikeSql = "INSERT INTO reservation_bike(reservation_id, bike_id) VALUES(?, ?)";
             try (PreparedStatement ps = conn.prepareStatement(insertResBikeSql)) {
                 ps.setLong(1, reservationId);
                 ps.setInt(2, bikeId);
-                ps.setInt(3, operatorId);
                 ps.executeUpdate();
             }
 
@@ -248,7 +247,7 @@ public class BikeReservationServlet extends HttpServlet {
             }
 
             // bike_parkingのcurrent_port_idをNULLに（レンタル中はポートなし）
-            String updateParkingSql = "UPDATE bike_parking SET current_port_id = NULL, parked_at = NULL WHERE bike_id = ?";
+            String updateParkingSql = "UPDATE bike_parking SET current_port_id = NULL WHERE bike_id = ?";
             try (PreparedStatement ps = conn.prepareStatement(updateParkingSql)) {
                 ps.setInt(1, bikeId);
                 ps.executeUpdate();

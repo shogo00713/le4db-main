@@ -1031,9 +1031,9 @@ public class RouteSearchServlet extends HttpServlet {
             out.println("<button class='btn-cancel' id='cancelBtn' style='display:none;' onclick='cancelBikeReservation()'>キャンセル</button>");
             out.println("<span id='timerPill' class='timer-pill' style='display:none;'></span>");
             out.println("</div>");
-            out.println("<div id=\"statusMsg\" class=\"reservation-status is-success\">");
+            out.println("<div id=\"statusMsg\" class=\"reservation-status is-success\" style=\"display:none;\">");
             out.println("<span class=\"status-icon\">✓</span>");
-            out.println("<span class=\"status-text\">自転車を返却しました。ご利用ありがとうございました。</span>");
+            out.println("<span class=\"status-text\"></span>");
             out.println("</div>");
             out.println("</div>");
 
@@ -1048,9 +1048,9 @@ public class RouteSearchServlet extends HttpServlet {
             out.println("var useStartAt = null;");
             out.println("");
             out.println("function fmtMMSS(total){var m=Math.floor(total/60),s=total%60;return (m<10?'0'+m:m)+':'+(s<10?'0'+s:s);} ");
-            out.println("function startReserveCountdown(seconds){ clearReserveCountdown(); var el=document.getElementById('timerPill'); el.className = 'timer-pill reserve';reserveExpiryAt = Date.now()+seconds*1000; el.style.display='inline-block'; reserveTimerId = setInterval(function(){ var remain=Math.max(0, Math.floor((reserveExpiryAt-Date.now())/1000)); el.textContent='予約残り '+fmtMMSS(remain); if(remain<=0){ clearReserveCountdown(); reservationState='not_reserved'; currentReservationId=null; updateButtonStates(); document.getElementById('statusMsg').textContent='予約の有効期限が切れました。再度予約してください。'; } }, 1000); } ");
+            out.println("function startReserveCountdown(seconds){ clearReserveCountdown(); var el=document.getElementById('timerPill'); el.className = 'timer-pill reserve';reserveExpiryAt = Date.now()+seconds*1000; el.style.display='inline-flex'; reserveTimerId = setInterval(function(){ var remain=Math.max(0, Math.floor((reserveExpiryAt-Date.now())/1000)); el.textContent='予約残り '+fmtMMSS(remain); if(remain<=0){ clearReserveCountdown(); reservationState='not_reserved'; currentReservationId=null; updateButtonStates(); document.getElementById('statusMsg').textContent='予約の有効期限が切れました。再度予約してください。'; } }, 1000); } ");
             out.println("function clearReserveCountdown(){ if(reserveTimerId){ clearInterval(reserveTimerId); reserveTimerId=null;} var el=document.getElementById('timerPill'); if(el){ el.style.display='none'; el.textContent='timer-pill'; } } ");
-            out.println("function startUseTimer(){ clearUseTimer(); var el=document.getElementById('timerPill');el.className = 'timer-pill use';useStartAt=Date.now(); el.style.display='inline-block'; useTimerId=setInterval(function(){ var sec=Math.floor((Date.now()-useStartAt)/1000); el.textContent='利用時間 '+fmtMMSS(sec); }, 1000);} ");
+            out.println("function startUseTimer(){ clearUseTimer(); var el=document.getElementById('timerPill');el.className = 'timer-pill use';useStartAt=Date.now(); el.style.display='inline-flex'; useTimerId=setInterval(function(){ var sec=Math.floor((Date.now()-useStartAt)/1000); el.textContent='利用時間 '+fmtMMSS(sec); }, 1000);} ");
             out.println("function clearUseTimer(){ if(useTimerId){ clearInterval(useTimerId); useTimerId=null;} var el=document.getElementById('timerPill'); if(el){ el.style.display='none'; el.textContent='timer-pill'; } } ");
             out.println("");
             out.println("function reserveBike(operatorId) {");
@@ -1065,7 +1065,9 @@ public class RouteSearchServlet extends HttpServlet {
             out.println("        reservationState = 'reserved';");
             out.println("        updateButtonStates();");
             out.println("        startReserveCountdown(30*60);");
-            out.println("        document.getElementById('statusMsg').textContent = '✓ 予約しました。30分以内に利用を開始してください。';");
+            out.println("        var statusMsg = document.getElementById('statusMsg');");
+            out.println("        statusMsg.style.display = 'block';");
+            out.println("        statusMsg.textContent = '✓ 予約しました。30分以内に利用を開始してください。';");
             out.println("      } else {");
             out.println("        alert('予約に失敗しました: ' + response.error);");
             out.println("      }");
@@ -1089,7 +1091,9 @@ public class RouteSearchServlet extends HttpServlet {
             out.println("        clearReserveCountdown();");
             out.println("        updateButtonStates();");
             out.println("        startUseTimer();");
-            out.println("        document.getElementById('statusMsg').textContent = '✓ 利用を開始しました。返却してください。';");
+            out.println("        var statusMsg = document.getElementById('statusMsg');");
+            out.println("        statusMsg.style.display = 'block';");
+            out.println("        statusMsg.textContent = '✓ 利用を開始しました。返却してください。';");
             out.println("      } else {");
             out.println("        alert('利用開始に失敗しました: ' + response.error);");
             out.println("      }");
@@ -1110,7 +1114,9 @@ public class RouteSearchServlet extends HttpServlet {
             out.println("        reservationState = 'returned';");
             out.println("        updateButtonStates();");
             out.println("        clearUseTimer();");
-            out.println("        document.getElementById('statusMsg').textContent = '✓ 自転車を返却しました。ご利用ありがとうございました。';");
+            out.println("        var statusMsg = document.getElementById('statusMsg');");
+            out.println("        statusMsg.style.display = 'block';");
+            out.println("        statusMsg.textContent = '✓ 自転車を返却しました。ご利用ありがとうございました。';");
             out.println("      } else {");
             out.println("        alert('返却に失敗しました: ' + response.error);");
             out.println("      }");

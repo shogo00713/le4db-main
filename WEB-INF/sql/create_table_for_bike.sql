@@ -307,6 +307,7 @@ SELECT
     ri.started_at,
     ri.returned_at,
     rb.bike_id,
+    bm.operator_id,
     o.operator_name,
     rsp.start_port_id,
     ps.port_name AS start_port_name,
