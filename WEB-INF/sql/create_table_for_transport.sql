@@ -21,7 +21,6 @@ CREATE TABLE route_information (
     route_name  VARCHAR(20) NOT NULL, -- 路線名
     route_type  VARCHAR(10) NOT NULL, -- 路線種類
     route_color VARCHAR(10),          -- 路線色 (任意)
-
 -- < 主キー >
     PRIMARY KEY (route_id)
 );
@@ -36,7 +35,6 @@ CREATE TABLE trip_information (
     trip_name             VARCHAR(30) NOT NULL, -- 便名
     destination_direction VARCHAR(4) NOT NULL,  -- 行先方向
     trip_datetime         VARCHAR(4) NOT NULL,  -- 運行日時
-
 -- < 主キー >
     PRIMARY KEY (trip_id)
 );
@@ -52,7 +50,6 @@ CREATE TABLE stop_information (
     stop_type      VARCHAR(10) NOT NULL,      -- 停留所種類
     stop_latitude  DOUBLE PRECISION NOT NULL, -- 緯度
     stop_longitude DOUBLE PRECISION NOT NULL, -- 経度
-
 -- < 主キー >
     PRIMARY KEY (stop_id)
 );
@@ -66,7 +63,6 @@ CREATE TABLE route_operation (
 -- < 属性 >
     route_id    INTEGER NOT NULL, -- 路線ID (主キー)
     operator_id INTEGER NOT NULL, -- 公共交通事業者ID
-
 -- < 主キー & 外部キー >
     PRIMARY KEY (route_id),
     FOREIGN KEY (route_id)    REFERENCES route_information(route_id),
@@ -81,7 +77,6 @@ CREATE TABLE route_trip (
 -- < 属性 >
     trip_id  INTEGER NOT NULL, -- 便ID (主キー)
     route_id INTEGER NOT NULL, -- 路線ID
-
 -- < 主キー & 外部キー >
     PRIMARY KEY (trip_id),
     FOREIGN KEY (trip_id)  REFERENCES trip_information(trip_id),
@@ -99,7 +94,6 @@ CREATE TABLE stop_at (
     arrival_order  INTEGER NOT NULL, -- 到着順
     arrival_time   TIME,             -- 到着時間 (HH:MM:SS)
     departure_time TIME,             -- 発車時間 (HH:MM:SS)
-
 -- < 主キー & 外部キー >
     PRIMARY KEY (trip_id, stop_id),
     FOREIGN KEY (trip_id) REFERENCES trip_information(trip_id),

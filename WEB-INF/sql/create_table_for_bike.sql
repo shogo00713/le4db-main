@@ -2,10 +2,10 @@
 -- シェアサイクル事業者
 -- =====================================================
 CREATE TABLE share_bike_operator (
+-- < 属性 >
     operator_id       SERIAL,               -- 事業者ID (主キー)
     operator_name     VARCHAR(30) NOT NULL, -- 事業者名
     operator_contact  VARCHAR(11) NOT NULL, -- 事業者連絡先
-
 -- < 主キー >
     PRIMARY KEY (operator_id)
 );
@@ -15,15 +15,14 @@ CREATE TABLE share_bike_operator (
 -- ポート情報
 -- =====================================================
 CREATE TABLE port_information (
+-- < 属性 >
     port_id        SERIAL,                    -- ポートID (主キー)
     port_name      VARCHAR(30) NOT NULL,      -- ポート名
     port_latitude  DOUBLE PRECISION NOT NULL, -- 緯度
     port_longitude DOUBLE PRECISION NOT NULL, -- 経度
     capacity       INTEGER NOT NULL,          -- 収容台数,
-
 -- < 主キー >
     PRIMARY KEY (port_id),
-
 -- < 制約 >
     CONSTRAINT port_capacity_nonneg CHECK (capacity >= 0)
 );
@@ -33,9 +32,9 @@ CREATE TABLE port_information (
 -- ポート運営 (シェアサイクル事業者 × ポート情報)
 -- =====================================================
 CREATE TABLE port_operation (
+-- < 属性 >
     operator_id INTEGER NOT NULL, -- 事業者ID (主キー)
     port_id     INTEGER NOT NULL, -- ポートID
-
 -- < 主キー & 外部キー >
     PRIMARY KEY (port_id),    
     FOREIGN KEY (port_id) REFERENCES port_information(port_id),
@@ -52,10 +51,8 @@ CREATE TABLE share_bike (
     bike_id          SERIAL,                                       -- 自転車ID (主キー)
     status           VARCHAR(15) NOT NULL,                         -- 状態 (docked, rented, maintenance)
     updated_at       TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP, -- 最終更新日時
-
 -- < 主キー >
     PRIMARY KEY (bike_id),
-
 -- < 制約 >
     CONSTRAINT bike_status_check CHECK (status IN ('docked', 'rented', 'maintenance'))
 );
@@ -66,9 +63,9 @@ CREATE TABLE share_bike (
 -- 自転車管理 (シェアサイクル事業者 x 自転車情報)
 -- =====================================================
 CREATE TABLE bike_management (
+-- < 属性 >
     bike_id     INTEGER NOT NULL, -- 自転車ID (主キー)
     operator_id INTEGER NOT NULL, -- 事業者ID
-
 -- < 主キー & 外部キー >
     PRIMARY KEY (bike_id),
     FOREIGN KEY (operator_id) REFERENCES share_bike_operator(operator_id),
@@ -82,11 +79,11 @@ CREATE TABLE bike_management (
 -- 駐輪 (自転車情報 x ポート情報)
 -- =====================================================
 CREATE TABLE bike_parking (
+-- < 属性 >
     bike_id          INTEGER NOT NULL,                             -- 自転車ID (主キー)
     operator_id      INTEGER NOT NULL,                             -- 事業者ID
     current_port_id  INTEGER NULL,                                 -- 現在のポートID (貸出中はNULL)
     parked_at        TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP, -- 駐輪日時
-
 -- < 主キー & 外部キー >
     PRIMARY KEY (bike_id),
     FOREIGN KEY (operator_id, current_port_id) REFERENCES port_operation(operator_id, port_id),
@@ -99,14 +96,13 @@ CREATE TABLE bike_parking (
 -- 移動ログ
 -- =====================================================
 CREATE TABLE move_record (
-    log_id        BIGSERIAL,                            -- ログID (主キー)
+-- < 属性 >
+    log_id        SERIAL,                               -- ログID (主キー)
     moved_bikes   INTEGER NOT NULL,                     -- 移動台数
     moved_at      TIMESTAMP NOT NULL DEFAULT NOW(),     -- 移動日時
     source        VARCHAR(10) NOT NULL DEFAULT 'admin', -- 種別 (admin/user)
-
 -- < 主キー  >
     PRIMARY KEY (log_id),
-
 -- < 制約 >
     CONSTRAINT moved_bikes_positive CHECK (moved_bikes > 0)
 );
@@ -117,9 +113,9 @@ CREATE TABLE move_record (
 -- 移動自転車の所属
 -- =====================================================
 CREATE TABLE move_operator (
-    log_id      BIGINT NOT NULL,
+-- < 属性 >
+    log_id      INTEGER NOT NULL,
     operator_id INTEGER NOT NULL,
-    
 -- < 主キー & 外部キー >
     PRIMARY KEY (log_id),
     FOREIGN KEY (log_id) REFERENCES move_record(log_id),
@@ -132,9 +128,8 @@ CREATE TABLE move_operator (
 -- 移動自転車の出発ポート
 -- =====================================================
 CREATE TABLE move_from (
-    log_id       BIGINT NOT NULL,  -- ログID
+    log_id       INTEGER NOT NULL,  -- ログID
     from_port_id INTEGER NOT NULL, -- 出発地ポートID
-    
 -- < 主キー & 外部キー >
     PRIMARY KEY (log_id),
     FOREIGN KEY (log_id) REFERENCES move_record(log_id),
@@ -147,9 +142,8 @@ CREATE TABLE move_from (
 -- 移動自転車の返却ポート
 -- =====================================================
 CREATE TABLE move_to (
-    log_id     BIGINT NOT NULL,  -- ログID
+    log_id     INTEGER NOT NULL, -- ログID
     to_port_id INTEGER NOT NULL, -- 到着地ポートID
-    
 -- < 主キー & 外部キー >
     PRIMARY KEY (log_id),
     FOREIGN KEY (log_id) REFERENCES move_record(log_id),
@@ -162,12 +156,14 @@ CREATE TABLE move_to (
 -- 予約情報
 -- =====================================================
 CREATE TABLE reservation_info (
-    reservation_id BIGSERIAL PRIMARY KEY,                          -- 予約ID
-    status         VARCHAR(15) NOT NULL DEFAULT 'reserved',        -- 状態 (reserved, in_use, returned)
-    reserved_at    TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,   -- 予約日時
-    started_at     TIMESTAMP NULL,                                 -- 利用開始日時
-    returned_at    TIMESTAMP NULL,                                 -- 返却日時
-
+-- < 属性 >
+    reservation_id SERIAL,                                       -- 予約ID
+    status         VARCHAR(15) NOT NULL DEFAULT 'reserved',      -- 状態 (reserved, in_use, returned)
+    reserved_at    TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP, -- 予約日時
+    started_at     TIMESTAMP NULL,                               -- 利用開始日時
+    returned_at    TIMESTAMP NULL,                               -- 返却日時
+-- < 主キー >
+    PRIMARY KEY (reservation_id),
 -- < 制約 >
     CONSTRAINT reservation_status_check CHECK (status IN ('reserved', 'in_use', 'returned')),
     CONSTRAINT reservation_time_check CHECK (
@@ -183,9 +179,9 @@ CREATE TABLE reservation_info (
 -- 予約自転車
 -- =====================================================
 CREATE TABLE reservation_bike (
-    reservation_id BIGINT NOT NULL,  -- 予約ID
+-- < 属性 >
+    reservation_id INTEGER NOT NULL,  -- 予約ID
     bike_id        INTEGER NOT NULL, -- 自転車ID
-
 -- < 主キー & 外部キー >
     PRIMARY KEY (reservation_id),
     FOREIGN KEY (reservation_id) REFERENCES reservation_info(reservation_id) ON DELETE CASCADE,
@@ -198,10 +194,10 @@ CREATE TABLE reservation_bike (
 -- 予約自転車の出発ポート
 -- =====================================================
 CREATE TABLE reservation_start_port (
-    reservation_id BIGINT NOT NULL,   -- 予約ID
+-- < 属性 >
+    reservation_id INTEGER NOT NULL,  -- 予約ID
     operator_id    INTEGER NOT NULL,  -- 事業者ID
     start_port_id  INTEGER NOT NULL,  -- 出発ポートID
-
 -- < 主キー & 外部キー >
     PRIMARY KEY (reservation_id),
     FOREIGN KEY (reservation_id) REFERENCES reservation_info(reservation_id) ON DELETE CASCADE,
@@ -214,10 +210,10 @@ CREATE TABLE reservation_start_port (
 -- 予約自転車の返却ポート
 -- =====================================================
 CREATE TABLE reservation_end_port (
-    reservation_id BIGINT NOT NULL,  -- 予約ID
+-- < 属性 >
+    reservation_id INTEGER NOT NULL, -- 予約ID
     operator_id    INTEGER NOT NULL, -- 事業者ID
     end_port_id    INTEGER NOT NULL, -- 返却ポートID
-
 -- < 主キー & 外部キー >
     PRIMARY KEY (reservation_id),
     FOREIGN KEY (reservation_id) REFERENCES reservation_info(reservation_id) ON DELETE CASCADE,
