@@ -151,11 +151,10 @@ public class BikeReservationServlet extends HttpServlet {
 
             // reservation_start_portに記録（ポートが判明している場合のみ）
             if (actualStartPortId != null) {
-                String insertStartPortSql = "INSERT INTO reservation_start_port(reservation_id, operator_id, start_port_id) VALUES(?, ?, ?)";
+                String insertStartPortSql = "INSERT INTO reservation_start_port(reservation_id, start_port_id) VALUES(?, ?)";
                 try (PreparedStatement ps = conn.prepareStatement(insertStartPortSql)) {
                     ps.setLong(1, reservationId);
-                    ps.setInt(2, operatorId);
-                    ps.setInt(3, actualStartPortId);
+                    ps.setInt(2, actualStartPortId);
                     ps.executeUpdate();
                 }
             }
@@ -228,12 +227,11 @@ public class BikeReservationServlet extends HttpServlet {
 
             // start_port_idを記録（まだ記録されていない場合）
             if (startPortId != null) {
-                String insertStartPortSql = "INSERT INTO reservation_start_port(reservation_id, operator_id, start_port_id) "
-                        + "VALUES(?, ?, ?) ON CONFLICT (reservation_id) DO UPDATE SET start_port_id = EXCLUDED.start_port_id";
+                String insertStartPortSql = "INSERT INTO reservation_start_port(reservation_id, start_port_id) "
+                        + "VALUES(?, ?) ON CONFLICT (reservation_id) DO UPDATE SET start_port_id = EXCLUDED.start_port_id";
                 try (PreparedStatement ps = conn.prepareStatement(insertStartPortSql)) {
                     ps.setLong(1, reservationId);
-                    ps.setInt(2, operatorId);
-                    ps.setInt(3, startPortId);
+                    ps.setInt(2, startPortId);
                     ps.executeUpdate();
                 }
             }
@@ -328,11 +326,10 @@ public class BikeReservationServlet extends HttpServlet {
             }
 
             // end_port_idを記録
-            String insertEndPortSql = "INSERT INTO reservation_end_port(reservation_id, operator_id, end_port_id) VALUES(?, ?, ?)";
+            String insertEndPortSql = "INSERT INTO reservation_end_port(reservation_id, end_port_id) VALUES(?, ?)";
             try (PreparedStatement ps = conn.prepareStatement(insertEndPortSql)) {
                 ps.setLong(1, reservationId);
-                ps.setInt(2, operatorId);
-                ps.setInt(3, returnPortId == -1 ? 1 : returnPortId);
+                ps.setInt(2, returnPortId == -1 ? 1 : returnPortId);
                 ps.executeUpdate();
             }
 

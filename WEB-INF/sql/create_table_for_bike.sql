@@ -82,7 +82,7 @@ CREATE TABLE bike_parking (
 -- < 属性 >
     bike_id          INTEGER NOT NULL,                             -- 自転車ID (主キー)
     operator_id      INTEGER NOT NULL,                             -- シェアサイクル事業者ID
-    current_port_id  INTEGER NULL,                                 -- 現在のポートID (貸出中はNULL)
+    current_port_id  INTEGER NULL,                                 -- 現在ポートID (貸出中はNULL)
     parked_at        TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP, -- 駐輪日時
 -- < 主キー & 外部キー >
     PRIMARY KEY (bike_id),
@@ -198,12 +198,11 @@ CREATE TABLE reservation_bike (
 CREATE TABLE reservation_start_port (
 -- < 属性 >
     reservation_id INTEGER NOT NULL, -- 予約ID (主キー)
-    operator_id    INTEGER NOT NULL, -- シェアサイクル事業者ID
     start_port_id  INTEGER NOT NULL, -- 出発ポートID
 -- < 主キー & 外部キー >
     PRIMARY KEY (reservation_id),
     FOREIGN KEY (reservation_id) REFERENCES reservation_info(reservation_id) ON DELETE CASCADE,
-    FOREIGN KEY (operator_id, start_port_id) REFERENCES port_operation(operator_id, port_id)
+    FOREIGN KEY (start_port_id) REFERENCES port_information(port_id)
 );
 
 
@@ -214,12 +213,11 @@ CREATE TABLE reservation_start_port (
 CREATE TABLE reservation_end_port (
 -- < 属性 >
     reservation_id INTEGER NOT NULL, -- 予約ID (主キー)
-    operator_id    INTEGER NOT NULL, -- シェアサイクル事業者ID
     end_port_id    INTEGER NOT NULL, -- 返却ポートID
 -- < 主キー & 外部キー >
     PRIMARY KEY (reservation_id),
     FOREIGN KEY (reservation_id) REFERENCES reservation_info(reservation_id) ON DELETE CASCADE,
-    FOREIGN KEY (operator_id, end_port_id) REFERENCES port_operation(operator_id, port_id)
+    FOREIGN KEY (end_port_id) REFERENCES port_information(port_id)
 );
 
 

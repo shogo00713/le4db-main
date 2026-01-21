@@ -4,8 +4,8 @@
 CREATE TABLE accounts (
 -- < 属性 >
     account_id    SERIAL, -- アカウントID (主キー)
-    account_name  VARCHAR(30) NOT NULL,
-    password      VARCHAR(255) NOT NULL,
+    account_name  VARCHAR(30)  NOT NULL, -- アカウント名
+    password      VARCHAR(255) NOT NULL, -- パスワード
 -- < 主キー >
     PRIMARY KEY (account_id)
 );
