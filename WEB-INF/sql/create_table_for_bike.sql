@@ -38,8 +38,7 @@ CREATE TABLE port_operation (
 -- < 主キー & 外部キー >
     PRIMARY KEY (port_id),    
     FOREIGN KEY (port_id) REFERENCES port_information(port_id),
-    FOREIGN KEY (operator_id) REFERENCES share_bike_operator(operator_id),
-    UNIQUE (operator_id, port_id) -- 事業者を跨いだポートIDの重複を防止
+    FOREIGN KEY (operator_id) REFERENCES share_bike_operator(operator_id)
 );
 
 
@@ -69,8 +68,7 @@ CREATE TABLE bike_management (
 -- < 主キー & 外部キー >
     PRIMARY KEY (bike_id),
     FOREIGN KEY (operator_id) REFERENCES share_bike_operator(operator_id),
-    FOREIGN KEY (bike_id) REFERENCES share_bike(bike_id),
-    UNIQUE (bike_id, operator_id) -- 事業者を跨いだ自転車IDの重複を防止    
+    FOREIGN KEY (bike_id) REFERENCES share_bike(bike_id)
 );
 
 
@@ -81,12 +79,11 @@ CREATE TABLE bike_management (
 CREATE TABLE bike_parking (
 -- < 属性 >
     bike_id          INTEGER NOT NULL,                             -- 自転車ID (主キー)
-    operator_id      INTEGER NOT NULL,                             -- シェアサイクル事業者ID
     current_port_id  INTEGER NULL,                                 -- 現在ポートID (貸出中はNULL)
     parked_at        TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP, -- 駐輪日時
 -- < 主キー & 外部キー >
     PRIMARY KEY (bike_id),
-    FOREIGN KEY (operator_id, current_port_id) REFERENCES port_operation(operator_id, port_id),
+    FOREIGN KEY (current_port_id) REFERENCES port_operation(port_id),
     FOREIGN KEY (bike_id) REFERENCES share_bike(bike_id)
 );
 
@@ -109,24 +106,6 @@ CREATE TABLE move_record (
 
 
 
--- =====================================================
--- 移動自転車の所属
--- =====================================================
-CREATE TABLE move_operator (
--- < 属性 >
-    log_id      INTEGER NOT NULL, -- ログID (主キー)
-    operator_id INTEGER NOT NULL, -- シェアサイクル事業者ID
--- < 主キー & 外部キー >
-    PRIMARY KEY (log_id), 
-    FOREIGN KEY (log_id) REFERENCES move_record(log_id),
-    FOREIGN KEY (operator_id) REFERENCES share_bike_operator(operator_id)
-);
-
-
-
--- =====================================================
--- 移動自転車の出発ポート
--- =====================================================
 CREATE TABLE move_from (
 -- < 属性 >
     log_id       INTEGER NOT NULL, -- ログID (主キー)
@@ -235,15 +214,14 @@ SELECT
     p.port_latitude,
     p.port_longitude,
     p.capacity,
-    COUNT(bp.bike_id) FILTER (WHERE sb.status='docked') AS bikes,
-    p.capacity - COUNT(bp.bike_id) FILTER (WHERE sb.status='docked') AS free_docks
+    COUNT(bp.bike_id) AS bikes,
+    p.capacity - COUNT(bp.bike_id) AS free_docks
 FROM port_information p
 JOIN port_operation po ON po.port_id = p.port_id
 JOIN share_bike_operator o ON o.operator_id = po.operator_id
-LEFT JOIN bike_parking bp ON bp.current_port_id = p.port_id AND bp.operator_id = po.operator_id
-LEFT JOIN share_bike sb ON sb.bike_id = bp.bike_id
-GROUP BY p.port_id, po.operator_id, o.operator_name, o.operator_contact, p.port_name, p.port_latitude, p.port_longitude, p.capacity;
-
+LEFT JOIN bike_parking bp ON bp.current_port_id = p.port_id
+GROUP BY
+    p.port_id, po.operator_id, o.operator_name, o.operator_contact, p.port_name, p.port_latitude, p.port_longitude, p.capacity;
 
 
 -- =====================================================
@@ -276,16 +254,16 @@ SELECT
     mr.moved_bikes,
     mr.moved_at,
     mr.source,
-    mo.operator_id,
+    pof.operator_id,
     op.operator_name,
     mf.from_port_id,
     pf.port_name AS from_port_name,
     mt.to_port_id,
     pt.port_name AS to_port_name
 FROM move_record mr
-LEFT JOIN move_operator mo ON mo.log_id = mr.log_id
-LEFT JOIN share_bike_operator op ON op.operator_id = mo.operator_id
 LEFT JOIN move_from mf ON mf.log_id = mr.log_id
+LEFT JOIN port_operation pof ON pof.port_id = mf.from_port_id
+LEFT JOIN share_bike_operator op ON op.operator_id = pof.operator_id
 LEFT JOIN port_information pf ON pf.port_id = mf.from_port_id
 LEFT JOIN move_to mt ON mt.log_id = mr.log_id
 LEFT JOIN port_information pt ON pt.port_id = mt.to_port_id;
@@ -333,11 +311,9 @@ CREATE INDEX share_bike_status_idx ON share_bike(status);
 CREATE INDEX bike_management_operator_idx ON bike_management(operator_id);
 -- 駐輪情報のポート・事業者検索
 CREATE INDEX bike_parking_port_idx ON bike_parking(current_port_id);
-CREATE INDEX bike_parking_operator_idx ON bike_parking(operator_id);
 -- 移動記録の日時検索
 CREATE INDEX move_record_moved_at_idx ON move_record(moved_at DESC);
 -- 移動事業者の事業者検索
-CREATE INDEX move_operator_operator_idx ON move_operator(operator_id);
 -- 移動元の出発地検索
 CREATE INDEX move_from_port_idx ON move_from(from_port_id);
 -- 移動先の到着地検索

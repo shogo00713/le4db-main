@@ -363,14 +363,6 @@ public class BikeReservationServlet extends HttpServlet {
                 }
 
                 if (logId > 0) {
-                    // move_operatorに記録
-                    String insertOpSql = "INSERT INTO move_operator(log_id, operator_id) VALUES(?, ?)";
-                    try (PreparedStatement ps = conn.prepareStatement(insertOpSql)) {
-                        ps.setLong(1, logId);
-                        ps.setInt(2, operatorId);
-                        ps.executeUpdate();
-                    }
-
                     // move_fromに記録
                     String insertFromSql = "INSERT INTO move_from(log_id, from_port_id) VALUES(?, ?)";
                     try (PreparedStatement ps = conn.prepareStatement(insertFromSql)) {

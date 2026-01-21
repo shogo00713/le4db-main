@@ -346,9 +346,8 @@ public class PortAdminServlet extends HttpServlet {
                 "FROM picked " +
                 "WHERE bp.bike_id = picked.bike_id";
 
-            // 移動ログを4テーブルに分割挿入
+            // 移動ログを3テーブルに分割挿入
             String insertRecord = "INSERT INTO move_record(moved_bikes, source) VALUES(?, ?) RETURNING log_id";
-            String insertOperator = "INSERT INTO move_operator(log_id, operator_id) VALUES(?, ?)";
             String insertFrom = "INSERT INTO move_from(log_id, from_port_id) VALUES(?, ?)";
             String insertTo = "INSERT INTO move_to(log_id, to_port_id) VALUES(?, ?)";
 
@@ -423,7 +422,7 @@ public class PortAdminServlet extends HttpServlet {
                     return;
                 }
 
-                // ログを4テーブルに記録
+                // ログを3テーブルに記録
                 long logId;
                 try (PreparedStatement ps = conn.prepareStatement(insertRecord)) {
                     ps.setInt(1, moved);
@@ -432,12 +431,6 @@ public class PortAdminServlet extends HttpServlet {
                         if (!rs.next()) throw new SQLException("log_id取得失敗");
                         logId = rs.getLong("log_id");
                     }
-                }
-
-                try (PreparedStatement ps = conn.prepareStatement(insertOperator)) {
-                    ps.setLong(1, logId);
-                    ps.setInt(2, fromOp);
-                    ps.executeUpdate();
                 }
 
                 try (PreparedStatement ps = conn.prepareStatement(insertFrom)) {
