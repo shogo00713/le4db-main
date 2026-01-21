@@ -94,12 +94,12 @@ public class RouteSearchServlet extends HttpServlet {
         // タイトル
         out.println("<div>");
         out.println("<h2 class=\"title\">マルチモーダル路線検索</h2>");
-        out.println("<p class=\"subtitle\">出発地/到着地, 運行日, 時刻条件を指定して検索</p>");
+        out.println("<p class=\"subtitle\">公共交通 + シェアサイクル の複合型乗換検索</p>");
         out.println("</div>");
 
         // 管理者ボタン
         String ctx = request.getContextPath();
-        out.println("<a class=\"adminbtn\" href=\"" + ctx + "/portadmin/\">管理者</a>");
+        out.println("<a class=\"adminbtn\" href=\"" + ctx + "/portadmin/\">シェアサイクル管理者画面</a>");
         out.println("</div>");
 
         // -------- ヘッダー終わり --------
@@ -241,7 +241,7 @@ public class RouteSearchServlet extends HttpServlet {
         // 入力エラーケース
         if (rr.originStop == null || rr.originStop.isEmpty() ||
             rr.destStop == null || rr.destStop.isEmpty()) {
-            rr.errorMessage = "出発地と目的地を指定してください";
+            rr.errorMessage = "出発地 / 目的地を入力してください";
             return rr;
         }
         if ("spec".equals(rr.timeMode) && (rr.timeValue == null || rr.timeValue.isEmpty())) {
@@ -281,7 +281,7 @@ public class RouteSearchServlet extends HttpServlet {
 
             // 0件なら終了
             if ((originstopid == null && originCandidates.isEmpty()) || (deststopid == null && destCandidates.isEmpty())) {
-                out.println("<p class=\"alert\">出発 / 到着地点が見つかりませんでした.</p>");
+                out.println("<p class=\"alert\">出発地 / 目的地が見つかりませんでした</p>");
                 out.println("</div></div></body></html>");
                 result.shouldReturn = true;
                 return result;
@@ -317,7 +317,7 @@ public class RouteSearchServlet extends HttpServlet {
                     out.println("</select></div>");
                 }
 
-                // 到着地選択
+                // 目的地選択
                 if (deststopid != null) {
                     out.println("<input type=\"hidden\" name=\"deststopid\" value=\"" + deststopid + "\"/>");
                     Stop fixedDestStop = StopQueries.getStopById(conn, deststopid);
@@ -358,7 +358,7 @@ public class RouteSearchServlet extends HttpServlet {
         try {
             conn = DatabaseConfig.getConnection();
             
-            // 出発地/到着地 を確定 -> その検索に入る
+            // 出発地/目的地 を確定 -> その検索に入る
             result.originStop = StopQueries.getStopById(conn, originstopid);
             result.destStop   = StopQueries.getStopById(conn, deststopid);
 
@@ -1056,7 +1056,6 @@ public class RouteSearchServlet extends HttpServlet {
     // -------------------- 表示系 --------------------
 
     // route_color を表示用に安全な色(#RRGGBB)に正規化
-    // - DBに 'blue' などの色名を入れている場合もここでHEXに変換してOK
     private String safeColor(String raw) {
         if (raw == null)
             return "#9ca3af"; // gray-400
