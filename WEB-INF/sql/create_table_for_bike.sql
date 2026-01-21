@@ -33,8 +33,8 @@ CREATE TABLE port_information (
 -- =====================================================
 CREATE TABLE port_operation (
 -- < 属性 >
-    operator_id INTEGER NOT NULL, -- シェアサイクル事業者ID (主キー)
-    port_id     INTEGER NOT NULL, -- ポートID
+    operator_id INTEGER NOT NULL, -- シェアサイクル事業者ID
+    port_id     INTEGER NOT NULL, -- ポートID (主キー)
 -- < 主キー & 外部キー >
     PRIMARY KEY (port_id),    
     FOREIGN KEY (port_id) REFERENCES port_information(port_id),
@@ -94,10 +94,10 @@ CREATE TABLE bike_parking (
 -- =====================================================
 CREATE TABLE move_record (
 -- < 属性 >
-    log_id        SERIAL,                               -- ログID (主キー)
-    moved_bikes   INTEGER NOT NULL,                     -- 移動台数
-    moved_at      TIMESTAMP NOT NULL DEFAULT NOW(),     -- 移動日時
-    source        VARCHAR(10) NOT NULL DEFAULT 'admin', -- 種別 (admin/user)
+    log_id        SERIAL,                                       -- ログID (主キー)
+    moved_bikes   INTEGER NOT NULL,                             -- 移動台数
+    moved_at      TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP, -- 移動日時
+    source        VARCHAR(10) NOT NULL DEFAULT 'admin',         -- 種別 (admin/user)
 -- < 主キー  >
     PRIMARY KEY (log_id),
 -- < 制約 >
