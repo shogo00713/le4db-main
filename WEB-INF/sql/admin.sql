@@ -2,10 +2,10 @@
 -- アカウント
 -- =====================================================
 CREATE TABLE accounts (
-    account_id    INTEGER,
+-- < 属性 >
+    account_id    SERIAL, -- アカウントID (主キー)
     account_name  VARCHAR(30) NOT NULL,
     password      VARCHAR(255) NOT NULL,
-
 -- < 主キー >
     PRIMARY KEY (account_id)
 );
@@ -14,9 +14,9 @@ CREATE TABLE accounts (
 -- アカウント対応
 -- =====================================================
 CREATE TABLE bike_operator_accounts (
-    operator_id INTEGER,
-    account_id  INTEGER,
-
+-- < 属性 >
+    operator_id INTEGER, -- シェアサイクル事業者ID (主キー)
+    account_id  INTEGER, -- アカウントID (主キー)
 -- < 主キー & 外部キー >
     PRIMARY KEY (operator_id, account_id),
     FOREIGN KEY (operator_id) REFERENCES share_bike_operator(operator_id),
