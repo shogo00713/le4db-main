@@ -1,12 +1,9 @@
 import static util.HtmlUtils.esc;
-import static util.HtmlUtils.option;
 import static util.HtmlUtils.nvl;
-import static util.HtmlUtils.toStr;
-import static util.HtmlUtils.preferNonEmpty;
+import static util.HtmlUtils.normalizeContact;
 import static util.TimeUtils.addMinutes;
 import static util.TimeUtils.diffMinutes;
 import static util.TimeUtils.now;
-import static util.TimeUtils.hhmm;
 import static util.GeoUtils.distanceMeters;
 import static util.GeoUtils.walkingMinutes;
 import static util.GeoUtils.ridingMinutes;
@@ -14,6 +11,9 @@ import static util.RouteConstants.*;
 import static util.RouteSearchUtils.*;
 
 import model.*;
+import view.HtmlLayout;
+import view.RouteDetailView;
+import view.RouteSearchView;
 import dao.*;
 
 import java.io.IOException;
@@ -52,108 +52,41 @@ public class RouteSearchServlet extends HttpServlet {
         // 詳細ページに飛ぶ場合
         String view = request.getParameter("view");
         if ("detail".equals(view)) {
-            renderDetailPage(request, response);
+            RouteDetailView.renderDetailPage(request, response);
             return;
         }
 
         // ルート検索の要求を取ってくる
-        RouteRequest routeRequest = parseRequest(request);
+        RouteRequest rr = parseRequest(request);
 
         response.setContentType("text/html;charset=UTF-8"); // 返すのはHTML
         PrintWriter out = response.getWriter();
 
         // フォームでやり取りするパラメータを変数として簡単に扱えるように
-        String originstop    = routeRequest.originStop;
-        String deststop      = routeRequest.destStop;
-        String day           = routeRequest.day;
-        String timemode      = routeRequest.timeMode;
-        String timevalue     = routeRequest.timeValue;
-        Integer originstopid = routeRequest.originStopId;
-        Integer deststopid   = routeRequest.destStopId;
-        String baseTime      = routeRequest.baseTime;
-
-        // HTMLの設定部分
-        out.println("<!DOCTYPE html>");
-        out.println("<html lang=\"ja\">");
-        out.println("<head>");
-        out.println("<meta charset=\"UTF-8\">");
-        out.println("<meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">");
-        out.println("<title>RouteSearch</title>");
-        out.println("<link rel=\"stylesheet\" href=\"" + request.getContextPath() + "/static/app.css\"/>"); // CSSはapp.css参照
-        out.println("</head>");
-
-        // HTML本文はじまり
-        out.println("<body class=\"page-route-search\">"); //
-        out.println("<div class=\"app\">");
+        String originstop    = rr.originStop;
+        String deststop      = rr.destStop;
+        String day           = rr.day;
+        String timemode      = rr.timeMode;
+        String timevalue     = rr.timeValue;
+        Integer originstopid = rr.originStopId;
+        Integer deststopid   = rr.destStopId;
+        String baseTime      = rr.baseTime;
 
 
-        // -------- ヘッダー始まり --------
+        // -------- head --------
+        HtmlLayout.renderHead(out, request, "RouteSearch", "page-route-search");
 
-        out.println("<div class=\"header\">");
+        // ==================================
 
-        // タイトル
-        out.println("<div>");
-        out.println("<h2 class=\"title\">マルチモーダル路線検索</h2>");
-        out.println("<p class=\"subtitle\">公共交通 + シェアサイクル の複合型乗換検索</p>");
-        out.println("</div>");
+        // -------- header --------
+        RouteSearchView.renderHeader(out, request, "マルチモーダル路線検索", "page-route-search");
 
-        // 管理者ボタン
-        String ctx = request.getContextPath();
-        out.println("<a class=\"adminbtn\" href=\"" + ctx + "/portadmin/\">シェアサイクル管理者画面</a>");
-        out.println("</div>");
-
-        // -------- ヘッダー終わり --------
-
-
-        out.println("<div class=\"card\">");
-        out.println("<form class=\"form\" action=\"" + request.getContextPath() + "/routesearch\" method=\"GET\">");
-
-        // (1) 出発地 / 目的地 => originstop / deststop
-        out.println("<div class=\"field\">");
-        out.println("<label class=\"label\" for=\"from_stop\">出発</label>");
-        out.println("<input class=\"input\" id=\"from_stop\" type=\"text\" name=\"originstop\" placeholder=\"例 : 京都駅\" value=\"" + esc(originstop) + "\"/>");
-        out.println("</div>");
-
-        out.println("<div class=\"field\">");
-        out.println("<label class=\"label\" for=\"to_stop\">到着</label>");
-        out.println("<input class=\"input\" id=\"to_stop\" type=\"text\" name=\"deststop\" placeholder=\"例 : 三条駅\" value=\"" + esc(deststop) + "\"/>");
-        out.println("</div>");
-
-        // (2) 運行日 => day
-        out.println("<div class=\"field\">");
-        out.println("<label class=\"label\" for=\"day\">運行日</label>");
-        out.println("<select class=\"select\" id=\"day\" name=\"day\">");
-        out.println(option("平日", "平日", day));
-        out.println(option("休日", "休日", day));
-        out.println("</select>");
-        out.println("</div>");
-
-        // (3) 時刻指定選択 => time_mode
-        out.println("<div class=\"field\">");
-        out.println("<label class=\"label\" for=\"time_mode\">時刻条件</label>");
-        out.println("<select class=\"select\" id=\"time_mode\" name=\"time_mode\">");
-        out.println(option("now", "現在時刻", timemode));
-        out.println(option("spec", "指定時刻", timemode));
-        out.println("</select>");
-        out.println("</div>");
-
-        // (4) 時刻選択 time_val
-        out.println("<div class=\"field\">");
-        out.println("<label class=\"label\" for=\"time_val\">指定時刻（時刻条件=指定時刻のとき）</label>");
-        out.println("<input class=\"input\" id=\"time_val\" type=\"time\" name=\"time_val\" value=\"" + esc(timevalue) + "\"/>");
-        out.println("</div>");
-
-        // 検索ボタン
-        out.println("<div class=\"actions\">");
-        out.println("<input class=\"btn\" type=\"submit\" value=\"検索\"/>");
-        out.println("</div>");
-
-        out.println("</form>");
-        out.println("<div class=\"hr\"></div>"); // hrは区切り線のこと
+        // -------- リクエスト入力 --------
+        RouteSearchView.renderSearchForm(out, request, originstop, deststop, day, timemode, timevalue);
 
         // 入力が揃っていない場合はここで終了
-        if (routeRequest.hasError()) {
-            out.println("<p>" + esc(routeRequest.errorMessage) + "</p>");
+        if (rr.hasError()) {
+            out.println("<p>" + esc(rr.errorMessage) + "</p>");
             out.println("</body>");
             out.println("</html>");
             return;
@@ -163,21 +96,26 @@ public class RouteSearchServlet extends HttpServlet {
 
         // --------- 候補選択処理 ---------
         try {
+
             CandidateSelectionResult candResult;
+
+            // --------- 停留所候補選択 ---------
             candResult = selectCandidates(request, out, originstop, deststop, originstopid, deststopid, day, timemode, timevalue);
+            
             if (candResult.shouldReturn) return;
-            originstopid = candResult.originstopid;
-            deststopid   = candResult.deststopid;
+                originstopid = candResult.originstopid;
+                deststopid   = candResult.deststopid;
 
         } catch (Exception e) {
             out.println("<pre>候補選択エラー: " + esc(String.valueOf(e)) + "</pre>");
             e.printStackTrace();
             return;
         }
-        //--------------------------------
 
-        // -------- メイン検索処理 --------
+
         try {
+
+            // -------- 経路検索 --------
             RouteResult routeResult = executeSearch(originstopid, deststopid, day, baseTime, session);
             
             // 検索結果をセッションに保存
@@ -185,22 +123,17 @@ public class RouteSearchServlet extends HttpServlet {
             session.setAttribute("lastDisplayedResults", routeResult.displayedResults);
             
             // 結果を描画
-            renderSearchResults(out, request, routeResult);
+            RouteSearchView.renderSearchResults(out, request, routeResult);
             
         } catch (Exception e) {
             out.println("<pre>検索エラー: " + esc(String.valueOf(e)) + "</pre>");
             e.printStackTrace();
+            return;
         }
-        //--------------------------------
 
-        // HTML本文おわり
-        out.println("</div>"); // card
-        out.println("</div>"); // app
-        out.println("</body>");
-        out.println("</html>");
+        // -------- foot --------
+        HtmlLayout.renderFoot(out);
     }
-
-
 
     // --------------- メインメソッド系 ---------------
 
@@ -239,8 +172,7 @@ public class RouteSearchServlet extends HttpServlet {
         }
 
         // 入力エラーケース
-        if (rr.originStop == null || rr.originStop.isEmpty() ||
-            rr.destStop == null || rr.destStop.isEmpty()) {
+        if (rr.originStop == null || rr.originStop.isEmpty() || rr.destStop == null || rr.destStop.isEmpty()) {
             rr.errorMessage = "出発地 / 目的地を入力してください";
             return rr;
         }
@@ -780,545 +712,5 @@ public class RouteSearchServlet extends HttpServlet {
         }
     }
 
-    // 検索結果を描画メソッド
-    private void renderSearchResults(PrintWriter out, HttpServletRequest request, RouteResult routeResult) {
-        out.println("<h3 class=\"result-title\">経路 : " + esc(routeResult.originStop.name) + 
-                    "<span class=\"arrow\">→</span>" + esc(routeResult.destStop.name) + "</h3>");
-        out.println("<p class=\"muted\">（指定時刻以降に出発する便から, 到着が早い順に表示）</p>");
 
-        out.println("<div class=\"table-wrap\"><table>");
-        out.println("<tr><th>経路</th><th>時刻</th><th>所要時間</th><th>詳細</th></tr>");
-
-        int shown = 0;
-        for (ResultItem resultItem : routeResult.displayedResults) {
-            if (shown >= RESULT_LIMIT) break;
-
-            int rid = shown;
-            String detailUrl = request.getContextPath() + "/routesearch?view=detail&rid=" + rid;
-
-            if (resultItem.payload instanceof WalkDirectPlan) {
-                printWalkDirectRow(out, (WalkDirectPlan) resultItem.payload, detailUrl);
-            } else if (resultItem.payload instanceof TransitDirectPlan) {
-                printDirectRow(out, (TransitDirectPlan) resultItem.payload, detailUrl);
-            } else if (resultItem.payload instanceof BikeDirectPlan) {
-                printBikeDirectRow(out, (BikeDirectPlan) resultItem.payload, detailUrl);
-            } else if (resultItem.payload instanceof TransferTransitBike) {
-                printTransitBikeRow(out, (TransferTransitBike) resultItem.payload, detailUrl);
-            } else if (resultItem.payload instanceof TransferBikeTransit) {
-                printBikeTransitRow(out, (TransferBikeTransit) resultItem.payload, detailUrl);
-            } else {
-                printTransferRow(out, (TransferPath) resultItem.payload, detailUrl);
-            }
-
-            shown++;
-        }
-
-        out.println("</table></div><br/>");
-    }
-
-    // 詳細ページの表示
-    private void renderDetailPage(HttpServletRequest req, HttpServletResponse resp) throws IOException {
-        resp.setContentType("text/html; charset=UTF-8");
-        PrintWriter out = resp.getWriter();
-
-        HttpSession session = req.getSession(false);
-        if (session == null) {
-            out.println("セッション切れ");
-            return;
-        }
-
-        @SuppressWarnings("unchecked")
-        List<ResultItem> displayed = (List<ResultItem>) session.getAttribute("lastDisplayedResults");
-        if (displayed == null) {
-            out.println("検索結果がありません");
-            return;
-        }
-
-        int rid;
-        try {
-            rid = Integer.parseInt(req.getParameter("rid"));
-        } catch (Exception e) {
-            out.println("ridが不正");
-            return;
-        }
-        if (rid < 0 || rid >= displayed.size()) {
-            out.println("不正なrid");
-            return;
-        }
-
-        ResultItem item = displayed.get(rid);
-
-        // 戻るリンク（条件保持）
-        String q = (String) session.getAttribute("lastSearchQuery");
-        String backUrl = req.getContextPath() + "/routesearch" + (q != null ? ("?" + q) : "");
-
-        // --- HTML ---
-        out.println("<!DOCTYPE html><html lang='ja'><head>");
-        out.println("<meta charset='UTF-8'><meta name='viewport' content='width=device-width, initial-scale=1'>");
-        out.println("<title>Route Detail</title>");
-        out.println("<link rel=\"stylesheet\" href=\"" + req.getContextPath() + "/static/app.css\"/>");
-        out.println("</head><body class='page-route-detail'>");
-
-        out.println("<div class='detail-card'>");
-        out.println("<a href='" + esc(backUrl) + "' class='back-btn'>← 戻る</a>");
-        out.println("<div class='detail-header'>ルート詳細</div>");
-
-        String payloadOrigin = "";
-        String payloadDest = "";
-        if (item.payload instanceof WalkDirectPlan) {
-            WalkDirectPlan wp = (WalkDirectPlan) item.payload;
-            payloadOrigin = wp.fromName;
-            payloadDest = wp.toName;
-        } else if (item.payload instanceof TransitDirectPlan) {
-            TransitDirectPlan dp = (TransitDirectPlan) item.payload;
-            payloadOrigin = dp.walk0.fromName != null ? dp.walk0.fromName : dp.leg.fromStopName;
-            payloadDest = dp.walk2.toName != null ? dp.walk2.toName : dp.leg.toStopName;
-        } else if (item.payload instanceof TransferPath) {
-            TransferPath tp = (TransferPath) item.payload;
-            payloadOrigin = tp.walk0.fromName != null ? tp.walk0.fromName : tp.leg1.fromStopName;
-            payloadDest = tp.walk2.toName != null ? tp.walk2.toName : tp.leg2.toStopName;
-        } else if (item.payload instanceof BikeDirectPlan) {
-            BikeDirectPlan bp = (BikeDirectPlan) item.payload;
-            payloadOrigin = bp.walk0.fromName != null ? bp.walk0.fromName : bp.bike.fromPortName;
-            payloadDest = bp.walk2.toName != null ? bp.walk2.toName : bp.bike.toPortName;
-        } else if (item.payload instanceof TransferTransitBike) {
-            TransferTransitBike tp = (TransferTransitBike) item.payload;
-            payloadOrigin = tp.walk0.fromName != null ? tp.walk0.fromName : tp.leg1.fromStopName;
-            payloadDest = tp.walk2.toName != null ? tp.walk2.toName : tp.bike.toPortName;
-        } else if (item.payload instanceof TransferBikeTransit) {
-            TransferBikeTransit tp = (TransferBikeTransit) item.payload;
-            payloadOrigin = tp.walk0.fromName != null ? tp.walk0.fromName : tp.bike.fromPortName;
-            payloadDest = tp.walk2.toName != null ? tp.walk2.toName : tp.leg2.toStopName;
-        }
-
-        String originName = preferNonEmpty(toStr(session.getAttribute("lastOriginStopName")), payloadOrigin);
-        String originType = toStr(session.getAttribute("lastOriginStopType"));
-        String destName = preferNonEmpty(toStr(session.getAttribute("lastDestStopName")), payloadDest);
-        String destType = toStr(session.getAttribute("lastDestStopType"));
-        String arrivalTime = item.end != null ? hhmm(item.end.toString()) : "";
-
-        out.println("<div class='detail-summary'>");
-        out.println("<div class='summary-grid'>");
-        out.println(summaryItem("出発地", originName, originType.isEmpty() ? "" : originType));
-        out.println(summaryItem("目的地", destName, destType.isEmpty() ? "" : destType));
-        out.println(summaryItem("所要時間", item.totalMinutes + "分", arrivalTime.isEmpty() ? "" : ("到着 " + arrivalTime)));
-        out.println("</div>");
-        out.println("</div>");
-
-        String arrow = " <span class='arrow-mini'>→</span> ";
-
-        out.println("<div class='steps'>");
-
-        // 徒歩のみ
-        if (item.payload instanceof WalkDirectPlan) {
-            WalkDirectPlan wp = (WalkDirectPlan) item.payload;
-            String main = esc(wp.fromName) + arrow + esc(wp.toName) + " (" + hhmm(wp.startTime) + "→" + hhmm(wp.endTime) + ")";
-            String meta = chipInfo("距離 約" + wp.distanceM + "m") + chipInfo("時間 " + wp.totalMin + "分");
-            printStep(out, "徒歩", main, meta);
-        } 
-        // 直通
-        else if (item.payload instanceof TransitDirectPlan) {
-            TransitDirectPlan dp = (TransitDirectPlan) item.payload;
-            printWalk(dp.walk0, out, arrow);
-            String mainRide = esc(dp.leg.fromStopName) + " " + hhmm(dp.leg.depTime) + arrow + esc(dp.leg.toStopName) + " " + hhmm(dp.leg.arrTime);
-            String metaRide = chipLine(dp.leg.routeName, dp.leg.routeColor) + chipTrip(dp.leg.tripName) + chipInfo("時間 " + diffMinutes(dp.leg.depTime, dp.leg.arrTime) + "分");
-            printStep(out, "乗車", mainRide, metaRide);
-            printWalk(dp.walk2, out, arrow);
-        }
-        // 乗換
-        else if (item.payload instanceof TransferPath) {
-            TransferPath tp = (TransferPath) item.payload;
-            printWalk(tp.walk0, out, arrow);
-            String mainRide1 = esc(tp.leg1.fromStopName) + " " + hhmm(tp.leg1.depTime) + arrow + esc(tp.leg1.toStopName) + " " + hhmm(tp.leg1.arrTime);
-            String metaRide1 = chipLine(tp.leg1.routeName, tp.leg1.routeColor) + chipTrip(tp.leg1.tripName) + chipInfo("時間 " + diffMinutes(tp.leg1.depTime, tp.leg1.arrTime) + "分");
-            printStep(out, "乗車", mainRide1, metaRide1);
-            if (!isZeroWalk(tp.walk1)) {
-                String mainWalk1 = esc(tp.walk1.fromName) + arrow + esc(tp.walk1.toName);
-                String metaWalk1 = chipInfo("距離 約" + tp.walk1.dist + "m") + chipInfo("時間 " + tp.walk1.min + "分");
-                printStep(out, "徒歩", mainWalk1, metaWalk1);
-            } else {
-                printStep(out, "乗換", "同一地点で乗換", "");
-            }
-            String mainRide2 = esc(tp.leg2.fromStopName) + " " + hhmm(tp.leg2.depTime) + arrow + esc(tp.leg2.toStopName) + " " + hhmm(tp.leg2.arrTime);
-            String metaRide2 = chipLine(tp.leg2.routeName, tp.leg2.routeColor) + chipTrip(tp.leg2.tripName) + chipInfo("時間 " + diffMinutes(tp.leg2.depTime, tp.leg2.arrTime) + "分");
-            printStep(out, "乗車", mainRide2, metaRide2);
-            printWalk(tp.walk2, out, arrow);
-        }
-        // 自転車のみ
-        else if (item.payload instanceof BikeDirectPlan) {
-            BikeDirectPlan bp = (BikeDirectPlan) item.payload;
-            printWalk(bp.walk0, out, arrow);
-            String mainBike = esc(bp.bike.fromPortName) + " " + hhmm(bp.bike.startTime) + arrow + esc(bp.bike.toPortName) + " " + hhmm(bp.bike.endTime);
-            String metaBike = chipInfo("距離 約" + bp.bike.distanceM + "m") + chipInfo("時間 " + bp.bike.rideMinutes + "分") + chipInfo("事業者 " + bp.bike.operatorName) + chipContact(bp.bike.operatorContact);
-            printStep(out, "自転車", mainBike, metaBike);
-            printWalk(bp.walk2, out, arrow);
-        }
-        // 公共交通 -> 自転車
-        else if (item.payload instanceof TransferTransitBike) {
-            TransferTransitBike tp = (TransferTransitBike) item.payload;
-            printWalk(tp.walk0, out, arrow);
-            String mainRide1 = esc(tp.leg1.fromStopName) + " " + hhmm(tp.leg1.depTime) + arrow+ esc(tp.leg1.toStopName) + " " + hhmm(tp.leg1.arrTime);
-            String metaRide1 = chipLine(tp.leg1.routeName, tp.leg1.routeColor) + chipTrip(tp.leg1.tripName) + chipInfo("時間 " + diffMinutes(tp.leg1.depTime, tp.leg1.arrTime) + "分");
-            printStep(out, "乗車", mainRide1, metaRide1);
-            printWalk(tp.walk1, out, arrow);
-            String mainBike = esc(tp.bike.fromPortName) + " " + hhmm(tp.bike.startTime) + arrow + esc(tp.bike.toPortName) + " " + hhmm(tp.bike.endTime);
-            String metaBike = chipInfo("距離 約" + tp.bike.distanceM + "m") + chipInfo("時間 " + tp.bike.rideMinutes + "分") + chipInfo("事業者 " + tp.bike.operatorName) + chipContact(tp.bike.operatorContact);
-            printStep(out, "自転車", mainBike, metaBike);
-            printWalk(tp.walk2, out, arrow);
-        } 
-        // 自転車 -> 公共交通
-        else if (item.payload instanceof TransferBikeTransit) {
-            TransferBikeTransit tp = (TransferBikeTransit) item.payload;
-            printWalk(tp.walk0, out, arrow);
-            String mainBike = esc(tp.bike.fromPortName) + " " + hhmm(tp.bike.startTime) + arrow + esc(tp.bike.toPortName) + " " + hhmm(tp.bike.endTime);
-            String metaBike = chipInfo("距離 約" + tp.bike.distanceM + "m") + chipInfo("時間 " + tp.bike.rideMinutes + "分") + chipInfo("事業者 " + tp.bike.operatorName) + chipContact(tp.bike.operatorContact);
-            printStep(out, "自転車", mainBike, metaBike);
-            printWalk(tp.walk1, out, arrow);
-            String mainRide = esc(tp.leg2.fromStopName) + " " + hhmm(tp.leg2.depTime) + arrow + esc(tp.leg2.toStopName) + " " + hhmm(tp.leg2.arrTime);
-            String metaRide = chipLine(tp.leg2.routeName, tp.leg2.routeColor) + chipTrip(tp.leg2.tripName) + chipInfo("時間 " + diffMinutes(tp.leg2.depTime, tp.leg2.arrTime) + "分");
-            printStep(out, "乗車", mainRide, metaRide);
-            printWalk(tp.walk2, out, arrow);
-        }
-
-        out.println("</div>");
-
-        // ---- シェアサイクル予約セクション ----
-        boolean hasBikeSegment = (item.payload instanceof BikeDirectPlan) ||
-                                 (item.payload instanceof TransferTransitBike) ||
-                                 (item.payload instanceof TransferBikeTransit);
-        // 変数を統一させる
-        if (hasBikeSegment) {
-            String bikeOperatorName = "";
-            String bikeOperatorContact = "";
-            int startPortId = -1;
-            int endPortId = -1;
-            int bikeOperatorId = 0;
-
-            if (item.payload instanceof BikeDirectPlan) {
-                BikeDirectPlan bp = (BikeDirectPlan) item.payload;
-                bikeOperatorName = bp.bike.operatorName;
-                bikeOperatorContact = bp.bike.operatorContact;
-                bikeOperatorId = bp.bike.operatorId;
-                startPortId = bp.bike.fromPortId;
-                endPortId = bp.bike.toPortId;
-            } else if (item.payload instanceof TransferTransitBike) {
-                TransferTransitBike tp = (TransferTransitBike) item.payload;
-                bikeOperatorName = tp.bike.operatorName;
-                bikeOperatorContact = tp.bike.operatorContact;
-                bikeOperatorId = tp.bike.operatorId;
-                startPortId = tp.bike.fromPortId;
-                endPortId = tp.bike.toPortId;
-            } else if (item.payload instanceof TransferBikeTransit) {
-                TransferBikeTransit tp = (TransferBikeTransit) item.payload;
-                bikeOperatorName = tp.bike.operatorName;
-                bikeOperatorContact = tp.bike.operatorContact;
-                bikeOperatorId = tp.bike.operatorId;
-                startPortId = tp.bike.fromPortId;
-                endPortId = tp.bike.toPortId;
-            }
-
-            out.println("<div class='reservation-section'>");
-            out.println("<div class='reservation-title'>🚲 シェアサイクルを予約</div>");
-            out.println("<div class='contact-card'>");
-            out.println("<p class='contact-name'>" + esc(bikeOperatorName) + "</p>");
-            out.println("<p class='contact-contact'>" + esc(bikeOperatorContact) + "</p>");
-            out.println("</div>");
-            out.println("<div class='reservation-actions'>");
-            out.println("<button class='btn-reserve' id='reserveBtn' onclick='reserveBike(" + bikeOperatorId + ")'>予約する</button>");
-            out.println("<button class='btn-action' id='startBtn' style='display:none;' onclick='startBikeUsage()'>利用開始</button>");
-            out.println("<button class='btn-action' id='returnBtn' style='display:none;' onclick='returnBikeUsage()'>返却</button>");
-            out.println("<div class='cancel-area'>");
-            out.println("<button class='btn-cancel' id='cancelBtn' style='display:none;' onclick='cancelBikeReservation()'>キャンセル</button>");
-            out.println("<span id='timerPill' class='timer-pill' style='display:none;'></span>");
-            out.println("</div>");
-            out.println("<div id=\"statusMsg\" class=\"reservation-status is-success\" style=\"display:none;\">");
-            out.println("<span class=\"status-icon\">✓</span>");
-            out.println("<span class=\"status-text\"></span>");
-            out.println("</div>");
-            out.println("</div>");
-
-            out.println("<script src='/static/bike-reservation.js'></script>");
-            out.println("<script>");
-            out.println("// 初期化設定");
-            out.println("initBikeReservation({");
-            out.println("  startPortId: " + (startPortId > 0 ? startPortId : "-1") + ",");
-            out.println("  endPortId: " + (endPortId > 0 ? endPortId : "-1") + ",");
-            out.println("  apiEndpoint: '" + req.getContextPath() + "/bikereservation'");
-            out.println("});");
-            out.println("</script>");
-        }
-
-        out.println("</div>");
-        out.println("</body></html>");
-    }
-
-
-    // -------------------- 表示系 --------------------
-
-    // route_color を表示用に安全な色(#RRGGBB)に正規化
-    private String safeColor(String raw) {
-        if (raw == null)
-            return "#9ca3af"; // gray-400
-        String v = raw.trim();
-        if (v.isEmpty())
-            return "#9ca3af";
-
-        // 既にHEX形式ならそのまま
-        if (v.matches("^[0-9a-fA-F]{6}$"))
-            return "#" + v;
-        if (v.matches("^#[0-9a-fA-F]{6}$"))
-            return v;
-
-        // 色名（あなたのINSERTに合わせる）
-        String key = v.toLowerCase();
-        switch (key) {
-            case "blue":
-                return "#2563eb";
-            case "orange":
-                return "#f97316";
-            case "gray":
-            case "grey":
-                return "#6b7280";
-            case "green":
-                return "#16a34a";
-            case "red":
-                return "#dc2626";
-            case "purple":
-                return "#7c3aed";
-            default:
-                return "#9ca3af";
-        }
-    }
-
-
-    private String normalizeContact(String contact, String operatorName) {
-        if (contact != null) {
-            String trimmed = contact.trim();
-            if (!trimmed.isEmpty()) {
-                return trimmed;
-            }
-        }
-        if (operatorName != null && !operatorName.isEmpty()) {
-            return operatorName + " (連絡先未登録)";
-        }
-        return "連絡先未登録";
-    }
-
-    // --- 経路表示（HTMLタグ）用ヘルパ ---
-    private String tagArrow() {
-        return "<span class=\"arrow-mini\">→</span>";
-    }
-    private String tagWalk(String minutes) {
-        return "<span class=\"tag walk\">徒歩 " + esc(minutes) + "</span>";
-    }
-    private String tagTransfer() {
-        return "<span class=\"tag transfer\">乗換</span>";
-    }
-    private String tagBike(String rideMinutes) {
-        // operatorName を出したいならここで表示
-        return "<span class=\"tag bike\">シェアサイクル " + esc(rideMinutes) + "</span>";
-    }
-    private String tagLine(String routeName, String routeColor) {
-        String c = safeColor(routeColor);
-        return "<span class=\"tag line\" style=\"--line:" + c + "\">" + esc(routeName) + "</span>";
-    }
-
-    // --- 各プランの「経路」セル(HTML)生成 ---
-    private String pathHtml(WalkDirectPlan wp) {
-        return "<div class=\"path\">" + tagWalk(wp.totalMin + "分") + "</div>";
-    }
-
-    private String pathHtml(TransitDirectPlan dp) {
-        StringBuilder h = new StringBuilder();
-        h.append("<div class=\"path\">");
-        if (!isZeroWalk(dp.walk0)) {
-            h.append(tagWalk(dp.walk0.min + "分")).append(tagArrow());
-        }
-        h.append(tagLine(dp.leg.routeName, dp.leg.routeColor));
-        if (!isZeroWalk(dp.walk2)) {
-            h.append(tagArrow()).append(tagWalk(dp.walk2.min + "分"));
-        }
-        h.append("</div>");
-        return h.toString();
-    }
-
-    private String pathHtml(TransferPath tp) {
-        StringBuilder h = new StringBuilder();
-        h.append("<div class=\"path\">");
-        if (!isZeroWalk(tp.walk0)) h.append(tagWalk(tp.walk0.min + "分")).append(tagArrow());
-
-        h.append(tagLine(tp.leg1.routeName, tp.leg1.routeColor));
-
-        // 乗換（徒歩 or 同一駅乗換）
-        h.append(tagArrow());
-        if (!isZeroWalk(tp.walk1)) h.append(tagWalk(tp.walk1.min + "分"));
-        else h.append(tagTransfer());
-        h.append(tagArrow());
-
-        h.append(tagLine(tp.leg2.routeName, tp.leg2.routeColor));
-
-        if (!isZeroWalk(tp.walk2)) h.append(tagArrow()).append(tagWalk(tp.walk2.min + "分"));
-        h.append("</div>");
-        return h.toString();
-    }
-
-    private String pathHtml(BikeDirectPlan bp) {
-        StringBuilder h = new StringBuilder();
-        h.append("<div class=\"path\">");
-        if (!isZeroWalk(bp.walk0)) h.append(tagWalk(bp.walk0.min + "分")).append(tagArrow());
-        h.append(tagBike(bp.bike.rideMinutes + "分"));
-        if (!isZeroWalk(bp.walk2)) h.append(tagArrow()).append(tagWalk(bp.walk2.min + "分"));
-        h.append("</div>");
-        return h.toString();
-    }
-
-    private String pathHtml(TransferTransitBike tp) {
-        StringBuilder h = new StringBuilder();
-        h.append("<div class=\"path\">");
-        if (!isZeroWalk(tp.walk0)) h.append(tagWalk(tp.walk0.min + "分")).append(tagArrow());
-        h.append(tagLine(tp.leg1.routeName, tp.leg1.routeColor));
-        h.append(tagArrow());
-
-        // 停留所→ポートが徒歩になるので徒歩タグ
-        if (!isZeroWalk(tp.walk1)) h.append(tagWalk(tp.walk1.min + "分")).append(tagArrow());
-        h.append(tagBike(tp.bike.rideMinutes + "分"));
-
-        // ポート→目的地
-        if (!isZeroWalk(tp.walk2)) h.append(tagArrow()).append(tagWalk(tp.walk2.min + "分"));
-        h.append("</div>");
-        return h.toString();
-    }
-
-    private String pathHtml(TransferBikeTransit tp) {
-        StringBuilder h = new StringBuilder();
-        h.append("<div class=\"path\">");
-        if (!isZeroWalk(tp.walk0)) h.append(tagWalk(tp.walk0.min + "分")).append(tagArrow());
-        h.append(tagBike(tp.bike.rideMinutes + "分"));
-        h.append(tagArrow());
-
-        // ポート→停留所が徒歩
-        if (!isZeroWalk(tp.walk1)) h.append(tagWalk(tp.walk1.min + "分")).append(tagArrow());
-
-        h.append(tagLine(tp.leg2.routeName, tp.leg2.routeColor));
-        if (!isZeroWalk(tp.walk2)) h.append(tagArrow()).append(tagWalk(tp.walk2.min + "分"));
-        h.append("</div>");
-        return h.toString();
-    }
-
-    private String chipLine(String routeName, String routeColor) {
-        if (routeName == null || routeName.trim().isEmpty())
-            return "";
-        String c = safeColor(routeColor);
-        return "<span class=\"chip line\" style=\"--line:" + c + "\"><span class=\"dot\"></span>"
-                + esc(routeName) + "</span>";
-    }
-
-    private String chipTrip(String tripName) {
-        if (tripName == null || tripName.trim().isEmpty())
-            return "";
-        return "<span class=\"chip trip\">便名 " + esc(tripName) + "</span>";
-    }
-
-    private String chipInfo(String text) {
-        if (text == null || text.trim().isEmpty())
-            return "";
-        return "<span class=\"chip info\">" + esc(text) + "</span>";
-    }
-
-    private String chipContact(String contact) {
-        if (contact == null || contact.trim().isEmpty())
-            return "";
-        return "<span class=\"chip contact\">連絡先 " + esc(contact) + "</span>";
-    }
-
-    private void printStep(PrintWriter out, String kind, String mainHtml, String metaHtml) {
-        out.println("<div class=\"step\">"
-                + "<span class=\"kind\">" + esc(kind) + "</span>"
-                + "<span class=\"main\">" + mainHtml + "</span>"
-                + "<span class=\"meta\">" + metaHtml + "</span>"
-                + "</div>");
-    }
-
-    private String summaryItem(String label, String value, String sub) {
-        StringBuilder sb = new StringBuilder();
-        sb.append("<div class=\"summary-item\">");
-        sb.append("<div class=\"summary-label\">").append(esc(label)).append("</div>");
-        sb.append("<div class=\"summary-value\">").append(esc(value)).append("</div>");
-        if (sub != null && !sub.trim().isEmpty()) {
-            sb.append("<div class=\"summary-sub\">").append(esc(sub)).append("</div>");
-        }
-        sb.append("</div>");
-        return sb.toString();
-    }
-
-    // 徒歩のみ の結果を表示
-    private void printWalkDirectRow(PrintWriter out, WalkDirectPlan wp, String detailUrl) {
-        out.println("<tr>");
-        out.println("<td>" + pathHtml(wp) + "</td>");
-        out.println("<td>" + esc(hhmm(wp.startTime)) + " → " + esc(hhmm(wp.endTime)) + "</td>");
-        out.println("<td>" + wp.totalMin + "分</td>");
-        out.println("<td><a class=\"detailbtn\" href=\"" + esc(detailUrl) + "\">詳細</a></td>");
-        out.println("</tr>");
-    }
-
-    // 自転車のみ の結果を表示
-    private void printBikeDirectRow(PrintWriter out, BikeDirectPlan bp, String detailUrl) {
-        out.println("<tr>");
-        out.println("<td>" + pathHtml(bp) + "</td>");
-        out.println("<td>" + esc(hhmm(bp.startTime)) + " → " + esc(hhmm(bp.endTime)) + "</td>");
-        out.println("<td>" + bp.totalMin + "分</td>");
-        out.println("<td><a class=\"detailbtn\" href=\"" + esc(detailUrl) + "\">詳細</a></td>");
-        out.println("</tr>");
-
-    }
-
-    // 直通 の結果を表示
-    private void printDirectRow(PrintWriter out, TransitDirectPlan dp, String detailUrl) {
-        out.println("<tr>");
-        out.println("<td>" + pathHtml(dp) + "</td>");
-        out.println("<td>" + esc(hhmm(dp.startTime)) + " → " + esc(hhmm(dp.endTime)) + "</td>");
-        out.println("<td>" + dp.totalMin + "分</td>");
-        out.println("<td><a class=\"detailbtn\" href=\"" + esc(detailUrl) + "\">詳細</a></td>");
-        out.println("</tr>");
-
-    }
-
-    // 乗換あり の結果表示
-    private void printTransferRow(PrintWriter out, TransferPath tp, String detailUrl) {
-        out.println("<tr>");
-        out.println("<td>" + pathHtml(tp) + "</td>");
-        out.println("<td>" + esc(hhmm(tp.startTime)) + " → " + esc(hhmm(tp.endTime)) + "</td>");
-        out.println("<td>" + tp.totalMin + "分</td>");
-        out.println("<td><a class=\"detailbtn\" href=\"" + esc(detailUrl) + "\">詳細</a></td>");
-        out.println("</tr>");
-    }
-
-    // 公共交通 -> 自転車 の結果を表示
-    private void printTransitBikeRow(PrintWriter out, TransferTransitBike tp, String detailUrl) {
-        out.println("<tr>");
-        out.println("<td>" + pathHtml(tp) + "</td>");
-        out.println("<td>" + esc(hhmm(tp.startTime)) + " → " + esc(hhmm(tp.endTime)) + "</td>");
-        out.println("<td>" + tp.totalMin + "分</td>");
-        out.println("<td><a class=\"detailbtn\" href=\"" + esc(detailUrl) + "\">詳細</a></td>");
-        out.println("</tr>");
-    }
-
-    // 自転車 -> 公共交通 の結果を表示
-    private void printBikeTransitRow(PrintWriter out, TransferBikeTransit tp, String detailUrl) {
-        out.println("<tr>");
-        out.println("<td>" + pathHtml(tp) + "</td>");
-        out.println("<td>" + esc(hhmm(tp.startTime)) + " → " + esc(hhmm(tp.endTime)) + "</td>");
-        out.println("<td>" + tp.totalMin + "分</td>");
-        out.println("<td><a class=\"detailbtn\" href=\"" + esc(detailUrl) + "\">詳細</a></td>");
-        out.println("</tr>");
-
-    }
-
-    private void printWalk (WalkPath w, PrintWriter out, String arrow) {
-        if(!isZeroWalk(w)) {
-            String main = esc(w.fromName) + arrow + esc(w.toName);
-            String meta = chipInfo("距離 約" + w.dist + "m") + chipInfo("時間 " + w.min + "分");
-            printStep(out, "徒歩", main, meta);
-        }
-    }
 }

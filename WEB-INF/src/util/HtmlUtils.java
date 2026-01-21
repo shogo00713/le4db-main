@@ -89,4 +89,64 @@ public class HtmlUtils {
         return false;
     }
 
+    /**
+     * 安全な色コード取得
+     * @param raw 入力文字列
+     * @return HEX形式の色コード（例: #ff0000）
+     */
+    public static String safeColor(String raw) {
+        if (raw == null)
+            return "#9ca3af"; // gray-400
+        String v = raw.trim();
+        if (v.isEmpty())
+            return "#9ca3af";
+
+        // 既にHEX形式ならそのまま
+        if (v.matches("^[0-9a-fA-F]{6}$"))
+            return "#" + v;
+        if (v.matches("^#[0-9a-fA-F]{6}$"))
+            return v;
+
+        // 色名（あなたのINSERTに合わせる）
+        String key = v.toLowerCase();
+        switch (key) {
+            case "blue":
+                return "#2563eb";
+            case "orange":
+                return "#f97316";
+            case "gray":
+            case "grey":
+                return "#6b7280";
+            case "green":
+                return "#16a34a";
+            case "red":
+                return "#dc2626";
+            case "purple":
+                return "#7c3aed";
+            default:
+                return "#9ca3af";
+        }
+    }
+
+    /**
+     * 連絡先情報の正規化
+     * @param contact 連絡先情報
+     * @param operatorName 事業者名
+     * @return 正規化された連絡先情報
+     */
+    public static String normalizeContact(String contact, String operatorName) {
+        if (contact != null) {
+            String trimmed = contact.trim();
+            if (!trimmed.isEmpty()) {
+                return trimmed;
+            }
+        }
+        if (operatorName != null && !operatorName.isEmpty()) {
+            return operatorName + " (連絡先未登録)";
+        }
+        return "連絡先未登録";
+    }
+
+
+
 }
