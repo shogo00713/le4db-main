@@ -4,8 +4,11 @@ import java.io.PrintWriter;
 import javax.servlet.http.HttpServletRequest;
 
 import model.BikeDirectPlan;
+import model.CandidateSelectionResult;
 import model.ResultItem;
+import model.RouteRequest;
 import model.RouteResult;
+import model.Stop;
 import model.TransferBikeTransit;
 import model.TransferPath;
 import model.TransferTransitBike;
@@ -40,22 +43,19 @@ public class RouteSearchView {
     }
 
     // 検索フォーム
-    public static void renderSearchForm(PrintWriter out, 
-            HttpServletRequest request,
-            String originstop, String deststop,
-            String day, String timemode, String timevalue) {
+    public static void renderSearchForm(PrintWriter out, HttpServletRequest request, String originstop, String deststop,
+                                        String day, String timemode, String timevalue, String alertMsg) {
         
         String ctx = request.getContextPath();
 
         out.println("<div class=\"card\">");
-        out.println("<form class=\"form\" action=\"" + ctx + "/routesearch\" method=\"GET\">");
+        out.println("<form class=\"form\" action=\"" + ctx + "/routesearch\" method=\"POST\">");
 
         // (1) 出発地 / 目的地 => originstop / deststop
         out.println("<div class=\"field\">");
         out.println("<label class=\"label\" for=\"from_stop\">出発</label>");
         out.println("<input class=\"input\" id=\"from_stop\" type=\"text\" name=\"originstop\" placeholder=\"例 : 京都駅\" value=\"" + esc(originstop) + "\"/>");
         out.println("</div>");
-
         out.println("<div class=\"field\">");
         out.println("<label class=\"label\" for=\"to_stop\">到着</label>");
         out.println("<input class=\"input\" id=\"to_stop\" type=\"text\" name=\"deststop\" placeholder=\"例 : 三条駅\" value=\"" + esc(deststop) + "\"/>");
@@ -92,16 +92,79 @@ public class RouteSearchView {
 
         out.println("</form>");
 
-        out.println("</div>"); // form card
-        out.println("</div>"); // card
+        // アラートメッセージ
+        if (alertMsg != null && !alertMsg.isEmpty()) {
+            out.println("<div class=\"alert alert-in-card\">" + esc(alertMsg) + "</div>");
+        }
+
+        out.println("</div>"); 
+    }
+
+    // 候補選択フォーム
+    public static void renderCandidateSelectionForm(PrintWriter out, HttpServletRequest request, RouteRequest rr, CandidateSelectionResult candResult) {
+
+        String ctx = request.getContextPath();
+
+        out.println("<div class=\"card card-candidate-selection\">");
+        out.println("<div class=\"alert\">候補が複数あります.以下から選択してください.</div>");
+        out.println("<form class=\"form\" action=\"" + ctx + "/routesearch\" method=\"POST\">");
+
+        // 元の検索パラメータをhiddenで引き継ぐ
+        out.println("<input type=\"hidden\" name=\"originstop\" value=\"" + esc(rr.originStop) + "\"/>");
+        out.println("<input type=\"hidden\" name=\"deststop\" value=\"" + esc(rr.destStop) + "\"/>");
+        out.println("<input type=\"hidden\" name=\"day\" value=\"" + esc(rr.day) + "\"/>");
+        out.println("<input type=\"hidden\" name=\"time_mode\" value=\"" + esc(rr.timeMode) + "\"/>");
+        out.println("<input type=\"hidden\" name=\"time_val\" value=\"" + esc(rr.timeValue) + "\"/>");
+
+        boolean hasOriginList = candResult.originCandidates != null && !candResult.originCandidates.isEmpty();
+        boolean hasDestList = candResult.destCandidates != null && !candResult.destCandidates.isEmpty();
+
+        // 出発地
+        if (hasOriginList) {
+            out.println("<div class=\"field\"><label class=\"label\" for=\"originstopid\">出発地 (候補)</label>");
+            out.println("<select class=\"select\" id=\"originstopid\" name=\"originstopid\">");
+            for (Stop s : candResult.originCandidates) {
+                String selected = (candResult.originStopId != null && candResult.originStopId.equals(s.id)) ? " selected" : "";
+                out.println("<option value=\"" + s.id + "\"" + selected + ">" + esc(s.name) + " (" + esc(s.type) + ")</option>");
+            }
+            out.println("</select></div>");
+        } else if (candResult.originStopId != null) {
+            out.println("<input type=\"hidden\" name=\"originstopid\" value=\"" + candResult.originStopId + "\"/>");
+            if (candResult.fixedOriginStop != null) {
+                out.println("<div class=\"field\"><label class=\"label\">出発地 (確定)</label>");
+                out.println("<div class=\"fixed\">" + esc(candResult.fixedOriginStop.name) + " (" + esc(candResult.fixedOriginStop.type) + ")</div></div>");
+            }
+        }
+
+        // 目的地
+        if (hasDestList) {
+            out.println("<div class=\"field\"><label class=\"label\" for=\"deststopid\">目的地 (候補)</label>");
+            out.println("<select class=\"select\" id=\"deststopid\" name=\"deststopid\">");
+            for (Stop s : candResult.destCandidates) {
+                String selected = (candResult.destStopId != null && candResult.destStopId.equals(s.id)) ? " selected" : "";
+                out.println("<option value=\"" + s.id + "\"" + selected + ">" + esc(s.name) + " (" + esc(s.type) + ")</option>");
+            }
+            out.println("</select></div>");
+        } else if (candResult.destStopId != null) {
+            out.println("<input type=\"hidden\" name=\"deststopid\" value=\"" + candResult.destStopId + "\"/>");
+            if (candResult.fixedDestStop != null) {
+                out.println("<div class=\"field\"><label class=\"label\">目的地 (確定)</label>");
+                out.println("<div class=\"fixed\">" + esc(candResult.fixedDestStop.name) + " (" + esc(candResult.fixedDestStop.type) + ")</div></div>");
+            }
+        }
+
+        out.println("<div class=\"actions\"><input class=\"btn\" type=\"submit\" value=\"この候補で再検索\"/></div>");
+        out.println("</form>");
+
+        out.println("</div>");
     }
 
     // 検索結果
     public static void renderSearchResults(PrintWriter out, HttpServletRequest request, RouteResult routeResult) {
+
         out.println("<div class=\"card\">");
-        out.println("<h3 class=\"result-title\">経路 : " + esc(routeResult.originStop.name) + 
-                    "<span class=\"arrow\">→</span>" + esc(routeResult.destStop.name) + "</h3>");
-        out.println("<p class=\"muted\">（指定時刻以降に出発する便から, 到着が早い順に表示）</p>");
+        out.println("<h3 class=\"result-title\">経路 : " + esc(routeResult.originStop.name) + " (" + esc(routeResult.originStop.type) + ") " + "<span class=\"arrow\">→</span>" + esc(routeResult.destStop.name) + " (" + esc(routeResult.destStop.type) + ")</h3>");
+        out.println("<p class=\"muted\">（指定時刻以降に出発する便を到着が早い順に表示）</p>");
 
         out.println("<div class=\"table-wrap\"><table>");
         out.println("<tr><th>経路</th><th>時刻</th><th>所要時間</th><th>詳細</th></tr>");
@@ -115,15 +178,20 @@ public class RouteSearchView {
 
             if (resultItem.payload instanceof WalkDirectPlan) {
                 printWalkDirectRow(out, (WalkDirectPlan) resultItem.payload, detailUrl);
-            } else if (resultItem.payload instanceof TransitDirectPlan) {
+            } 
+            else if (resultItem.payload instanceof TransitDirectPlan) {
                 printDirectRow(out, (TransitDirectPlan) resultItem.payload, detailUrl);
-            } else if (resultItem.payload instanceof BikeDirectPlan) {
+            } 
+            else if (resultItem.payload instanceof BikeDirectPlan) {
                 printBikeDirectRow(out, (BikeDirectPlan) resultItem.payload, detailUrl);
-            } else if (resultItem.payload instanceof TransferTransitBike) {
+            } 
+            else if (resultItem.payload instanceof TransferTransitBike) {
                 printTransitBikeRow(out, (TransferTransitBike) resultItem.payload, detailUrl);
-            } else if (resultItem.payload instanceof TransferBikeTransit) {
+            } 
+            else if (resultItem.payload instanceof TransferBikeTransit) {
                 printBikeTransitRow(out, (TransferBikeTransit) resultItem.payload, detailUrl);
-            } else {
+            } 
+            else {
                 printTransferRow(out, (TransferPath) resultItem.payload, detailUrl);
             }
 
@@ -132,7 +200,6 @@ public class RouteSearchView {
 
         out.println("</table></div></div><br/>");
     }
-
 
 // -------- 便利メソッド --------
 

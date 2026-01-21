@@ -262,6 +262,9 @@ public class RouteDetailView {
         out.println("</body></html>");
     }
 
+
+// -------- 便利メソッド --------
+
     public static String chipLine(String routeName, String routeColor) {
         if (routeName == null || routeName.trim().isEmpty())
             return "";
@@ -269,25 +272,21 @@ public class RouteDetailView {
         return "<span class=\"chip line\" style=\"--line:" + c + "\"><span class=\"dot\"></span>"
                 + esc(routeName) + "</span>";
     }
-
     public static String chipTrip(String tripName) {
         if (tripName == null || tripName.trim().isEmpty())
             return "";
         return "<span class=\"chip trip\">便名 " + esc(tripName) + "</span>";
     }
-
     public static String chipInfo(String text) {
         if (text == null || text.trim().isEmpty())
             return "";
         return "<span class=\"chip info\">" + esc(text) + "</span>";
     }
-
     public static String chipContact(String contact) {
         if (contact == null || contact.trim().isEmpty())
             return "";
         return "<span class=\"chip contact\">連絡先 " + esc(contact) + "</span>";
     }
-
     public static void printStep(PrintWriter out, String kind, String mainHtml, String metaHtml) {
         out.println("<div class=\"step\">"
                 + "<span class=\"kind\">" + esc(kind) + "</span>"
@@ -295,7 +294,6 @@ public class RouteDetailView {
                 + "<span class=\"meta\">" + metaHtml + "</span>"
                 + "</div>");
     }
-
     public static String summaryItem(String label, String value, String sub) {
         StringBuilder sb = new StringBuilder();
         sb.append("<div class=\"summary-item\">");
@@ -307,7 +305,6 @@ public class RouteDetailView {
         sb.append("</div>");
         return sb.toString();
     }
-
     public static void printWalk (WalkPath w, PrintWriter out, String arrow) {
         if(!isZeroWalk(w)) {
             String main = esc(w.fromName) + arrow + esc(w.toName);

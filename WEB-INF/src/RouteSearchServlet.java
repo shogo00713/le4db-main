@@ -46,7 +46,7 @@ public class RouteSearchServlet extends HttpServlet {
     }
 
 
-    // メインの関数 (doGet)
+    // doGet
     protected void doGet(HttpServletRequest request, HttpServletResponse response)throws ServletException, IOException {
 
         // 詳細ページに飛ぶ場合
@@ -59,8 +59,16 @@ public class RouteSearchServlet extends HttpServlet {
         // ルート検索の要求を取ってくる
         RouteRequest rr = parseRequest(request);
 
-        response.setContentType("text/html;charset=UTF-8"); // 返すのはHTML
+        response.setContentType("text/html;charset=UTF-8");
         PrintWriter out = response.getWriter();
+
+        // セッションは候補選択の再表示にも使うため早めに取得
+        HttpSession session = request.getSession();
+
+        CandidateSelectionResult persistedCandidateSelection =
+            (CandidateSelectionResult) session.getAttribute("lastCandidateSelection");
+        String persistedCandidateKey = (String) session.getAttribute("lastCandidateSelectionKey");
+        String currentCandidateKey = rr.originStop + "->" + rr.destStop;
 
         // フォームでやり取りするパラメータを変数として簡単に扱えるように
         String originstop    = rr.originStop;
@@ -71,51 +79,69 @@ public class RouteSearchServlet extends HttpServlet {
         Integer originstopid = rr.originStopId;
         Integer deststopid   = rr.destStopId;
         String baseTime      = rr.baseTime;
+        String alertMsg = rr.hasError() ? rr.errorMessage : null;
 
+        // ==========================================================================
 
         // -------- head --------
         HtmlLayout.renderHead(out, request, "RouteSearch", "page-route-search");
 
-        // ==================================
+        // ==========================================================================
 
         // -------- header --------
         RouteSearchView.renderHeader(out, request, "マルチモーダル路線検索", "page-route-search");
 
         // -------- リクエスト入力 --------
-        RouteSearchView.renderSearchForm(out, request, originstop, deststop, day, timemode, timevalue);
+        RouteSearchView.renderSearchForm(out, request, originstop, deststop, day, timemode, timevalue, alertMsg);
 
         // 入力が揃っていない場合はここで終了
         if (rr.hasError()) {
-            out.println("<p>" + esc(rr.errorMessage) + "</p>");
-            out.println("</body>");
-            out.println("</html>");
-            return;
+        HtmlLayout.renderFoot(out);
+        return;
         }
 
-        HttpSession session = request.getSession();
-
-        // --------- 候補選択処理 ---------
+        // --------- 停留所候補選択 ---------
         try {
+            CandidateSelectionResult candResult = selectCandidates(originstop, deststop, originstopid, deststopid);
 
-            CandidateSelectionResult candResult;
-
-            // --------- 停留所候補選択 ---------
-            candResult = selectCandidates(request, out, originstop, deststop, originstopid, deststopid, day, timemode, timevalue);
-            
-            if (candResult.shouldReturn) return;
-                originstopid = candResult.originstopid;
-                deststopid   = candResult.deststopid;
-
+            if (candResult.status == CandidateSelectionResult.Status.NOT_FOUND) {
+                session.removeAttribute("lastCandidateSelection");
+                session.removeAttribute("lastCandidateSelectionKey");
+                out.println("<p class=\"alert\">" + esc(candResult.message) + "</p>");
+                HtmlLayout.renderFoot(out);
+                return;
+            }
+            if (candResult.status == CandidateSelectionResult.Status.NEED_CHOICE) {
+                session.setAttribute("lastCandidateSelection", candResult);
+                session.setAttribute("lastCandidateSelectionKey", currentCandidateKey);
+                RouteSearchView.renderCandidateSelectionForm(out, request, rr, candResult);
+                HtmlLayout.renderFoot(out);
+                return;
+            }
+            // 候補選択が完了したので古い候補一覧は破棄
+            if (persistedCandidateSelection != null && !currentCandidateKey.equals(persistedCandidateKey)) {
+                session.removeAttribute("lastCandidateSelection");
+                session.removeAttribute("lastCandidateSelectionKey");
+                persistedCandidateSelection = null;
+            }
+            originstopid = candResult.originStopId;
+            deststopid   = candResult.destStopId;
         } catch (Exception e) {
             out.println("<pre>候補選択エラー: " + esc(String.valueOf(e)) + "</pre>");
             e.printStackTrace();
+            HtmlLayout.renderFoot(out);
             return;
         }
 
+        // 候補選択フォームを結果表示と一緒に表示したい場合は、前回の候補一覧を再描画
+        if (persistedCandidateSelection != null && currentCandidateKey.equals(persistedCandidateKey)  && persistedCandidateSelection.status == CandidateSelectionResult.Status.NEED_CHOICE) {
+            persistedCandidateSelection.originStopId = originstopid;
+            persistedCandidateSelection.destStopId = deststopid;
+            RouteSearchView.renderCandidateSelectionForm(out, request, rr, persistedCandidateSelection);
+        }
 
+        // -------- 経路探索 --------
         try {
-
-            // -------- 経路検索 --------
             RouteResult routeResult = executeSearch(originstopid, deststopid, day, baseTime, session);
             
             // 検索結果をセッションに保存
@@ -128,11 +154,34 @@ public class RouteSearchServlet extends HttpServlet {
         } catch (Exception e) {
             out.println("<pre>検索エラー: " + esc(String.valueOf(e)) + "</pre>");
             e.printStackTrace();
+            HtmlLayout.renderFoot(out);
             return;
         }
 
+        // ==========================================================================
+
         // -------- foot --------
         HtmlLayout.renderFoot(out);
+    }
+
+        // ==========================================================================
+
+    @Override
+    protected void doPost(HttpServletRequest request, HttpServletResponse response) throws ServletException, IOException {
+
+        // POSTで受け取ったパラメータをGETクエリに詰め直してリダイレクト
+        String ctx = request.getContextPath();
+
+        String qs =
+            "originstop="    + java.net.URLEncoder.encode(nvl(request.getParameter("originstop")),   "UTF-8") +
+            "&deststop="     + java.net.URLEncoder.encode(nvl(request.getParameter("deststop")),     "UTF-8") +
+            "&day="          + java.net.URLEncoder.encode(nvl(request.getParameter("day")),          "UTF-8") +
+            "&time_mode="    + java.net.URLEncoder.encode(nvl(request.getParameter("time_mode")),    "UTF-8") +
+            "&time_val="     + java.net.URLEncoder.encode(nvl(request.getParameter("time_val")),     "UTF-8") +
+            "&originstopid=" + java.net.URLEncoder.encode(nvl(request.getParameter("originstopid")), "UTF-8") +
+            "&deststopid="   + java.net.URLEncoder.encode(nvl(request.getParameter("deststopid")),   "UTF-8");
+
+        response.sendRedirect(ctx + "/routesearch?" + qs);
     }
 
     // --------------- メインメソッド系 ---------------
@@ -191,92 +240,45 @@ public class RouteSearchServlet extends HttpServlet {
     }
 
     // 候補選択処理メソッド
-    private CandidateSelectionResult selectCandidates(HttpServletRequest request, PrintWriter out, 
-            String originstop, String deststop, Integer originstopid, Integer deststopid, 
-            String day, String timemode, String timevalue) throws Exception {
-        
-        CandidateSelectionResult result = new CandidateSelectionResult();
-        result.originstopid             = originstopid;
-        result.deststopid               = deststopid;
-        result.shouldReturn             = false;
-        Connection conn                 = null;
-        try {
-            conn = DatabaseConfig.getConnection();
+    private CandidateSelectionResult selectCandidates(
+            String originstop, String deststop,
+            Integer originstopid, Integer deststopid) throws Exception {
 
-            // 地点候補を入れるためのリスト
-            List<Stop> originCandidates = new ArrayList<>();
-            List<Stop> destCandidates = new ArrayList<>();
+        CandidateSelectionResult r = new CandidateSelectionResult();
+        r.originStopId = originstopid;
+        r.destStopId   = deststopid;
 
-            // 決まっていないなら候補を探索
-            if (originstopid == null) originCandidates = StopQueries.findByName(conn, originstop, 10);
-            if (deststopid == null) destCandidates     = StopQueries.findByName(conn, deststop, 10);
+        try (Connection conn = DatabaseConfig.getConnection()) {
 
-            // 0件なら終了
-            if ((originstopid == null && originCandidates.isEmpty()) || (deststopid == null && destCandidates.isEmpty())) {
-                out.println("<p class=\"alert\">出発地 / 目的地が見つかりませんでした</p>");
-                out.println("</div></div></body></html>");
-                result.shouldReturn = true;
-                return result;
+            if (r.originStopId == null) r.originCandidates = StopQueries.findByName(conn, originstop, 10);
+            if (r.destStopId   == null) r.destCandidates   = StopQueries.findByName(conn, deststop, 10);
+
+            // 0件（見つからない）
+            if ((r.originStopId == null && r.originCandidates.isEmpty()) ||
+                (r.destStopId   == null && r.destCandidates.isEmpty())) {
+                r.status = CandidateSelectionResult.Status.NOT_FOUND;
+                r.message = "出発地 / 目的地が見つかりませんでした";
+                return r;
             }
 
             // 1件なら自動確定
-            if (originstopid == null && originCandidates.size() == 1) originstopid = originCandidates.get(0).id;
-            if (deststopid == null && destCandidates.size() == 1) deststopid = destCandidates.get(0).id;
+            if (r.originStopId == null && r.originCandidates.size() == 1) r.originStopId = r.originCandidates.get(0).id;
+            if (r.destStopId   == null && r.destCandidates.size()   == 1) r.destStopId   = r.destCandidates.get(0).id;
 
-            // 複数件なら候補選択画面を表示
-            if (originstopid == null || deststopid == null) {
-                out.println("<div class=\"alert\">候補が複数あります. 以下から選択してください.</div>");
-                out.println("<form class=\"form\" action=\"routesearch\" method=\"GET\">");
+            // まだ未確定なら選択が必要
+            if (r.originStopId == null || r.destStopId == null) {
+                r.status = CandidateSelectionResult.Status.NEED_CHOICE;
 
-                out.println("<input type=\"hidden\" name=\"originstop\" value=\"" + esc(originstop) + "\"/>");
-                out.println("<input type=\"hidden\" name=\"deststop\" value=\"" + esc(deststop) + "\"/>");
-                out.println("<input type=\"hidden\" name=\"day\" value=\"" + esc(day) + "\"/>");
-                out.println("<input type=\"hidden\" name=\"time_mode\" value=\"" + esc(timemode) + "\"/>");
-                out.println("<input type=\"hidden\" name=\"time_val\" value=\"" + esc(timevalue) + "\"/>");
+                // 確定済み側があるなら表示用に拾う（任意）
+                if (r.originStopId != null) r.fixedOriginStop = StopQueries.getStopById(conn, r.originStopId);
+                if (r.destStopId   != null) r.fixedDestStop   = StopQueries.getStopById(conn, r.destStopId);
 
-                // 出発地選択
-                if (originstopid != null) {
-                    out.println("<input type=\"hidden\" name=\"originstopid\" value=\"" + originstopid + "\"/>");
-                Stop fixedoriginStop = StopQueries.getStopById(conn, originstopid);
-                    if (fixedoriginStop != null) {
-                        out.println("<div class=\"field\"><label class=\"label\">出発 (確定)</label>");
-                        out.println("<div class=\"fixed\">" + esc(fixedoriginStop.name) + " (" + esc(fixedoriginStop.type) + ")</div></div>");
-                    }
-                } else {
-                    out.println("<div class=\"field\"><label class=\"label\" for=\"originstopid\">出発 (候補)</label>");
-                    out.println("<select class=\"select\" id=\"originstopid\" name=\"originstopid\">");
-                    for (Stop c : originCandidates) out.println("<option value=\"" + c.id + "\">" + esc(c.name) + " (" + esc(c.type) + ")</option>");
-                    out.println("</select></div>");
-                }
-
-                // 目的地選択
-                if (deststopid != null) {
-                    out.println("<input type=\"hidden\" name=\"deststopid\" value=\"" + deststopid + "\"/>");
-                    Stop fixedDestStop = StopQueries.getStopById(conn, deststopid);
-                    if (fixedDestStop != null) {
-                        out.println("<div class=\"field\"><label class=\"label\">到着 (確定)</label>");
-                        out.println("<div class=\"fixed\">" + esc(fixedDestStop.name) + " (" + esc(fixedDestStop.type) + ")</div></div>");
-                    }
-                } else {
-                    out.println("<div class=\"field\"><label class=\"label\" for=\"deststopid\">到着 (候補)</label>");
-                    out.println("<select class=\"select\" id=\"deststopid\" name=\"deststopid\">");
-                    for (Stop c : destCandidates) out.println("<option value=\"" + c.id + "\">" + esc(c.name) + " (" + esc(c.type) + ")</option>");
-                    out.println("</select></div>");
-                }
-
-                out.println("<div class=\"actions\"><input class=\"btn\" type=\"submit\" value=\"この候補で検索\"/></div></form>");
-                result.shouldReturn = true;
-                return result;
+                return r;
             }
 
-            result.originstopid = originstopid;
-            result.deststopid   = deststopid;
-
-        } finally {
-            if (conn != null) conn.close();
+            r.status = CandidateSelectionResult.Status.OK;
+            return r;
         }
-
-        return result;
     }
 
     // メイン検索処理メソッド
@@ -369,9 +371,8 @@ public class RouteSearchServlet extends HttpServlet {
             // 早い順にソート
             bikeDirectCandidates.sort(Comparator.comparing((BikeDirectPlan p) -> LocalTime.parse(p.endTime)).thenComparingInt(p -> p.totalMin));
 
-            if(bikeDirectCandidates.size() > BIKE_DIRECT_LIMIT) {
-                bikeDirectCandidates = bikeDirectCandidates.subList(0, BIKE_DIRECT_LIMIT);
-            }
+            if(bikeDirectCandidates.size() > BIKE_DIRECT_LIMIT) bikeDirectCandidates = bikeDirectCandidates.subList(0, BIKE_DIRECT_LIMIT);
+            for (BikeDirectPlan bp : bikeDirectCandidates) result.results.add(new ResultItem(0, bp.endTime, bp.totalMin, "",bp));
 
 
 
@@ -711,6 +712,5 @@ public class RouteSearchServlet extends HttpServlet {
             } catch (SQLException e) {}
         }
     }
-
 
 }
