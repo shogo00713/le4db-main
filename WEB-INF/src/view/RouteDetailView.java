@@ -161,7 +161,6 @@ public class RouteDetailView {
         out.println("</div>");
         out.println("</div>");
 
-        // ★ contextPath を付ける（今の '/static/..' だと環境によって壊れる）
         out.println("<script src='" + req.getContextPath() + "/static/bike-reservation.js'></script>");
         out.println("<script>");
         out.println("initBikeReservation({");

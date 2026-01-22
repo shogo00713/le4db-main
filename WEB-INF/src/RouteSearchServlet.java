@@ -78,9 +78,9 @@ public class RouteSearchServlet extends HttpServlet {
         // フォームでやり取りするパラメータを変数として簡単に扱えるように
         String originstop    = rr.originStop;
         String deststop      = rr.destStop;
-        String day           = rr.day;
-        String timemode      = rr.timeMode;
-        String timevalue     = rr.timeValue;
+        String dayType       = rr.dayType;
+        String timeType      = rr.timeType;
+        String time          = rr.time;
         Integer originstopid = rr.originStopId;
         Integer deststopid   = rr.destStopId;
         String baseTime      = rr.baseTime;
@@ -97,7 +97,7 @@ public class RouteSearchServlet extends HttpServlet {
         RouteSearchView.renderHeader(out, request, "マルチモーダル路線検索", "page-route-search");
 
         // -------- リクエスト入力 --------
-        RouteSearchView.renderSearchForm(out, request, originstop, deststop, day, timemode, timevalue, alertMsg);
+        RouteSearchView.renderSearchForm(out, request, originstop, deststop, dayType, timeType, time, alertMsg);
 
         // 入力が揃っていない場合はここで終了
         if (rr.hasError()) {
@@ -147,7 +147,7 @@ public class RouteSearchServlet extends HttpServlet {
 
         // -------- 経路探索 --------
         try {
-            RouteResult routeResult = executeSearch(originstopid, deststopid, day, baseTime);
+            RouteResult routeResult = executeSearch(originstopid, deststopid, dayType, baseTime);
             
             // 検索結果をセッションに保存
             session.setAttribute("lastOriginStopName", routeResult.lastOriginStopName);
@@ -183,13 +183,13 @@ public class RouteSearchServlet extends HttpServlet {
         String ctx = request.getContextPath();
 
         String qs =
-            "originstop="    + java.net.URLEncoder.encode(nvl(request.getParameter("originstop")),   "UTF-8") +
-            "&deststop="     + java.net.URLEncoder.encode(nvl(request.getParameter("deststop")),     "UTF-8") +
-            "&day="          + java.net.URLEncoder.encode(nvl(request.getParameter("day")),          "UTF-8") +
-            "&time_mode="    + java.net.URLEncoder.encode(nvl(request.getParameter("time_mode")),    "UTF-8") +
-            "&time_val="     + java.net.URLEncoder.encode(nvl(request.getParameter("time_val")),     "UTF-8") +
-            "&originstopid=" + java.net.URLEncoder.encode(nvl(request.getParameter("originstopid")), "UTF-8") +
-            "&deststopid="   + java.net.URLEncoder.encode(nvl(request.getParameter("deststopid")),   "UTF-8");
+            "originStop="    + java.net.URLEncoder.encode(nvl(request.getParameter("originStop")),   "UTF-8") +
+            "&destStop="     + java.net.URLEncoder.encode(nvl(request.getParameter("destStop")),     "UTF-8") +
+            "&dayType="      + java.net.URLEncoder.encode(nvl(request.getParameter("dayType")),      "UTF-8") +
+            "&timeType="     + java.net.URLEncoder.encode(nvl(request.getParameter("timeType")),     "UTF-8") +
+            "&time="         + java.net.URLEncoder.encode(nvl(request.getParameter("time")),         "UTF-8") +
+            "&originStopId=" + java.net.URLEncoder.encode(nvl(request.getParameter("originStopId")), "UTF-8") +
+            "&destStopId="   + java.net.URLEncoder.encode(nvl(request.getParameter("destStopId")),   "UTF-8");
 
         response.sendRedirect(ctx + "/routesearch?" + qs);
     }
@@ -201,18 +201,18 @@ public class RouteSearchServlet extends HttpServlet {
 
         RouteRequest rr = new RouteRequest();
 
-        rr.originStop   = nvl(request.getParameter("originstop"));
-        rr.destStop     = nvl(request.getParameter("deststop"));
-        rr.timeMode     = nvl(request.getParameter("time_mode"));
-        rr.timeValue    = nvl(request.getParameter("time_val"));
-        rr.day          = nvl(request.getParameter("day"));
+        rr.originStop   = nvl(request.getParameter("originStop"));
+        rr.destStop     = nvl(request.getParameter("destStop"));
+        rr.timeType     = nvl(request.getParameter("timeType"));
+        rr.time         = nvl(request.getParameter("time"));
+        rr.dayType          = nvl(request.getParameter("dayType"));
         
-        String originStopIdStr = nvl(request.getParameter("originstopid"));
-        String destStopIdStr   = nvl(request.getParameter("deststopid"));
+        String originStopIdStr = nvl(request.getParameter("originStopId"));
+        String destStopIdStr   = nvl(request.getParameter("destStopId"));
 
         // デフォルト値設定
-        if (rr.timeMode == null || rr.timeMode.isEmpty()) rr.timeMode = "now";
-        if (rr.day == null || rr.day.isEmpty()) rr.day = "平日";
+        if (rr.timeType == null || rr.timeType.isEmpty()) rr.timeType = "now";
+        if (rr.dayType == null || rr.dayType.isEmpty()) rr.dayType = "weekday";
 
         // String -> Integer 変換
         if (originStopIdStr != null && !originStopIdStr.isEmpty()) {
@@ -235,14 +235,14 @@ public class RouteSearchServlet extends HttpServlet {
             rr.errorMessage = "出発地 / 目的地を入力してください";
             return rr;
         }
-        if ("spec".equals(rr.timeMode) && (rr.timeValue == null || rr.timeValue.isEmpty())) {
+        if ("spec".equals(rr.timeType) && (rr.time == null || rr.time.isEmpty())) {
             rr.errorMessage = "指定時刻を入力してください";
             return rr;
         }
 
         // baseTimeに統一
-        if ("spec".equals(rr.timeMode) && rr.timeValue != null && !rr.timeValue.isEmpty()) {
-            rr.baseTime = rr.timeValue;
+        if ("spec".equals(rr.timeType) && rr.time != null && !rr.time.isEmpty()) {
+            rr.baseTime = rr.time;
         } else {
             rr.baseTime = now();
         }
@@ -250,17 +250,17 @@ public class RouteSearchServlet extends HttpServlet {
     }
 
     // 候補選択処理メソッド
-    private CandidateSelectionResult selectCandidates(String originstop, String deststop,
-            Integer originstopid, Integer deststopid) throws Exception {
+    private CandidateSelectionResult selectCandidates(String originStop, String destStop,
+            Integer originStopId, Integer destStopId) throws Exception {
 
         CandidateSelectionResult r = new CandidateSelectionResult();
-        r.originStopId = originstopid;
-        r.destStopId   = deststopid;
+        r.originStopId = originStopId;
+        r.destStopId   = destStopId;
 
         try (Connection conn = DatabaseConfig.getConnection()) {
 
-            if (r.originStopId == null) r.originCandidates = StopQueries.findByName(conn, originstop, 10);
-            if (r.destStopId   == null) r.destCandidates   = StopQueries.findByName(conn, deststop, 10);
+            if (r.originStopId == null) r.originCandidates = StopQueries.findByName(conn, originStop, 10);
+            if (r.destStopId   == null) r.destCandidates   = StopQueries.findByName(conn, destStop, 10);
 
             // 0件（見つからない）
             if ((r.originStopId == null && r.originCandidates.isEmpty()) ||
@@ -290,7 +290,7 @@ public class RouteSearchServlet extends HttpServlet {
     }
 
     // メイン検索処理メソッド
-    private RouteResult executeSearch(Integer originstopid, Integer deststopid, String day, String baseTime) throws Exception {
+    private RouteResult executeSearch(Integer originStopId, Integer destStopId, String dayType, String baseTime) throws Exception {
         RouteResult result = new RouteResult();
         
         Connection conn      = null;
@@ -301,8 +301,8 @@ public class RouteSearchServlet extends HttpServlet {
             conn = DatabaseConfig.getConnection();
             
             // 出発地/目的地 を確定 -> その検索に入る
-            result.originStop = StopQueries.getStopById(conn, originstopid);
-            result.destStop   = StopQueries.getStopById(conn, deststopid);
+            result.originStop = StopQueries.getStopById(conn, originStopId);
+            result.destStop   = StopQueries.getStopById(conn, destStopId);
 
             // セッションに最後に使った停留所名を保存
             result.lastOriginStopName = result.originStop != null ? result.originStop.name : "";
@@ -313,8 +313,8 @@ public class RouteSearchServlet extends HttpServlet {
 
 
             // 出発地 / 目的地 の近くの停留所を探索
-            result.stopsNearOrigin = StopQueries.getNearByStops(conn, originstopid, FROM_RADIUS_M, NEAR_LIMIT);
-            result.stopsNearDest   = StopQueries.getNearByStops(conn, deststopid, TO_RADIUS_M, NEAR_LIMIT);
+            result.stopsNearOrigin = StopQueries.getNearByStops(conn, originStopId, FROM_RADIUS_M, NEAR_LIMIT);
+            result.stopsNearDest   = StopQueries.getNearByStops(conn, destStopId, TO_RADIUS_M, NEAR_LIMIT);
 
             // 出発地 / 目的地 の近くのポートを探索
             result.portsNearOrigin = PortQueries.getNearByPorts(conn, result.originStop.lat, result.originStop.lon, FROM_RADIUS_M, PORT_LIMIT, true, false);
@@ -392,7 +392,7 @@ public class RouteSearchServlet extends HttpServlet {
                 // 目的地近くの停留所候補に対して
                 for (NearByStops alightStop : result.stopsNearDest) {
 
-                    List<TransitPath> directPathCandidates = TransitQueries.searchDirectTransit(conn, boardStop.stopId, alightStop.stopId, arrivalTimeToBoardStop, day, 1);
+                    List<TransitPath> directPathCandidates = TransitQueries.searchDirectTransit(conn, boardStop.stopId, alightStop.stopId, arrivalTimeToBoardStop, dayType, 1);
                     if (directPathCandidates.isEmpty()) continue;
                     TransitPath leg = directPathCandidates.get(0);
 
@@ -430,12 +430,12 @@ public class RouteSearchServlet extends HttpServlet {
                 String arrivalTimeTo1BoardStop = addMinutes(baseTime, walkTo1BoardStopMin);
                 WalkPath walkTo1BoardStop      = new WalkPath(result.originStop.name, firstBoardStop.name, firstBoardStop.distance, walkTo1BoardStopMin);
 
-                List<Stop> firstAlightStopCandidates = StopQueries.listTransferCandidates(conn, firstBoardStop.stopId, arrivalTimeTo1BoardStop, day, MID_LIMIT);
+                List<Stop> firstAlightStopCandidates = StopQueries.listTransferCandidates(conn, firstBoardStop.stopId, arrivalTimeTo1BoardStop, dayType, MID_LIMIT);
 
                 // 乗換降車停留所候補に対して
                 for (Stop firstAlightStop : firstAlightStopCandidates) {
 
-                    List<TransitPath> leg1Candidates = TransitQueries.searchDirectTransit(conn, firstBoardStop.stopId, firstAlightStop.id, arrivalTimeTo1BoardStop, day, 1);
+                    List<TransitPath> leg1Candidates = TransitQueries.searchDirectTransit(conn, firstBoardStop.stopId, firstAlightStop.id, arrivalTimeTo1BoardStop, dayType, 1);
                     if (leg1Candidates.isEmpty()) continue;
                     TransitPath leg1 = leg1Candidates.get(0);
 
@@ -454,7 +454,7 @@ public class RouteSearchServlet extends HttpServlet {
                         // 目的地近くの停留所候補に対して
                         for (NearByStops secondAlightStop : result.stopsNearDest) {
 
-                            List<TransitPath> leg2Candidates = TransitQueries.searchDirectTransit(conn, secondBoardStop.stopId, secondAlightStop.stopId, arrivalTimeToSecondBoardStop, day, 1);
+                            List<TransitPath> leg2Candidates = TransitQueries.searchDirectTransit(conn, secondBoardStop.stopId, secondAlightStop.stopId, arrivalTimeToSecondBoardStop, dayType, 1);
                             if (leg2Candidates.isEmpty()) continue;
                             TransitPath leg2 = leg2Candidates.get(0);
 
@@ -498,12 +498,12 @@ public class RouteSearchServlet extends HttpServlet {
                 String arrivalTimeToBoardStop = addMinutes(baseTime, walkToBoardStopMin);
                 WalkPath walkToBoardStop      = new WalkPath(result.originStop.name, boardStop.name, boardStop.distance, walkToBoardStopMin);
 
-                List<Stop> firstAlightStopCandidates = StopQueries.listTransferCandidates(conn, boardStop.stopId, arrivalTimeToBoardStop, day, MID_LIMIT);
+                List<Stop> firstAlightStopCandidates = StopQueries.listTransferCandidates(conn, boardStop.stopId, arrivalTimeToBoardStop, dayType, MID_LIMIT);
 
                 // 乗換降車停留所候補に対して
                 for (Stop firstAlightStop : firstAlightStopCandidates) {
 
-                    List<TransitPath> leg1Candidates = TransitQueries.searchDirectTransit(conn, boardStop.stopId, firstAlightStop.id, arrivalTimeToBoardStop, day, 1);
+                    List<TransitPath> leg1Candidates = TransitQueries.searchDirectTransit(conn, boardStop.stopId, firstAlightStop.id, arrivalTimeToBoardStop, dayType, 1);
                     if (leg1Candidates.isEmpty()) continue;
                     TransitPath leg1 = leg1Candidates.get(0);
 
@@ -573,7 +573,7 @@ public class RouteSearchServlet extends HttpServlet {
                 for (Stop boardStop : boardStopCandidates) {
                     boolean ok = false;
                     for (NearByStops nsto : nearDestTop) {
-                        if (!TransitQueries.searchDirectTransit(conn, boardStop.id, nsto.stopId, baseTime, day, 1).isEmpty()) {
+                        if (!TransitQueries.searchDirectTransit(conn, boardStop.id, nsto.stopId, baseTime, dayType, 1).isEmpty()) {
                             ok = true;
                             break;
                         }
@@ -630,7 +630,7 @@ public class RouteSearchServlet extends HttpServlet {
 
                         // 目的地近くの停留所候補に対して
                         for (NearByStops alightStop : destStopsForBT) {
-                            List<TransitPath> leg2Candidates = TransitQueries.searchDirectTransit(conn, boardstop.id, alightStop.stopId, transitDepartTime, day, 1);
+                            List<TransitPath> leg2Candidates = TransitQueries.searchDirectTransit(conn, boardstop.id, alightStop.stopId, transitDepartTime, dayType, 1);
                             if (leg2Candidates.isEmpty()) continue;
                             TransitPath leg2 = leg2Candidates.get(0);
 

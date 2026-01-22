@@ -43,8 +43,8 @@ public class RouteSearchView {
     }
 
     // 検索フォーム
-    public static void renderSearchForm(PrintWriter out, HttpServletRequest request, String originstop, String deststop,
-                                        String day, String timemode, String timevalue, String alertMsg) {
+    public static void renderSearchForm(PrintWriter out, HttpServletRequest request, String originStop, String destStop,
+                                        String dayType, String timeType, String time, String alertMsg) {
         
         String ctx = request.getContextPath();
 
@@ -53,36 +53,36 @@ public class RouteSearchView {
 
         // (1) 出発地 / 目的地 => originstop / deststop
         out.println("<div class=\"field\">");
-        out.println("<label class=\"label\" for=\"from_stop\">出発</label>");
-        out.println("<input class=\"input\" id=\"from_stop\" type=\"text\" name=\"originstop\" placeholder=\"例 : 京都駅\" value=\"" + esc(originstop) + "\"/>");
+        out.println("<label class=\"label\" for=\"originStop\">出発</label>");
+        out.println("<input class=\"input\" id=\"originStop\" type=\"text\" name=\"originStop\" placeholder=\"例 : 京都駅\" value=\"" + esc(originStop) + "\"/>");
         out.println("</div>");
         out.println("<div class=\"field\">");
-        out.println("<label class=\"label\" for=\"to_stop\">到着</label>");
-        out.println("<input class=\"input\" id=\"to_stop\" type=\"text\" name=\"deststop\" placeholder=\"例 : 三条駅\" value=\"" + esc(deststop) + "\"/>");
+        out.println("<label class=\"label\" for=\"destStop\">到着</label>");
+        out.println("<input class=\"input\" id=\"destStop\" type=\"text\" name=\"destStop\" placeholder=\"例 : 三条駅\" value=\"" + esc(destStop) + "\"/>");
         out.println("</div>");
 
         // (2) 運行日 => day
         out.println("<div class=\"field\">");
-        out.println("<label class=\"label\" for=\"day\">運行日</label>");
-        out.println("<select class=\"select\" id=\"day\" name=\"day\">");
-        out.println(option("平日", "平日", day));
-        out.println(option("休日", "休日", day));
+        out.println("<label class=\"label\" for=\"dayType\">運行日</label>");
+        out.println("<select class=\"select\" id=\"dayType\" name=\"dayType\">");
+        out.println(option("weekday", "平日", dayType));
+        out.println(option("holiday", "休日", dayType));
         out.println("</select>");
         out.println("</div>");
 
         // (3) 時刻指定選択 => time_mode
         out.println("<div class=\"field\">");
-        out.println("<label class=\"label\" for=\"time_mode\">時刻条件</label>");
-        out.println("<select class=\"select\" id=\"time_mode\" name=\"time_mode\">");
-        out.println(option("now", "現在時刻", timemode));
-        out.println(option("spec", "指定時刻", timemode));
+        out.println("<label class=\"label\" for=\"timeType\">時刻条件</label>");
+        out.println("<select class=\"select\" id=\"timeType\" name=\"timeType\">");
+        out.println(option("now", "現在時刻", timeType));
+        out.println(option("spec", "指定時刻", timeType));
         out.println("</select>");
         out.println("</div>");
 
         // (4) 時刻選択 time_val
         out.println("<div class=\"field\">");
-        out.println("<label class=\"label\" for=\"time_val\">指定時刻（時刻条件=指定時刻のとき）</label>");
-        out.println("<input class=\"input\" id=\"time_val\" type=\"time\" name=\"time_val\" value=\"" + esc(timevalue) + "\"/>");
+        out.println("<label class=\"label\" for=\"time\">指定時刻（時刻条件=指定時刻のとき）</label>");
+        out.println("<input class=\"input\" id=\"time\" type=\"time\" name=\"time\" value=\"" + esc(time) + "\"/>");
         out.println("</div>");
 
         // 検索ボタン
@@ -110,11 +110,11 @@ public class RouteSearchView {
         out.println("<form class=\"form\" action=\"" + ctx + "/routesearch\" method=\"POST\">");
 
         // 元の検索パラメータをhiddenで引き継ぐ
-        out.println("<input type=\"hidden\" name=\"originstop\" value=\"" + esc(rr.originStop) + "\"/>");
-        out.println("<input type=\"hidden\" name=\"deststop\" value=\"" + esc(rr.destStop) + "\"/>");
-        out.println("<input type=\"hidden\" name=\"day\" value=\"" + esc(rr.day) + "\"/>");
-        out.println("<input type=\"hidden\" name=\"time_mode\" value=\"" + esc(rr.timeMode) + "\"/>");
-        out.println("<input type=\"hidden\" name=\"time_val\" value=\"" + esc(rr.timeValue) + "\"/>");
+        out.println("<input type=\"hidden\" name=\"originStop\" value=\"" + esc(rr.originStop) + "\"/>");
+        out.println("<input type=\"hidden\" name=\"destStop\" value=\"" + esc(rr.destStop) + "\"/>");
+        out.println("<input type=\"hidden\" name=\"dayType\" value=\"" + esc(rr.dayType) + "\"/>");
+        out.println("<input type=\"hidden\" name=\"timeType\" value=\"" + esc(rr.timeType) + "\"/>");
+        out.println("<input type=\"hidden\" name=\"time\" value=\"" + esc(rr.time) + "\"/>");
 
         boolean hasOriginList = candResult.originCandidates != null && !candResult.originCandidates.isEmpty();
         boolean hasDestList = candResult.destCandidates != null && !candResult.destCandidates.isEmpty();
@@ -122,8 +122,8 @@ public class RouteSearchView {
         // 出発地
         if (hasOriginList && candResult.originCandidates.size() > 1) {
             // 複数候補がある場合はドロップダウン
-            out.println("<div class=\"field\"><label class=\"label\" for=\"originstopid\">出発地 (候補)</label>");
-            out.println("<select class=\"select\" id=\"originstopid\" name=\"originstopid\">");
+            out.println("<div class=\"field\"><label class=\"label\" for=\"originStopId\">出発地 (候補)</label>");
+            out.println("<select class=\"select\" id=\"originStopId\" name=\"originStopId\">");
             for (Stop s : candResult.originCandidates) {
                 String selected = (candResult.originStopId != null && candResult.originStopId.equals(s.id)) ? " selected" : "";
                 out.println("<option value=\"" + s.id + "\"" + selected + ">" + esc(s.name) + " (" + esc(s.type) + ")</option>");
@@ -132,11 +132,11 @@ public class RouteSearchView {
         } else if (hasOriginList && candResult.originCandidates.size() == 1) {
             // 候補が1件のみの場合は確定として表示
             Stop single = candResult.originCandidates.get(0);
-            out.println("<input type=\"hidden\" name=\"originstopid\" value=\"" + single.id + "\"/>");
+            out.println("<input type=\"hidden\" name=\"originStopId\" value=\"" + single.id + "\"/>");
             out.println("<div class=\"field\"><label class=\"label\">出発地 (確定)</label>");
             out.println("<div class=\"fixed\">" + esc(single.name) + " (" + esc(single.type) + ")</div></div>");
         } else if (candResult.originStopId != null) {
-            out.println("<input type=\"hidden\" name=\"originstopid\" value=\"" + candResult.originStopId + "\"/>");
+            out.println("<input type=\"hidden\" name=\"originStopId\" value=\"" + candResult.originStopId + "\"/>");
             if (candResult.fixedOriginStop != null) {
                 out.println("<div class=\"field\"><label class=\"label\">出発地 (確定)</label>");
                 out.println("<div class=\"fixed\">" + esc(candResult.fixedOriginStop.name) + " (" + esc(candResult.fixedOriginStop.type) + ")</div></div>");
@@ -146,8 +146,8 @@ public class RouteSearchView {
         // 目的地
         if (hasDestList && candResult.destCandidates.size() > 1) {
             // 複数候補がある場合はドロップダウン
-            out.println("<div class=\"field\"><label class=\"label\" for=\"deststopid\">目的地 (候補)</label>");
-            out.println("<select class=\"select\" id=\"deststopid\" name=\"deststopid\">");
+            out.println("<div class=\"field\"><label class=\"label\" for=\"destStopId\">目的地 (候補)</label>");
+            out.println("<select class=\"select\" id=\"destStopId\" name=\"destStopId\">");
             for (Stop s : candResult.destCandidates) {
                 String selected = (candResult.destStopId != null && candResult.destStopId.equals(s.id)) ? " selected" : "";
                 out.println("<option value=\"" + s.id + "\"" + selected + ">" + esc(s.name) + " (" + esc(s.type) + ")</option>");
@@ -156,11 +156,11 @@ public class RouteSearchView {
         } else if (hasDestList && candResult.destCandidates.size() == 1) {
             // 候補が1件のみの場合は確定として表示
             Stop single = candResult.destCandidates.get(0);
-            out.println("<input type=\"hidden\" name=\"deststopid\" value=\"" + single.id + "\"/>");
+            out.println("<input type=\"hidden\" name=\"destStopId\" value=\"" + single.id + "\"/>");
             out.println("<div class=\"field\"><label class=\"label\">目的地 (確定)</label>");
             out.println("<div class=\"fixed\">" + esc(single.name) + " (" + esc(single.type) + ")</div></div>");
         } else if (candResult.destStopId != null) {
-            out.println("<input type=\"hidden\" name=\"deststopid\" value=\"" + candResult.destStopId + "\"/>");
+            out.println("<input type=\"hidden\" name=\"destStopId\" value=\"" + candResult.destStopId + "\"/>");
             if (candResult.fixedDestStop != null) {
                 out.println("<div class=\"field\"><label class=\"label\">目的地 (確定)</label>");
                 out.println("<div class=\"fixed\">" + esc(candResult.fixedDestStop.name) + " (" + esc(candResult.fixedDestStop.type) + ")</div></div>");
