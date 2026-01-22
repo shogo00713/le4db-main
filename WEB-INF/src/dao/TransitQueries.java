@@ -23,6 +23,7 @@ public class TransitQueries {
      * @param limit 取得する結果の最大数
      * @return 見つかった経路のリスト
      */
+    // 停留所候補を選定するときに使用 (SQL文5)
     public static List<TransitPath> searchDirectTransit(Connection conn,
             int fromStopId, int toStopId, String departureTime, 
             String operatingDay, int limit) throws SQLException {

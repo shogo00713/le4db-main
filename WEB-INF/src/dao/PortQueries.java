@@ -23,7 +23,7 @@ public class PortQueries {
      * @throws SQLException
      */
 
-    // 出発/到着地点周辺のポート探索で使用
+    // 出発/到着地点周辺のポート探索で使用 (SQL文4)
     public static List<NearByPorts> getNearByPorts(Connection conn, double centerLat, double centerLon,
             int radiusM, int limit, boolean needBikes, boolean needFreeDocks) throws SQLException {
 

@@ -20,7 +20,7 @@ public class StopQueries {
      * @return 停留所情報、存在しない場合は null
      */
 
-    // 初期の出発/到着停留所の探索で使用
+    // 初期の出発/到着停留所の探索で使用 (SQL文2)
     public static Stop getStopById(Connection conn, int stopId) throws SQLException {
         String sql = "SELECT stop_id, stop_name, stop_type, stop_latitude, stop_longitude " +
                      "FROM stop_information " +
@@ -94,7 +94,7 @@ public class StopQueries {
      * @return 見つかった停留所のリスト
      */
 
-    // 停留所候補を選定するときに使用
+    // 停留所候補を選定するときに使用 (SQL文1)
     public static List<Stop> findByName(Connection conn, String stopName, int limit) throws SQLException {
         String sql = "SELECT stop_id, stop_name, stop_type, stop_latitude, stop_longitude "
                    + "FROM stop_information "
@@ -138,7 +138,7 @@ public class StopQueries {
      * @param limit 取得する結果の最大数
      * @return 見つかった近くの停留所のリスト（距離の近い順）
      */
-    // 初期の出発/到着停留所の探索で使用
+    // 初期の出発/到着停留所の探索で使用 (SQL文3)
     public static List<NearByStops> getNearByStops(Connection conn, int centerStopId, int radiusM, int limit) throws SQLException {
         Stop centerstop = StopQueries.getStopById(conn, centerStopId);
         if (centerstop == null)
@@ -202,7 +202,7 @@ public class StopQueries {
      * @throws SQLException
      */
 
-    // 出発停留所から降りれる停留所を列挙 (part4,5,6で使用)
+    // 出発停留所から降りれる停留所を列挙 (part4,5,6で使用) (SQL文6)
     public static List<Stop> listTransferCandidates(Connection conn, int fromStopId, String baseTime, String day, int limit) throws SQLException {
 
         String sql = ""
