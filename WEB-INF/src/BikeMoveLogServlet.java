@@ -313,7 +313,6 @@ public class BikeMoveLogServlet extends HttpServlet {
         out.println("</div></div></body></html>");
     }
 
-    // POST: 削除不可（以前のDELETEデモは廃止）
     protected void doPost(HttpServletRequest request, HttpServletResponse response)
             throws ServletException, IOException {
         // ===== セッション認証チェック =====

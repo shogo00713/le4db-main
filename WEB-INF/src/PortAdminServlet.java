@@ -85,7 +85,6 @@ public class PortAdminServlet extends HttpServlet {
         }
     }
 
-
     // GET: 一覧表示
     protected void doGet(HttpServletRequest request, HttpServletResponse response)
             throws ServletException, IOException {
@@ -186,7 +185,7 @@ public class PortAdminServlet extends HttpServlet {
 
         out.println("<div class=\"header\">");
         out.println("<div class=\"header-left\">");
-        out.println("<h1 class=\"title\">シェアサイクル管理（ポート一覧）</h1>");
+        out.println("<h1 class=\"title\">シェアサイクル管理 (ポート一覧) </h1>");
         out.println("<p class=\"muted\">事業者: " + esc(sessionOperatorName) + "</p>");
         out.println("<p class=\"muted\">各ポートの自転車台数 (bikes) と空き (free_docks)</p>");
         out.println("</div>");
@@ -197,13 +196,6 @@ public class PortAdminServlet extends HttpServlet {
         out.println("<a class=\"btn2\" href=\"" + ctx + "/portlog\">配車ログ</a>");
         out.println("</div>");
         out.println("</div>"); // header
-
-        // ★ここでは out.println("</div>"); しない！！（カード閉じない）
-
-
-
-        // operator 切替は認証済みユーザーは必ず自分の事業者固定となるため不要
-        // （以下のコードは削除）
 
         out.println("<div class=\"row\">");
 
@@ -227,22 +219,16 @@ public class PortAdminServlet extends HttpServlet {
         out.println("</div>");
         out.println("</form>");
 
-        // --- 配車（移動）フォーム ---
-        out.println("<div class=\"row mt-14\">");
-        out.println("<div class=\"alert alert-warn\">"
-            + "配車 : UPDATE × 2 と ログの INSERT をトランザクションで実行<br/>"
-            + "<span class='text-small'>※ ルート検索で提示された経路に基づく配車が記録されます（source='user'）。管理者による配車はsource='admin'として記録されます。</span>"
-            + "</div>");
-        out.println("</div>");
+        out.println("<hr/>");
 
-        // ★ちゃんとフォーム開始！
+        out.println("<div class=\"row mt-14\">");
+        out.println("<div class=\"alert alert-warn\">\"配車 : 事業者による自転車の移動を記録できます<br/></div>");
+        out.println("</div>");
         out.println("<form method=\"POST\" action=\"" + basePath + "\">");
         out.println("<div class=\"row\">");
-
-        // ★move を送る（ここが重要）
         out.println("<input type=\"hidden\" name=\"action\" value=\"move\"/>");
 
-        // ★条件維持
+
         out.println("<input type=\"hidden\" name=\"q\" value=\"" + esc(q) + "\"/>");
         out.println("<input type=\"hidden\" name=\"sort\" value=\"" + esc(sort) + "\"/>");
 
@@ -250,12 +236,14 @@ public class PortAdminServlet extends HttpServlet {
         out.println("<input class=\"w-160\" type=\"number\" name=\"to_port_id\" placeholder=\"to_port_id\" required/>");
         out.println("<input class=\"w-120\" type=\"number\" name=\"moved_bikes\" min=\"1\" value=\"1\" required/>");
 
-        out.println("<button class=\"btn\" type=\"submit\">移動実行</button>");
-        out.println("<span class=\"mini\">※同一operator内のみ・在庫/空きチェックあり</span>");
+        out.println("<button class=\"btn\" type=\"submit\">移動記録</button>");
 
         out.println("</div>");
         out.println("</form>");
 
+        out.println("<hr/>");
+
+        out.println("<h2>ポート一覧 (" + rows.size() + "件)</h2>");
 
         out.println("<div class=\"table-wrap\">");
         out.println("<table>");
@@ -276,9 +264,6 @@ public class PortAdminServlet extends HttpServlet {
 
         out.println("</table>");
         out.println("</div>");
-
-        out.println("<p class=\"mini mt-12\">※ 更新ボタンは port_operation を UPDATE する想定（下の doPost）。不要なら消してOK。</p>");
-
         out.println("</div></div></body></html>");
     }
 
@@ -310,9 +295,8 @@ public class PortAdminServlet extends HttpServlet {
         String keep = "q=" + URLEncoder.encode(q, "UTF-8")
                     + "&sort=" + URLEncoder.encode(sort, "UTF-8");
 
-        // =========================
-        // 1) move を先に処理する！
-        // =========================
+
+
         if ("move".equals(action)) {
             String fromStr = request.getParameter("from_port_id");
             String toStr   = request.getParameter("to_port_id");
@@ -464,10 +448,6 @@ public class PortAdminServlet extends HttpServlet {
             }
         }
 
-
-        // =========================
-        // 2) それ以外は update（任意更新）
-        // =========================
         String portIdStr = request.getParameter("port_id");
         String bikesStr = request.getParameter("bikes");
         String freeStr  = request.getParameter("free_docks");

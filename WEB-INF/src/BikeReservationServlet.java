@@ -46,28 +46,49 @@ public class BikeReservationServlet extends HttpServlet {
             String returnPortIdStr = extractJsonValue(jsonStr, "return_port_id");
             String startPortIdStr = extractJsonValue(jsonStr, "start_port_id");
 
+            // アクションに応じて処理を分岐
             if ("reserve".equals(action)) {
-                Integer startPortId = null;
-                if (startPortIdStr != null && !startPortIdStr.isEmpty()) {
-                    try {
-                        startPortId = Integer.parseInt(startPortIdStr);
-                    } catch (NumberFormatException ignore) {}
+                if (startPortIdStr == null || startPortIdStr.isEmpty()) {
+                    sendJsonResponse(out, false, "start_port_id required", null);
+                    return;
                 }
+                int startPortId;
+                try {
+                    startPortId = Integer.parseInt(startPortIdStr);
+                } catch (NumberFormatException e) {
+                    sendJsonResponse(out, false, "start_port_id must be numeric", null);
+                    return;
+                }
+                // 予約する（開始ポートは必須）
                 handleReserve(Integer.parseInt(operatorIdStr), startPortId, out);
-            } else if ("start".equals(action)) {
+
+            }
+            else if ("start".equals(action)) {
+                // 利用開始する
                 handleStart(Long.parseLong(reservationIdStr), out);
-            } else if ("return".equals(action)) {
-                Long resId = Long.parseLong(reservationIdStr);
-                Integer returnPortId = null;
-                if (returnPortIdStr != null && !returnPortIdStr.isEmpty()) {
-                    try {
-                        returnPortId = Integer.parseInt(returnPortIdStr);
-                    } catch (NumberFormatException ignore) {}
+            }
+            else if ("return".equals(action)) {
+                if (returnPortIdStr == null || returnPortIdStr.isEmpty()) {
+                    sendJsonResponse(out, false, "return_port_id required", null);
+                    return;
                 }
+                int returnPortId;
+                try {
+                    returnPortId = Integer.parseInt(returnPortIdStr);
+                } catch (NumberFormatException e) {
+                    sendJsonResponse(out, false, "return_port_id must be numeric", null);
+                    return;
+                }
+                Long resId = Long.parseLong(reservationIdStr);
+                // 返却する（返却ポートは必須）
                 handleReturn(resId, returnPortId, out);
-            } else if ("cancel".equals(action)) {
+            }
+            else if ("cancel".equals(action)) {
+                // キャンセルする
                 handleCancel(Long.parseLong(reservationIdStr), out);
-            } else {
+            }
+            else {
+                // 例外
                 sendJsonResponse(out, false, "Unknown action", null);
             }
 
@@ -77,28 +98,22 @@ public class BikeReservationServlet extends HttpServlet {
         }
     }
 
-    private void handleReserve(int operatorId, Integer startPortId, PrintWriter out) throws SQLException {
+
+    // メソッド
+
+    // 予約処理
+    private void handleReserve(int operatorId, int startPortId, PrintWriter out) throws SQLException {
         Connection conn = null;
         try {
             conn = DatabaseConfig.getConnection();
 
-            // 利用可能な自転車を取得 (docked 状態)
-            // startPortIdが指定されている場合は、そのポートにある自転車のみを検索
-            String selectBikeSql;
-            if (startPortId != null && startPortId > 0) {
-                selectBikeSql = "SELECT bike_id FROM v_bike_status "
-                        + "WHERE operator_id = ? AND status = 'docked' AND current_port_id = ? LIMIT 1";
-            } else {
-                selectBikeSql = "SELECT bike_id FROM v_bike_status "
-                        + "WHERE operator_id = ? AND status = 'docked' LIMIT 1";
-            }
+            // 利用可能な自転車を取得
+            String selectBikeSql = "SELECT bike_id FROM v_bike_status "
+                    + "WHERE operator_id = ? AND status = 'docked' AND current_port_id = ? LIMIT 1";
             int bikeId = -1;
-            Integer actualStartPortId = null;
             try (PreparedStatement ps = conn.prepareStatement(selectBikeSql)) {
                 ps.setInt(1, operatorId);
-                if (startPortId != null && startPortId > 0) {
-                    ps.setInt(2, startPortId);
-                }
+                ps.setInt(2, startPortId);
                 try (ResultSet rs = ps.executeQuery()) {
                     if (rs.next()) {
                         bikeId = rs.getInt("bike_id");
@@ -106,28 +121,16 @@ public class BikeReservationServlet extends HttpServlet {
                 }
             }
 
+            // 自転車が見つからない場合はエラー
             if (bikeId == -1) {
-                sendJsonResponse(out, false, "Available bikes not found", null);
+                sendJsonResponse(out, false, "Available bikes not found at start_port", null);
                 return;
-            }
-
-            // 自転車の現在のポートを取得
-            String getCurrentPortSql = "SELECT current_port_id FROM v_bike_status WHERE bike_id = ? AND operator_id = ?";
-            try (PreparedStatement ps = conn.prepareStatement(getCurrentPortSql)) {
-                ps.setInt(1, bikeId);
-                ps.setInt(2, operatorId);
-                try (ResultSet rs = ps.executeQuery()) {
-                    if (rs.next()) {
-                        int cp = rs.getInt("current_port_id");
-                        if (!rs.wasNull()) actualStartPortId = cp;
-                    }
-                }
             }
 
             // 予約を3テーブルに記録（reservation_info + reservation_bike + reservation_start_port）
             long reservationId = -1;
             String insertReservationSql = "INSERT INTO reservation_info(status, reserved_at) "
-                    + "VALUES('reserved', CURRENT_TIMESTAMP) RETURNING reservation_id";
+                                        + "VALUES('reserved', CURRENT_TIMESTAMP) RETURNING reservation_id";
             try (PreparedStatement ps = conn.prepareStatement(insertReservationSql)) {
                 try (ResultSet rs = ps.executeQuery()) {
                     if (rs.next()) {
@@ -150,13 +153,11 @@ public class BikeReservationServlet extends HttpServlet {
             }
 
             // reservation_start_portに記録（ポートが判明している場合のみ）
-            if (actualStartPortId != null) {
-                String insertStartPortSql = "INSERT INTO reservation_start_port(reservation_id, start_port_id) VALUES(?, ?)";
-                try (PreparedStatement ps = conn.prepareStatement(insertStartPortSql)) {
-                    ps.setLong(1, reservationId);
-                    ps.setInt(2, actualStartPortId);
-                    ps.executeUpdate();
-                }
+            String insertStartPortSql = "INSERT INTO reservation_start_port(reservation_id, start_port_id) VALUES(?, ?)";
+            try (PreparedStatement ps = conn.prepareStatement(insertStartPortSql)) {
+                ps.setLong(1, reservationId);
+                ps.setInt(2, startPortId);
+                ps.executeUpdate();
             }
 
             sendJsonResponse(out, true, "Reservation successful", String.valueOf(reservationId));
@@ -171,7 +172,7 @@ public class BikeReservationServlet extends HttpServlet {
             }
         }
     }
-
+    // 利用開始処理
     private void handleStart(long reservationId, PrintWriter out) throws SQLException {
         Connection conn = null;
         try {
@@ -201,19 +202,10 @@ public class BikeReservationServlet extends HttpServlet {
                 return;
             }
 
-            // 自転車の現在のポートを取得（貸出前のポート＝start_port）
+            // start_port が記録されていない場合はエラー（reserve時に必須）
             if (startPortId == null) {
-                String getCurrentPortSql = "SELECT current_port_id FROM v_bike_status WHERE bike_id = ? AND operator_id = ?";
-                try (PreparedStatement ps = conn.prepareStatement(getCurrentPortSql)) {
-                    ps.setInt(1, bikeId);
-                    ps.setInt(2, operatorId);
-                    try (ResultSet rs = ps.executeQuery()) {
-                        if (rs.next()) {
-                            int cp = rs.getInt("current_port_id");
-                            if (!rs.wasNull()) startPortId = cp;
-                        }
-                    }
-                }
+                sendJsonResponse(out, false, "start_port_id not recorded for reservation", null);
+                return;
             }
 
             // 予約状態を in_use に更新
@@ -223,17 +215,6 @@ public class BikeReservationServlet extends HttpServlet {
             try (PreparedStatement ps = conn.prepareStatement(updateSql)) {
                 ps.setLong(1, reservationId);
                 ps.executeUpdate();
-            }
-
-            // start_port_idを記録（まだ記録されていない場合）
-            if (startPortId != null) {
-                String insertStartPortSql = "INSERT INTO reservation_start_port(reservation_id, start_port_id) "
-                        + "VALUES(?, ?) ON CONFLICT (reservation_id) DO UPDATE SET start_port_id = EXCLUDED.start_port_id";
-                try (PreparedStatement ps = conn.prepareStatement(insertStartPortSql)) {
-                    ps.setLong(1, reservationId);
-                    ps.setInt(2, startPortId);
-                    ps.executeUpdate();
-                }
             }
 
             // 自転車の状態を rented に変更
@@ -263,8 +244,8 @@ public class BikeReservationServlet extends HttpServlet {
             }
         }
     }
-
-    private void handleReturn(long reservationId, Integer requestedReturnPortId, PrintWriter out) throws SQLException {
+    // 返却処理
+    private void handleReturn(long reservationId, int returnPortId, PrintWriter out) throws SQLException {
         Connection conn = null;
         try {
             conn = DatabaseConfig.getConnection();
@@ -296,24 +277,10 @@ public class BikeReservationServlet extends HttpServlet {
                 return;
             }
 
-            // 返却ポート決定：指定されたポートがあればそれを使う、なければデフォルト
-            int returnPortId = -1;
-            if (requestedReturnPortId != null && requestedReturnPortId > 0) {
-                returnPortId = requestedReturnPortId;
-            } else {
-                // フォールバック：最初の docked ポートを返却ポートとして取得
-                String getPortSql = "SELECT p.port_id FROM port_information p "
-                        + "JOIN port_operation po ON po.port_id = p.port_id "
-                        + "WHERE po.operator_id = ? "
-                        + "ORDER BY p.port_id ASC LIMIT 1";
-                try (PreparedStatement ps = conn.prepareStatement(getPortSql)) {
-                    ps.setInt(1, operatorId);
-                    try (ResultSet rs = ps.executeQuery()) {
-                        if (rs.next()) {
-                            returnPortId = rs.getInt("port_id");
-                        }
-                    }
-                }
+            // 返却ポートはクライアント指定必須
+            if (returnPortId <= 0) {
+                sendJsonResponse(out, false, "return_port_id required", null);
+                return;
             }
 
             // 予約状態を returned に更新
@@ -329,7 +296,7 @@ public class BikeReservationServlet extends HttpServlet {
             String insertEndPortSql = "INSERT INTO reservation_end_port(reservation_id, end_port_id) VALUES(?, ?)";
             try (PreparedStatement ps = conn.prepareStatement(insertEndPortSql)) {
                 ps.setLong(1, reservationId);
-                ps.setInt(2, returnPortId == -1 ? 1 : returnPortId);
+                ps.setInt(2, returnPortId);
                 ps.executeUpdate();
             }
 
@@ -344,14 +311,14 @@ public class BikeReservationServlet extends HttpServlet {
             // bike_parkingを更新してポート情報を記録
             String updateParkingSql = "UPDATE bike_parking SET current_port_id = ?, parked_at = CURRENT_TIMESTAMP WHERE bike_id = ?";
             try (PreparedStatement ps = conn.prepareStatement(updateParkingSql)) {
-                ps.setInt(1, returnPortId == -1 ? 1 : returnPortId);
+                ps.setInt(1, returnPortId);
                 ps.setInt(2, bikeId);
                 ps.executeUpdate();
             }
 
             // ユーザー利用による自転車の移動を配車ログに記録（source='user'）
             int fromPortId = (startPortId == null ? -1 : startPortId.intValue());
-            int toPortId = (returnPortId == -1 ? 1 : returnPortId);
+            int toPortId = returnPortId;
             if (fromPortId > 0 && toPortId > 0 && fromPortId != toPortId) {
                 // move_recordに記録
                 String insertRecordSql = "INSERT INTO move_record(moved_bikes, source) VALUES(1, 'user') RETURNING log_id";
@@ -393,7 +360,7 @@ public class BikeReservationServlet extends HttpServlet {
             }
         }
     }
-
+    // キャンセル処理
     private void handleCancel(long reservationId, PrintWriter out) throws SQLException {
         Connection conn = null;
         try {
@@ -437,6 +404,7 @@ public class BikeReservationServlet extends HttpServlet {
         }
     }
 
+    // 簡易JSON 解析メソッド
     private String extractJsonValue(String json, String key) {
         String searchKey = "\"" + key + "\":";
         int index = json.indexOf(searchKey);
@@ -471,7 +439,7 @@ public class BikeReservationServlet extends HttpServlet {
 
         return value.toString().trim();
     }
-
+    // JSON レスポンス送信メソッド
     private void sendJsonResponse(PrintWriter out, boolean success, String message, String reservationId) {
         out.print("{");
         out.print("\"success\":" + (success ? "true" : "false") + ",");
