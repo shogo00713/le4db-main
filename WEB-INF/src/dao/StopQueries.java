@@ -53,7 +53,7 @@ public class StopQueries {
      * @return 見つかった停留所のリスト（距離の近い順）
      */
 
-    // part6 で使用
+    // part6 で使用 (SQL文7)
     public static List<Stop> findNearbyStops(Connection conn, 
             double lat, double lon, int radiusM) throws SQLException {
         

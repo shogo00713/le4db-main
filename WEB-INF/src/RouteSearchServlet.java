@@ -564,115 +564,90 @@ public class RouteSearchServlet extends HttpServlet {
 
 
 
-            // ---- part 6 (自転車 -> 公共交通) ----
+            // ---- part 6 (自転車 -> 公共交通) 改善版：目的地から逆算 ----
             java.util.Map<String, TransferBikeTransit> bestBikeTransitPlanByBTKey = new java.util.HashMap<>();
-            List<NearByPorts> usePortsCandidates;
-            {
-                List<Stop> boardStopCandidates = StopQueries.findNearbyStops(conn, result.originStop.lat, result.originStop.lon, BIKE_MAX_RIDE_M);
-                List<NearByStops> nearDestTop = result.stopsNearDest.subList(0, Math.min(8, result.stopsNearDest.size()));
-                List<Stop> goodBoards = new ArrayList<>();
-                for (Stop boardStop : boardStopCandidates) {
-                    boolean ok = false;
-                    for (NearByStops nsto : nearDestTop) {
-                        if (!TransitQueries.searchDirectTransit(conn, boardStop.id, nsto.stopId, baseTime, dayType, 1).isEmpty()) {
-                            ok = true;
-                            break;
-                        }
-                    }
-                    if (ok) goodBoards.add(boardStop);
-                }
-                usePortsCandidates = collectNearbyPortsFromStops(conn, goodBoards, BIKE_PORT_RADIUS_M, PORT_LIMIT, false, true);
-                if (usePortsCandidates.isEmpty()) {
-                    usePortsCandidates = PortQueries.getNearByPorts(conn, result.originStop.lat, result.originStop.lon, BIKE_MAX_RIDE_M, 30, false, true);
-                }
-            }
-
 
             List<NearByStops> destStopsForBT = result.stopsNearDest.subList(0, Math.min(25, result.stopsNearDest.size()));
+            List<Stop> boardStopCandidates = StopQueries.findNearbyStops(conn, result.originStop.lat, result.originStop.lon, BIKE_MAX_RIDE_M);
 
-            // 出発地近くのポート候補に対して
-            for (NearByPorts startPort : result.portsNearOrigin) {
+            // 有効な公共交通便を収集
+            for (NearByStops alightStop : destStopsForBT) {
 
                 if (bestBikeTransitPlanByBTKey.size() >= BIKE_TRANSIT_LIMIT) break;
 
-                int walkToStartPortMin   = walkingMinutes(startPort.distance, METER_CORRECTION, METER_PER_MINUTE);
-                WalkPath walkToStartPort = new WalkPath(result.originStop.name, startPort.portName, startPort.distance, walkToStartPortMin);
-                String bikeStart         = addMinutes(baseTime, walkToStartPortMin + BIKE_UNLOCK_MIN);
-
-                // 目的地近くのポート候補に対して
-                for (NearByPorts returnPort : usePortsCandidates) {
+                // 自転車到達可能範囲の停留所から目的地への公共交通を検索
+                for (Stop boardStop : boardStopCandidates) {
 
                     if (bestBikeTransitPlanByBTKey.size() >= BIKE_TRANSIT_LIMIT) break;
 
-                    int rideDist = distanceMeters(startPort.lat, startPort.lon, returnPort.lat, returnPort.lon);
-                    if (rideDist > BIKE_MAX_RIDE_M) continue;
-                    if (startPort.operatorId != returnPort.operatorId) continue;
-                    if (startPort.portId == returnPort.portId) continue;
+                    List<TransitPath> transitCandidates = TransitQueries.searchDirectTransit(conn, boardStop.id, alightStop.stopId, baseTime, dayType, 2);
+                    if (transitCandidates.isEmpty()) continue;
 
-                    int rideMin        = ridingMinutes(rideDist, BIKE_METER_CORRECTION, BIKE_METER_PER_MINUTE);
-                    String bikeEndTime = addMinutes(bikeStart, rideMin + BIKE_LOCK_MIN);
-
-                    List<Stop> boardStops = StopQueries.findNearbyStops(conn, returnPort.lat, returnPort.lon, TRANSFER_RADIUS_M);
-
-                    // 乗り換え候補の停留所に対して
-                    for (Stop boardstop : boardStops) {
+                    // 各公共交通便に対して自転車でアクセス可能か確認
+                    for (TransitPath transit : transitCandidates) {
 
                         if (bestBikeTransitPlanByBTKey.size() >= BIKE_TRANSIT_LIMIT) break;
 
-                        int walkTransferDistance = distanceMeters(returnPort.lat, returnPort.lon, boardstop.lat, boardstop.lon);
-                        int walkTransferMin = walkingMinutes(walkTransferDistance, METER_CORRECTION, METER_PER_MINUTE);
-                        WalkPath walkTransfer = new WalkPath(returnPort.portName, boardstop.name, walkTransferDistance, walkTransferMin);
-                        String transitDepartTime = addMinutes(bikeEndTime, TRANSFER_MIN + walkTransferMin);
+                        // 2. この停留所の近くのポート（返却ポート）を探す
+                        List<NearByPorts> returnPorts = PortQueries.getNearByPorts(conn, boardStop.lat, boardStop.lon, TRANSFER_RADIUS_M, PORT_LIMIT, false, true);
 
-                        TransitPath bestLeg2 = null;
-                        WalkPath bestWalk2 = null;
-                        String bestEnd = null;
-                        int bestTotal = Integer.MAX_VALUE;
+                        for (NearByPorts returnPort : returnPorts) {
 
-                        // 目的地近くの停留所候補に対して
-                        for (NearByStops alightStop : destStopsForBT) {
-                            List<TransitPath> leg2Candidates = TransitQueries.searchDirectTransit(conn, boardstop.id, alightStop.stopId, transitDepartTime, dayType, 1);
-                            if (leg2Candidates.isEmpty()) continue;
-                            TransitPath leg2 = leg2Candidates.get(0);
+                            if (bestBikeTransitPlanByBTKey.size() >= BIKE_TRANSIT_LIMIT) break;
 
-                            int walkToDestMin   = walkingMinutes(alightStop.distance, METER_CORRECTION, METER_PER_MINUTE);
-                            WalkPath walkToDest = new WalkPath(alightStop.name, result.destStop.name, alightStop.distance, walkToDestMin);
-  
-                            String endTime      = addMinutes(leg2.arrTime, walkToDestMin);
-                            int totalMin        = diffMinutes(baseTime, endTime);
+                            // 3. 出発地のポートから自転車でこの返却ポートに行けるか確認
+                            for (NearByPorts startPort : result.portsNearOrigin) {
 
-                            // 後半の公共交通の到着時刻が早いものを優先
-                            if (bestEnd == null || LocalTime.parse(endTime).isBefore(LocalTime.parse(bestEnd))) {
-                                bestEnd = endTime;
-                                bestTotal = totalMin;
-                                bestLeg2 = leg2;
-                                bestWalk2 = walkToDest;
+                                if (startPort.operatorId != returnPort.operatorId) continue;
+                                if (startPort.portId == returnPort.portId) continue;
+
+                                int rideDist = distanceMeters(startPort.lat, startPort.lon, returnPort.lat, returnPort.lon);
+                                if (rideDist > BIKE_MAX_RIDE_M) continue;
+
+                                // 4. 時刻を公共交通に合わせて逆算
+                                int walkTransferDistance = distanceMeters(returnPort.lat, returnPort.lon, boardStop.lat, boardStop.lon);
+                                int walkTransferMin = walkingMinutes(walkTransferDistance, METER_CORRECTION, METER_PER_MINUTE);
+                                WalkPath walkTransfer = new WalkPath(returnPort.portName, boardStop.name, walkTransferDistance, walkTransferMin);
+
+                                String requiredBikeEndTime = addMinutes(transit.depTime, -(TRANSFER_MIN + walkTransferMin));
+                                int rideMin = ridingMinutes(rideDist, BIKE_METER_CORRECTION, BIKE_METER_PER_MINUTE);
+                                String requiredBikeStartTime = addMinutes(requiredBikeEndTime, -(rideMin + BIKE_LOCK_MIN));
+
+                                // 出発地からの徒歩時間
+                                int walkToStartPortMin = walkingMinutes(startPort.distance, METER_CORRECTION, METER_PER_MINUTE);
+                                String actualStartTime = addMinutes(baseTime, walkToStartPortMin + BIKE_UNLOCK_MIN);
+
+                                // 時間的に間に合うか確認
+                                if (LocalTime.parse(actualStartTime).isAfter(LocalTime.parse(requiredBikeStartTime))) continue;
+
+                                // 5. 目的地への徒歩
+                                int walkToDestMin = walkingMinutes(alightStop.distance, METER_CORRECTION, METER_PER_MINUTE);
+                                WalkPath walkToDest = new WalkPath(alightStop.name, result.destStop.name, alightStop.distance, walkToDestMin);
+
+                                String endTime = addMinutes(transit.arrTime, walkToDestMin);
+                                int totalMin = diffMinutes(baseTime, endTime);
+
+                                // 6. プラン作成
+                                WalkPath walkToStartPort = new WalkPath(result.originStop.name, startPort.portName, startPort.distance, walkToStartPortMin);
+                                String operatorContact = normalizeContact(startPort.operatorContact, startPort.operatorName);
+
+                                BikePath bike = new BikePath(
+                                    startPort.operatorId, startPort.operatorName, operatorContact,
+                                    startPort.portId, startPort.portName,
+                                    returnPort.portId, returnPort.portName,
+                                    rideDist, rideMin,
+                                    requiredBikeStartTime, requiredBikeEndTime
+                                );
+
+                                TransferBikeTransit plan = new TransferBikeTransit(walkToStartPort, bike, walkTransfer, transit, walkToDest, totalMin, baseTime, endTime);
+
+                                String key = "BT:" + startPort.operatorId + ":" + startPort.portId + "->" + returnPort.portId
+                                           + "|" + transit.tripId + ":" + transit.fromStopId + ":" + transit.toStopId;
+
+                                TransferBikeTransit currentBest = bestBikeTransitPlanByBTKey.get(key);
+                                if (currentBest == null || betterBikeTransit(plan, currentBest)) bestBikeTransitPlanByBTKey.put(key, plan);
                             }
                         }
-
-                        if (bestLeg2 == null) continue;
-
-                        String bikeEndAdj   = addMinutes(bestLeg2.depTime, -(TRANSFER_MIN + walkTransferMin));
-                        String bikeStartAdj = addMinutes(bikeEndAdj, -(rideMin + BIKE_LOCK_MIN));
-
-                        String key = "BT:" + startPort.operatorId + ":" + startPort.portId + "->" + returnPort.portId
-                                   + "|" + bestLeg2.tripId + ":" + bestLeg2.fromStopId + ":" + bestLeg2.toStopId;
-
-                        String operatorContact = normalizeContact(startPort.operatorContact, startPort.operatorName);
-
-                        // ★ここだけ bikeStart/bikeEndTime を差し替え
-                        BikePath bike = new BikePath(
-                                startPort.operatorId, startPort.operatorName, operatorContact,
-                                startPort.portId, startPort.portName,
-                                returnPort.portId, returnPort.portName,
-                                rideDist, rideMin,
-                                bikeStartAdj, bikeEndAdj
-                        );
-
-                        TransferBikeTransit plan = new TransferBikeTransit(walkToStartPort, bike, walkTransfer, bestLeg2, bestWalk2, bestTotal, baseTime, bestEnd);
-
-                        TransferBikeTransit currentBest = bestBikeTransitPlanByBTKey.get(key);
-                        if (currentBest == null || betterBikeTransit(plan, currentBest)) bestBikeTransitPlanByBTKey.put(key, plan);
                     }
                 }
             }

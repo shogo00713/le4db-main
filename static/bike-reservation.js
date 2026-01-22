@@ -53,7 +53,7 @@ function startReserveCountdown(seconds) {
       reservationState = 'not_reserved';
       currentReservationId = null;
       updateButtonStates();
-      setStatusMessage('予約の有効期限が切れました。再度予約してください。', false);
+      setStatusMessage('予約の有効期限が切れました, 再度予約してください', false);
     }
   }, 1000);
 }
@@ -132,7 +132,7 @@ function reserveBike(operatorId) {
           reservationState = 'reserved';
           updateButtonStates();
           startReserveCountdown(30 * 60); // 30分
-          setStatusMessage('予約しました。30分以内に利用を開始してください。');
+          setStatusMessage('予約しました, 30分以内に利用を開始してください');
         } else {
           alert('予約に失敗しました: ' + response.error);
         }
@@ -168,7 +168,7 @@ function startBikeUsage() {
           clearReserveCountdown();
           updateButtonStates();
           startUseTimer();
-          setStatusMessage('利用を開始しました。返却してください。');
+          setStatusMessage('利用中, 安全運転で!!');
         } else {
           alert('利用開始に失敗しました: ' + response.error);
         }
@@ -199,7 +199,7 @@ function returnBike() {
           reservationState = 'returned';
           updateButtonStates();
           clearUseTimer();
-          setStatusMessage('自転車を返却しました。ご利用ありがとうございました。');
+          setStatusMessage('自転車を返却しました, ご利用ありがとうございました');
         } else {
           alert('返却に失敗しました: ' + response.error);
         }
