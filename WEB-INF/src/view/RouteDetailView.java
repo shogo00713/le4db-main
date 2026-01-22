@@ -131,7 +131,7 @@ public class RouteDetailView {
             TransitDirectPlan dp = (TransitDirectPlan) item.payload;
             printWalk(dp.walk0, out, arrow);
             String mainRide = esc(dp.leg.fromStopName) + " " + hhmm(dp.leg.depTime) + arrow + esc(dp.leg.toStopName) + " " + hhmm(dp.leg.arrTime);
-            String metaRide = chipLine(dp.leg.routeName, dp.leg.routeColor) + chipTrip(dp.leg.tripName) + chipInfo("時間 " + diffMinutes(dp.leg.depTime, dp.leg.arrTime) + "分");
+            String metaRide = chipLine(dp.leg.routeName, dp.leg.routeColor) + chipTrip(dp.leg.tripName) + chipInfo("方向 " + dp.leg.destinationDirection) + chipInfo("時間 " + diffMinutes(dp.leg.depTime, dp.leg.arrTime) + "分");
             printStep(out, "乗車", mainRide, metaRide);
             printWalk(dp.walk2, out, arrow);
         }
@@ -140,7 +140,7 @@ public class RouteDetailView {
             TransferPath tp = (TransferPath) item.payload;
             printWalk(tp.walk0, out, arrow);
             String mainRide1 = esc(tp.leg1.fromStopName) + " " + hhmm(tp.leg1.depTime) + arrow + esc(tp.leg1.toStopName) + " " + hhmm(tp.leg1.arrTime);
-            String metaRide1 = chipLine(tp.leg1.routeName, tp.leg1.routeColor) + chipTrip(tp.leg1.tripName) + chipInfo("時間 " + diffMinutes(tp.leg1.depTime, tp.leg1.arrTime) + "分");
+            String metaRide1 = chipLine(tp.leg1.routeName, tp.leg1.routeColor) + chipTrip(tp.leg1.tripName) + chipInfo("方向 " + tp.leg1.destinationDirection) + chipInfo("時間 " + diffMinutes(tp.leg1.depTime, tp.leg1.arrTime) + "分");
             printStep(out, "乗車", mainRide1, metaRide1);
             if (!isZeroWalk(tp.walk1)) {
                 String mainWalk1 = esc(tp.walk1.fromName) + arrow + esc(tp.walk1.toName);
@@ -150,7 +150,7 @@ public class RouteDetailView {
                 printStep(out, "乗換", "同一地点で乗換", "");
             }
             String mainRide2 = esc(tp.leg2.fromStopName) + " " + hhmm(tp.leg2.depTime) + arrow + esc(tp.leg2.toStopName) + " " + hhmm(tp.leg2.arrTime);
-            String metaRide2 = chipLine(tp.leg2.routeName, tp.leg2.routeColor) + chipTrip(tp.leg2.tripName) + chipInfo("時間 " + diffMinutes(tp.leg2.depTime, tp.leg2.arrTime) + "分");
+            String metaRide2 = chipLine(tp.leg2.routeName, tp.leg2.routeColor) + chipTrip(tp.leg2.tripName) + chipInfo("方向 " + tp.leg2.destinationDirection) + chipInfo("時間 " + diffMinutes(tp.leg2.depTime, tp.leg2.arrTime) + "分");
             printStep(out, "乗車", mainRide2, metaRide2);
             printWalk(tp.walk2, out, arrow);
         }
@@ -168,7 +168,7 @@ public class RouteDetailView {
             TransferTransitBike tp = (TransferTransitBike) item.payload;
             printWalk(tp.walk0, out, arrow);
             String mainRide1 = esc(tp.leg1.fromStopName) + " " + hhmm(tp.leg1.depTime) + arrow+ esc(tp.leg1.toStopName) + " " + hhmm(tp.leg1.arrTime);
-            String metaRide1 = chipLine(tp.leg1.routeName, tp.leg1.routeColor) + chipTrip(tp.leg1.tripName) + chipInfo("時間 " + diffMinutes(tp.leg1.depTime, tp.leg1.arrTime) + "分");
+            String metaRide1 = chipLine(tp.leg1.routeName, tp.leg1.routeColor) + chipTrip(tp.leg1.tripName) + chipInfo("方向 " + tp.leg1.destinationDirection) + chipInfo("時間 " + diffMinutes(tp.leg1.depTime, tp.leg1.arrTime) + "分");
             printStep(out, "乗車", mainRide1, metaRide1);
             printWalk(tp.walk1, out, arrow);
             String mainBike = esc(tp.bike.fromPortName) + " " + hhmm(tp.bike.startTime) + arrow + esc(tp.bike.toPortName) + " " + hhmm(tp.bike.endTime);
@@ -185,7 +185,7 @@ public class RouteDetailView {
             printStep(out, "自転車", mainBike, metaBike);
             printWalk(tp.walk1, out, arrow);
             String mainRide = esc(tp.leg2.fromStopName) + " " + hhmm(tp.leg2.depTime) + arrow + esc(tp.leg2.toStopName) + " " + hhmm(tp.leg2.arrTime);
-            String metaRide = chipLine(tp.leg2.routeName, tp.leg2.routeColor) + chipTrip(tp.leg2.tripName) + chipInfo("時間 " + diffMinutes(tp.leg2.depTime, tp.leg2.arrTime) + "分");
+            String metaRide = chipLine(tp.leg2.routeName, tp.leg2.routeColor) + chipTrip(tp.leg2.tripName) + chipInfo("方向 " + tp.leg2.destinationDirection) + chipInfo("時間 " + diffMinutes(tp.leg2.depTime, tp.leg2.arrTime) + "分");
             printStep(out, "乗車", mainRide, metaRide);
             printWalk(tp.walk2, out, arrow);
         }

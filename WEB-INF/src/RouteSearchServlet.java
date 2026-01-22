@@ -142,9 +142,14 @@ public class RouteSearchServlet extends HttpServlet {
 
         // -------- 経路探索 --------
         try {
-            RouteResult routeResult = executeSearch(originstopid, deststopid, day, baseTime, session);
+            RouteResult routeResult = executeSearch(originstopid, deststopid, day, baseTime);
             
             // 検索結果をセッションに保存
+            session.setAttribute("lastOriginStopName", routeResult.lastOriginStopName);
+            session.setAttribute("lastOriginStopType", routeResult.lastOriginStopType);
+            session.setAttribute("lastDestStopName",   routeResult.lastDestStopName);
+            session.setAttribute("lastDestStopType",   routeResult.lastDestStopType);
+            
             session.setAttribute("lastSearchQuery", request.getQueryString());
             session.setAttribute("lastDisplayedResults", routeResult.displayedResults);
             
@@ -280,7 +285,7 @@ public class RouteSearchServlet extends HttpServlet {
     }
 
     // メイン検索処理メソッド
-    private RouteResult executeSearch(Integer originstopid, Integer deststopid, String day, String baseTime, HttpSession session) throws Exception {
+    private RouteResult executeSearch(Integer originstopid, Integer deststopid, String day, String baseTime) throws Exception {
         RouteResult result = new RouteResult();
         
         Connection conn      = null;
@@ -300,10 +305,7 @@ public class RouteSearchServlet extends HttpServlet {
             result.lastDestStopName   = result.destStop   != null ? result.destStop.name   : "";
             result.lastDestStopType   = result.destStop   != null ? result.destStop.type   : "";
 
-            session.setAttribute("lastOriginStopName", result.lastOriginStopName);
-            session.setAttribute("lastOriginStopType", result.lastOriginStopType);
-            session.setAttribute("lastDestStopName",   result.lastDestStopName);
-            session.setAttribute("lastDestStopType",   result.lastDestStopType);
+
 
             // 出発地 / 目的地 の近くの停留所を探索
             result.stopsNearOrigin = StopQueries.getNearByStops(conn, originstopid, FROM_RADIUS_M, NEAR_LIMIT);

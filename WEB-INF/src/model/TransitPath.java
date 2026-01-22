@@ -6,6 +6,7 @@ package model;
  * @routeName 路線名
  * @routeColor 路線カラー (16進RGB)
  * @tripName 便名
+ * @destinationDirection 行先方向 (上り/下り)
  * @fromStopId 出発停留所ID
  * @fromStopName 出発停留所名
  * @depTime 出発時刻 ("HH:mm")
@@ -18,6 +19,7 @@ public class TransitPath {
     public final String routeName;
     public final String routeColor;
     public final String tripName;
+    public final String destinationDirection;
     public final int fromStopId;
     public final String fromStopName;
     public final String depTime;
@@ -25,11 +27,12 @@ public class TransitPath {
     public final String toStopName;
     public final String arrTime;
 
-    public TransitPath(int tripId, String routeName, String routeColor, String tripName, int fromStopId, String fromStopName, String depTime, int toStopId, String toStopName, String arrTime) {
+    public TransitPath(int tripId, String routeName, String routeColor, String tripName, String destinationDirection, int fromStopId, String fromStopName, String depTime, int toStopId, String toStopName, String arrTime) {
         this.tripId = tripId;
         this.routeName = routeName;
         this.routeColor = routeColor;
         this.tripName = tripName;
+        this.destinationDirection = destinationDirection;
         this.fromStopId = fromStopId;
         this.fromStopName = fromStopName;
         this.depTime = depTime;

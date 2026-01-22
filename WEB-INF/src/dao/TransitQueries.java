@@ -32,6 +32,7 @@ public class TransitQueries {
                 + "  r.route_name AS route_name, "
                 + "  r.route_color AS route_color, "
                 + "  t.trip_name AS trip_name, "
+                + "  t.destination_direction AS destination_direction, "
                 + "  sa_from.stop_id AS from_stop_id, "
                 + "  sf.stop_name AS from_stop_name, "
                 + "  sa_from.departure_time AS dep_time, "
@@ -74,6 +75,7 @@ public class TransitQueries {
                             rs.getString("route_name"),
                             rs.getString("route_color"),
                             rs.getString("trip_name"),
+                            rs.getString("destination_direction"),
                             rs.getInt("from_stop_id"),
                             rs.getString("from_stop_name"),
                             hhmm(rs.getString("dep_time")),
