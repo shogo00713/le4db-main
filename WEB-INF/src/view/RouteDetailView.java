@@ -1,8 +1,6 @@
 package view;
 
 import static util.HtmlUtils.esc;
-import static util.HtmlUtils.preferNonEmpty;
-import static util.HtmlUtils.toStr;
 import static util.HtmlUtils.safeColor;
 import static util.RouteSearchUtils.isZeroWalk;
 import static util.TimeUtils.diffMinutes;
@@ -10,14 +8,13 @@ import static util.TimeUtils.hhmm;
 
 import java.io.IOException;
 import java.io.PrintWriter;
-import java.util.List;
 
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
-import javax.servlet.http.HttpSession;
 
 import model.BikeDirectPlan;
 import model.ResultItem;
+import model.RouteDetail;
 import model.TransferBikeTransit;
 import model.TransferPath;
 import model.TransferTransitBike;
@@ -27,106 +24,57 @@ import model.WalkPath;
 
 public class RouteDetailView {
 
-    public static void renderDetailPage(HttpServletRequest req, HttpServletResponse resp) throws IOException {
-        resp.setContentType("text/html; charset=UTF-8");
-        PrintWriter out = resp.getWriter();
+ public static void renderDetailPage(HttpServletRequest req, HttpServletResponse resp, RouteDetail m) throws IOException {
+    resp.setContentType("text/html; charset=UTF-8");
+    PrintWriter out = resp.getWriter();
 
-        HttpSession session = req.getSession(false);
-        if (session == null) {
-            out.println("セッション切れ");
-            return;
-        }
-
-        @SuppressWarnings("unchecked")
-        List<ResultItem> displayed = (List<ResultItem>) session.getAttribute("lastDisplayedResults");
-        if (displayed == null) {
-            out.println("検索結果がありません");
-            return;
-        }
-
-        int rid;
-        try {
-            rid = Integer.parseInt(req.getParameter("rid"));
-        } catch (Exception e) {
-            out.println("ridが不正");
-            return;
-        }
-        if (rid < 0 || rid >= displayed.size()) {
-            out.println("不正なrid");
-            return;
-        }
-
-        ResultItem item = displayed.get(rid);
-
-        // 戻るリンク（条件保持）
-        String q = (String) session.getAttribute("lastSearchQuery");
-        String backUrl = req.getContextPath() + "/routesearch" + (q != null ? ("?" + q) : "");
-
-        // --- HTML ---
+    // エラー表示（Viewは表示だけ）
+    if (m == null || m.error != null) {
         out.println("<!DOCTYPE html><html lang='ja'><head>");
         out.println("<meta charset='UTF-8'><meta name='viewport' content='width=device-width, initial-scale=1'>");
         out.println("<title>Route Detail</title>");
         out.println("<link rel=\"stylesheet\" href=\"" + req.getContextPath() + "/static/app.css\"/>");
         out.println("</head><body class='page-route-detail'>");
-
         out.println("<div class='detail-card'>");
-        out.println("<a href='" + esc(backUrl) + "' class='back-btn'>← 戻る</a>");
-        out.println("<div class='detail-header'>ルート詳細</div>");
+        out.println("<a href='" + esc(m != null ? m.backUrl : (req.getContextPath()+"/routesearch")) + "' class='back-btn'>← 戻る</a>");
+        out.println("<div class='detail-header'>エラー</div>");
+        out.println("<p>" + esc(m != null ? m.error : "不明なエラー") + "</p>");
+        out.println("</div></body></html>");
+        return;
+    }
 
-        String payloadOrigin = "";
-        String payloadDest = "";
-        if (item.payload instanceof WalkDirectPlan) {
-            WalkDirectPlan wp = (WalkDirectPlan) item.payload;
-            payloadOrigin = wp.fromName;
-            payloadDest = wp.toName;
-        } else if (item.payload instanceof TransitDirectPlan) {
-            TransitDirectPlan dp = (TransitDirectPlan) item.payload;
-            payloadOrigin = dp.walk0.fromName != null ? dp.walk0.fromName : dp.leg.fromStopName;
-            payloadDest = dp.walk2.toName != null ? dp.walk2.toName : dp.leg.toStopName;
-        } else if (item.payload instanceof TransferPath) {
-            TransferPath tp = (TransferPath) item.payload;
-            payloadOrigin = tp.walk0.fromName != null ? tp.walk0.fromName : tp.leg1.fromStopName;
-            payloadDest = tp.walk2.toName != null ? tp.walk2.toName : tp.leg2.toStopName;
-        } else if (item.payload instanceof BikeDirectPlan) {
-            BikeDirectPlan bp = (BikeDirectPlan) item.payload;
-            payloadOrigin = bp.walk0.fromName != null ? bp.walk0.fromName : bp.bike.fromPortName;
-            payloadDest = bp.walk2.toName != null ? bp.walk2.toName : bp.bike.toPortName;
-        } else if (item.payload instanceof TransferTransitBike) {
-            TransferTransitBike tp = (TransferTransitBike) item.payload;
-            payloadOrigin = tp.walk0.fromName != null ? tp.walk0.fromName : tp.leg1.fromStopName;
-            payloadDest = tp.walk2.toName != null ? tp.walk2.toName : tp.bike.toPortName;
-        } else if (item.payload instanceof TransferBikeTransit) {
-            TransferBikeTransit tp = (TransferBikeTransit) item.payload;
-            payloadOrigin = tp.walk0.fromName != null ? tp.walk0.fromName : tp.bike.fromPortName;
-            payloadDest = tp.walk2.toName != null ? tp.walk2.toName : tp.leg2.toStopName;
-        }
+    // --- HTML ---
+    out.println("<!DOCTYPE html><html lang='ja'><head>");
+    out.println("<meta charset='UTF-8'><meta name='viewport' content='width=device-width, initial-scale=1'>");
+    out.println("<title>Route Detail</title>");
+    out.println("<link rel=\"stylesheet\" href=\"" + req.getContextPath() + "/static/app.css\"/>");
+    out.println("</head><body class='page-route-detail'>");
 
-        String originName = preferNonEmpty(toStr(session.getAttribute("lastOriginStopName")), payloadOrigin);
-        String originType = toStr(session.getAttribute("lastOriginStopType"));
-        String destName = preferNonEmpty(toStr(session.getAttribute("lastDestStopName")), payloadDest);
-        String destType = toStr(session.getAttribute("lastDestStopType"));
-        String arrivalTime = item.end != null ? hhmm(item.end.toString()) : "";
+    out.println("<div class='detail-card'>");
+    out.println("<a href='" + esc(m.backUrl) + "' class='back-btn'>← 戻る</a>");
+    out.println("<div class='detail-header'>ルート詳細</div>");
 
-        out.println("<div class='detail-summary'>");
-        out.println("<div class='summary-grid'>");
-        out.println(summaryItem("出発地", originName, originType.isEmpty() ? "" : originType));
-        out.println(summaryItem("目的地", destName, destType.isEmpty() ? "" : destType));
-        out.println(summaryItem("所要時間", item.totalMinutes + "分", arrivalTime.isEmpty() ? "" : ("到着 " + arrivalTime)));
-        out.println("</div>");
-        out.println("</div>");
+    out.println("<div class='detail-summary'>");
+    out.println("<div class='summary-grid'>");
+    out.println(summaryItem("出発地", m.originName, (m.originType != null && !m.originType.isEmpty()) ? m.originType : ""));
+    out.println(summaryItem("目的地", m.destName, (m.destType != null && !m.destType.isEmpty()) ? m.destType : ""));
+    out.println(summaryItem("所要時間", m.totalMinutes + "分", (m.arrivalHHMM != null && !m.arrivalHHMM.isEmpty()) ? ("到着 " + m.arrivalHHMM) : ""));
+    out.println("</div>");
+    out.println("</div>");
 
+    ResultItem item = m.item;
+    if (item == null) {
+        out.println("<p class='alert'>詳細データが見つかりませんでした</p>");
+    } else {
         String arrow = " <span class='arrow-mini'>→</span> ";
-
         out.println("<div class='steps'>");
 
-        // 徒歩のみ
         if (item.payload instanceof WalkDirectPlan) {
             WalkDirectPlan wp = (WalkDirectPlan) item.payload;
             String main = esc(wp.fromName) + arrow + esc(wp.toName) + " (" + hhmm(wp.startTime) + "→" + hhmm(wp.endTime) + ")";
             String meta = chipInfo("距離 約" + wp.distanceM + "m") + chipInfo("時間 " + wp.totalMin + "分");
             printStep(out, "徒歩", main, meta);
-        } 
-        // 直通
+        }
         else if (item.payload instanceof TransitDirectPlan) {
             TransitDirectPlan dp = (TransitDirectPlan) item.payload;
             printWalk(dp.walk0, out, arrow);
@@ -135,7 +83,6 @@ public class RouteDetailView {
             printStep(out, "乗車", mainRide, metaRide);
             printWalk(dp.walk2, out, arrow);
         }
-        // 乗換
         else if (item.payload instanceof TransferPath) {
             TransferPath tp = (TransferPath) item.payload;
             printWalk(tp.walk0, out, arrow);
@@ -154,7 +101,6 @@ public class RouteDetailView {
             printStep(out, "乗車", mainRide2, metaRide2);
             printWalk(tp.walk2, out, arrow);
         }
-        // 自転車のみ
         else if (item.payload instanceof BikeDirectPlan) {
             BikeDirectPlan bp = (BikeDirectPlan) item.payload;
             printWalk(bp.walk0, out, arrow);
@@ -163,7 +109,6 @@ public class RouteDetailView {
             printStep(out, "自転車", mainBike, metaBike);
             printWalk(bp.walk2, out, arrow);
         }
-        // 公共交通 -> 自転車
         else if (item.payload instanceof TransferTransitBike) {
             TransferTransitBike tp = (TransferTransitBike) item.payload;
             printWalk(tp.walk0, out, arrow);
@@ -175,8 +120,7 @@ public class RouteDetailView {
             String metaBike = chipInfo("距離 約" + tp.bike.distanceM + "m") + chipInfo("時間 " + tp.bike.rideMinutes + "分") + chipInfo("事業者 " + tp.bike.operatorName) + chipContact(tp.bike.operatorContact);
             printStep(out, "自転車", mainBike, metaBike);
             printWalk(tp.walk2, out, arrow);
-        } 
-        // 自転車 -> 公共交通
+        }
         else if (item.payload instanceof TransferBikeTransit) {
             TransferBikeTransit tp = (TransferBikeTransit) item.payload;
             printWalk(tp.walk0, out, arrow);
@@ -191,76 +135,46 @@ public class RouteDetailView {
         }
 
         out.println("</div>");
-
-        // ---- シェアサイクル予約セクション ----
-        boolean hasBikeSegment = (item.payload instanceof BikeDirectPlan) ||
-                                 (item.payload instanceof TransferTransitBike) ||
-                                 (item.payload instanceof TransferBikeTransit);
-        // 変数を統一させる
-        if (hasBikeSegment) {
-            String bikeOperatorName = "";
-            String bikeOperatorContact = "";
-            int startPortId = -1;
-            int endPortId = -1;
-            int bikeOperatorId = 0;
-
-            if (item.payload instanceof BikeDirectPlan) {
-                BikeDirectPlan bp = (BikeDirectPlan) item.payload;
-                bikeOperatorName = bp.bike.operatorName;
-                bikeOperatorContact = bp.bike.operatorContact;
-                bikeOperatorId = bp.bike.operatorId;
-                startPortId = bp.bike.fromPortId;
-                endPortId = bp.bike.toPortId;
-            } else if (item.payload instanceof TransferTransitBike) {
-                TransferTransitBike tp = (TransferTransitBike) item.payload;
-                bikeOperatorName = tp.bike.operatorName;
-                bikeOperatorContact = tp.bike.operatorContact;
-                bikeOperatorId = tp.bike.operatorId;
-                startPortId = tp.bike.fromPortId;
-                endPortId = tp.bike.toPortId;
-            } else if (item.payload instanceof TransferBikeTransit) {
-                TransferBikeTransit tp = (TransferBikeTransit) item.payload;
-                bikeOperatorName = tp.bike.operatorName;
-                bikeOperatorContact = tp.bike.operatorContact;
-                bikeOperatorId = tp.bike.operatorId;
-                startPortId = tp.bike.fromPortId;
-                endPortId = tp.bike.toPortId;
-            }
-
-            out.println("<div class='reservation-section'>");
-            out.println("<div class='reservation-title'>🚲 シェアサイクルを予約</div>");
-            out.println("<div class='contact-card'>");
-            out.println("<p class='contact-name'>" + esc(bikeOperatorName) + "</p>");
-            out.println("<p class='contact-contact'>" + esc(bikeOperatorContact) + "</p>");
-            out.println("</div>");
-            out.println("<div class='reservation-actions'>");
-            out.println("<button class='btn-reserve' id='reserveBtn' onclick='reserveBike(" + bikeOperatorId + ")'>予約する</button>");
-            out.println("<button class='btn-action' id='startBtn' style='display:none;' onclick='startBikeUsage()'>利用開始</button>");
-            out.println("<button class='btn-action' id='returnBtn' style='display:none;' onclick='returnBikeUsage()'>返却</button>");
-            out.println("<div class='cancel-area'>");
-            out.println("<button class='btn-cancel' id='cancelBtn' style='display:none;' onclick='cancelBikeReservation()'>キャンセル</button>");
-            out.println("<span id='timerPill' class='timer-pill' style='display:none;'></span>");
-            out.println("</div>");
-            out.println("<div id=\"statusMsg\" class=\"reservation-status is-success\" style=\"display:none;\">");
-            out.println("<span class=\"status-icon\">✓</span>");
-            out.println("<span class=\"status-text\"></span>");
-            out.println("</div>");
-            out.println("</div>");
-
-            out.println("<script src='/static/bike-reservation.js'></script>");
-            out.println("<script>");
-            out.println("// 初期化設定");
-            out.println("initBikeReservation({");
-            out.println("  startPortId: " + (startPortId > 0 ? startPortId : "-1") + ",");
-            out.println("  endPortId: " + (endPortId > 0 ? endPortId : "-1") + ",");
-            out.println("  apiEndpoint: '" + req.getContextPath() + "/bikereservation'");
-            out.println("});");
-            out.println("</script>");
-        }
-
-        out.println("</div>");
-        out.println("</body></html>");
     }
+
+
+    // 予約セクション：m.reservation を使う（View側で抽出しない）
+    if (m.reservation != null) {
+        out.println("<div class='reservation-section'>");
+        out.println("<div class='reservation-title'>🚲 シェアサイクルを予約</div>");
+        out.println("<div class='contact-card'>");
+        out.println("<p class='contact-name'>" + esc(m.reservation.operatorName) + "</p>");
+        out.println("<p class='contact-contact'>" + esc(m.reservation.operatorContact) + "</p>");
+        out.println("</div>");
+
+        out.println("<div class='reservation-actions'>");
+        out.println("<button class='btn-reserve' id='reserveBtn' onclick='reserveBike(" + m.reservation.operatorId + ")'>予約する</button>");
+        out.println("<button class='btn-action' id='startBtn' style='display:none;' onclick='startBikeUsage()'>利用開始</button>");
+        out.println("<button class='btn-action' id='returnBtn' style='display:none;' onclick='returnBikeUsage()'>返却</button>");
+        out.println("<div class='cancel-area'>");
+        out.println("<button class='btn-cancel' id='cancelBtn' style='display:none;' onclick='cancelBikeReservation()'>キャンセル</button>");
+        out.println("<span id='timerPill' class='timer-pill' style='display:none;'></span>");
+        out.println("</div>");
+        out.println("<div id=\"statusMsg\" class=\"reservation-status is-success\" style=\"display:none;\">");
+        out.println("<span class=\"status-icon\">✓</span>");
+        out.println("<span class=\"status-text\"></span>");
+        out.println("</div>");
+        out.println("</div>");
+
+        // ★ contextPath を付ける（今の '/static/..' だと環境によって壊れる）
+        out.println("<script src='" + req.getContextPath() + "/static/bike-reservation.js'></script>");
+        out.println("<script>");
+        out.println("initBikeReservation({");
+        out.println("  startPortId: " + m.reservation.startPortId + ",");
+        out.println("  endPortId: " + m.reservation.endPortId + ",");
+        out.println("  apiEndpoint: '" + req.getContextPath() + "/bikereservation'");
+        out.println("});");
+        out.println("</script>");
+    }
+
+    out.println("</div>");
+    out.println("</body></html>");
+}
 
 
 // -------- 便利メソッド --------

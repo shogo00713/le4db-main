@@ -1,8 +1,11 @@
 import static util.HtmlUtils.esc;
 import static util.HtmlUtils.nvl;
+import static util.HtmlUtils.preferNonEmpty;
+import static util.HtmlUtils.toStr;
 import static util.HtmlUtils.normalizeContact;
 import static util.TimeUtils.addMinutes;
 import static util.TimeUtils.diffMinutes;
+import static util.TimeUtils.hhmm;
 import static util.TimeUtils.now;
 import static util.GeoUtils.distanceMeters;
 import static util.GeoUtils.walkingMinutes;
@@ -52,9 +55,11 @@ public class RouteSearchServlet extends HttpServlet {
         // 詳細ページに飛ぶ場合
         String view = request.getParameter("view");
         if ("detail".equals(view)) {
-            RouteDetailView.renderDetailPage(request, response);
+            RouteDetail m = buildDetailModel(request);
+            RouteDetailView.renderDetailPage(request, response, m);
             return;
         }
+
 
         // ルート検索の要求を取ってくる
         RouteRequest rr = parseRequest(request);
@@ -149,7 +154,7 @@ public class RouteSearchServlet extends HttpServlet {
             session.setAttribute("lastOriginStopType", routeResult.lastOriginStopType);
             session.setAttribute("lastDestStopName",   routeResult.lastDestStopName);
             session.setAttribute("lastDestStopType",   routeResult.lastDestStopType);
-            
+
             session.setAttribute("lastSearchQuery", request.getQueryString());
             session.setAttribute("lastDisplayedResults", routeResult.displayedResults);
             
@@ -711,4 +716,138 @@ public class RouteSearchServlet extends HttpServlet {
         }
     }
 
+    // 詳細ページ構築メソッド
+    private RouteDetail buildDetailModel(HttpServletRequest req) {
+        RouteDetail m = new RouteDetail();
+
+        HttpSession session = req.getSession(false);
+        if (session == null) {
+            m.error = "セッション切れ";
+            m.backUrl = req.getContextPath() + "/routesearch";
+            return m;
+        }
+
+        Object displayedObj = session.getAttribute("lastDisplayedResults");
+        List<ResultItem> displayed;
+        if (displayedObj instanceof List<?>) {
+            displayed = new ArrayList<>();
+            for (Object o : (List<?>) displayedObj) {
+                if (o instanceof ResultItem) {
+                    displayed.add((ResultItem) o);
+                }
+            }
+        } else {
+            displayed = null;
+        }
+        if (displayed == null) {
+            m.error = "検索結果がありません";
+            m.backUrl = req.getContextPath() + "/routesearch";
+            return m;
+        }
+
+        int rid;
+        try {
+            rid = Integer.parseInt(req.getParameter("rid"));
+        } catch (Exception e) {
+            m.error = "ridが不正";
+            m.backUrl = req.getContextPath() + "/routesearch";
+            return m;
+        }
+
+        if (rid < 0 || rid >= displayed.size()) {
+            m.error = "不正なrid";
+            m.backUrl = req.getContextPath() + "/routesearch";
+            return m;
+        }
+
+        ResultItem item = displayed.get(rid);
+        m.item = item;
+        m.totalMinutes = item.totalMinutes;
+        m.arrivalHHMM = (item.end != null) ? hhmm(item.end.toString()) : "";
+
+        // 戻るURL（条件保持）
+        String q = (String) session.getAttribute("lastSearchQuery");
+        m.backUrl = req.getContextPath() + "/routesearch" + (q != null ? ("?" + q) : "");
+
+        // payload由来の出発/目的（Viewから移動）
+        String payloadOrigin = "";
+        String payloadDest = "";
+        Object p = item.payload;
+
+        if (p instanceof WalkDirectPlan) {
+            WalkDirectPlan wp = (WalkDirectPlan) p;
+            payloadOrigin = wp.fromName; payloadDest = wp.toName;
+        } else if (p instanceof TransitDirectPlan) {
+            TransitDirectPlan dp = (TransitDirectPlan) p;
+            payloadOrigin = dp.walk0.fromName != null ? dp.walk0.fromName : dp.leg.fromStopName;
+            payloadDest   = dp.walk2.toName   != null ? dp.walk2.toName   : dp.leg.toStopName;
+        } else if (p instanceof TransferPath) {
+            TransferPath tp = (TransferPath) p;
+            payloadOrigin = tp.walk0.fromName != null ? tp.walk0.fromName : tp.leg1.fromStopName;
+            payloadDest   = tp.walk2.toName   != null ? tp.walk2.toName   : tp.leg2.toStopName;
+        } else if (p instanceof BikeDirectPlan) {
+            BikeDirectPlan bp = (BikeDirectPlan) p;
+            payloadOrigin = bp.walk0.fromName != null ? bp.walk0.fromName : bp.bike.fromPortName;
+            payloadDest   = bp.walk2.toName   != null ? bp.walk2.toName   : bp.bike.toPortName;
+        } else if (p instanceof TransferTransitBike) {
+            TransferTransitBike tp = (TransferTransitBike) p;
+            payloadOrigin = tp.walk0.fromName != null ? tp.walk0.fromName : tp.leg1.fromStopName;
+            payloadDest   = tp.walk2.toName   != null ? tp.walk2.toName   : tp.bike.toPortName;
+        } else if (p instanceof TransferBikeTransit) {
+            TransferBikeTransit tp = (TransferBikeTransit) p;
+            payloadOrigin = tp.walk0.fromName != null ? tp.walk0.fromName : tp.bike.fromPortName;
+            payloadDest   = tp.walk2.toName   != null ? tp.walk2.toName   : tp.leg2.toStopName;
+        }
+
+        m.originName = preferNonEmpty(toStr(session.getAttribute("lastOriginStopName")), payloadOrigin);
+        m.originType = toStr(session.getAttribute("lastOriginStopType"));
+        m.destName   = preferNonEmpty(toStr(session.getAttribute("lastDestStopName")), payloadDest);
+        m.destType   = toStr(session.getAttribute("lastDestStopType"));
+
+        // 自転車予約用情報（Viewから移動）
+        RouteDetail.ReservationInfo ri = extractReservationInfo(item);
+        m.reservation = ri;
+
+        return m;
+    }
+
+    // 自転車予約情報抽出メソッド
+    private RouteDetail.ReservationInfo extractReservationInfo(ResultItem item) {
+        Object p = item.payload;
+
+        boolean hasBike =
+            (p instanceof BikeDirectPlan) ||
+            (p instanceof TransferTransitBike) ||
+            (p instanceof TransferBikeTransit);
+
+        if (!hasBike) return null;
+
+        RouteDetail.ReservationInfo ri = new RouteDetail.ReservationInfo();
+
+        if (p instanceof BikeDirectPlan) {
+            BikeDirectPlan bp = (BikeDirectPlan) p;
+            ri.operatorId = bp.bike.operatorId;
+            ri.operatorName = bp.bike.operatorName;
+            ri.operatorContact = bp.bike.operatorContact;
+            ri.startPortId = bp.bike.fromPortId;
+            ri.endPortId = bp.bike.toPortId;
+        } else if (p instanceof TransferTransitBike) {
+            TransferTransitBike tp = (TransferTransitBike) p;
+            ri.operatorId = tp.bike.operatorId;
+            ri.operatorName = tp.bike.operatorName;
+            ri.operatorContact = tp.bike.operatorContact;
+            ri.startPortId = tp.bike.fromPortId;
+            ri.endPortId = tp.bike.toPortId;
+        } else {
+            TransferBikeTransit tp = (TransferBikeTransit) p;
+            ri.operatorId = tp.bike.operatorId;
+            ri.operatorName = tp.bike.operatorName;
+            ri.operatorContact = tp.bike.operatorContact;
+            ri.startPortId = tp.bike.fromPortId;
+            ri.endPortId = tp.bike.toPortId;
+        }
+
+        return ri;
+    }
+    
 }
