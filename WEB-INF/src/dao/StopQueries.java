@@ -19,6 +19,8 @@ public class StopQueries {
      * @param stopId 停留所 ID
      * @return 停留所情報、存在しない場合は null
      */
+
+    // 初期の出発/到着停留所の探索で使用
     public static Stop getStopById(Connection conn, int stopId) throws SQLException {
         String sql = "SELECT stop_id, stop_name, stop_type, stop_latitude, stop_longitude " +
                      "FROM stop_information " +
@@ -50,6 +52,8 @@ public class StopQueries {
      * @param radiusM 検索範囲（メートル）
      * @return 見つかった停留所のリスト（距離の近い順）
      */
+
+    // part6 で使用
     public static List<Stop> findNearbyStops(Connection conn, 
             double lat, double lon, int radiusM) throws SQLException {
         
@@ -89,6 +93,8 @@ public class StopQueries {
      * @param stopName 停留所名
      * @return 見つかった停留所のリスト
      */
+
+    // 停留所候補を選定するときに使用
     public static List<Stop> findByName(Connection conn, String stopName, int limit) throws SQLException {
         String sql = "SELECT stop_id, stop_name, stop_type, stop_latitude, stop_longitude "
                    + "FROM stop_information "
@@ -132,6 +138,7 @@ public class StopQueries {
      * @param limit 取得する結果の最大数
      * @return 見つかった近くの停留所のリスト（距離の近い順）
      */
+    // 初期の出発/到着停留所の探索で使用
     public static List<NearByStops> getNearByStops(Connection conn, int centerStopId, int radiusM, int limit) throws SQLException {
         Stop centerstop = StopQueries.getStopById(conn, centerStopId);
         if (centerstop == null)
@@ -184,12 +191,22 @@ public class StopQueries {
 
 
 
-    // 出発停留所から降りれる停留所を列挙
+    /**
+     * 出発停留所から降りれる停留所を列挙
+     * @param conn データベース接続
+     * @param fromStopId 出発停留所ID
+     * @param baseTime 出発時間
+     * @param day 曜日種別
+     * @param limit 取得する結果の最大数
+     * @return 降りれる停留所のリスト
+     * @throws SQLException
+     */
+
+    // 出発停留所から降りれる停留所を列挙 (part4,5,6で使用)
     public static List<Stop> listTransferCandidates(Connection conn, int fromStopId, String baseTime, String day, int limit) throws SQLException {
 
         String sql = ""
-                + "SELECT DISTINCT "
-                + "  t.trip_id AS trip_id, "
+                + "SELECT DISTINCT ON (sa_to.stop_id) "
                 + "  sa_to.stop_id AS mid_stop_id, "
                 + "  st.stop_name AS mid_stop_name, "
                 + "  st.stop_type AS mid_stop_type, "
@@ -210,7 +227,7 @@ public class StopQueries {
             sql += " AND t.trip_datetime IN ('全日','休日') ";
         }
 
-        sql += " ORDER BY sa_to.arrival_time ASC LIMIT ?";
+        sql += " ORDER BY sa_to.stop_id, sa_to.arrival_time ASC LIMIT ?";
 
         List<Stop> results = new ArrayList<>();
         try (PreparedStatement ps = conn.prepareStatement(sql)) {

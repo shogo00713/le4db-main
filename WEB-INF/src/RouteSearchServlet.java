@@ -112,7 +112,9 @@ public class RouteSearchServlet extends HttpServlet {
             if (candResult.status == CandidateSelectionResult.Status.NOT_FOUND) {
                 session.removeAttribute("lastCandidateSelection");
                 session.removeAttribute("lastCandidateSelectionKey");
+                out.println("<div class=\"card\">");
                 out.println("<p class=\"alert\">" + esc(candResult.message) + "</p>");
+                out.println("</div>");
                 HtmlLayout.renderFoot(out);
                 return;
             }
@@ -320,9 +322,8 @@ public class RouteSearchServlet extends HttpServlet {
             result.portsNearOrigin = PortQueries.getNearByPorts(conn, result.originStop.lat, result.originStop.lon, FROM_RADIUS_M, PORT_LIMIT, true, false);
             result.portsNearDest   = PortQueries.getNearByPorts(conn, result.destStop.lat, result.destStop.lon, TO_RADIUS_M, PORT_LIMIT, false, true);
 
-            // 探索する候補数の上限
-            final int TRANSFER_CANDIDATE_LIMIT = RESULT_LIMIT * 30;
-            final int DIRECT_CANDIDATE_LIMIT   = RESULT_LIMIT * 30;
+
+
 
             // 結果全体を入れるリスト
             result.results = new ArrayList<>();
@@ -435,7 +436,7 @@ public class RouteSearchServlet extends HttpServlet {
                 // 乗換降車停留所候補に対して
                 for (Stop firstAlightStop : firstAlightStopCandidates) {
 
-                    List<TransitPath> leg1Candidates = TransitQueries.searchDirectTransit(conn, firstBoardStop.stopId, firstAlightStop.id, arrivalTimeTo1BoardStop, dayType, 1);
+        List<TransitPath> leg1Candidates = TransitQueries.searchDirectTransit(conn, firstBoardStop.stopId, firstAlightStop.id, arrivalTimeTo1BoardStop, dayType, DIRECT_LIMIT);
                     if (leg1Candidates.isEmpty()) continue;
                     TransitPath leg1 = leg1Candidates.get(0);
 
@@ -489,7 +490,7 @@ public class RouteSearchServlet extends HttpServlet {
             // ---- part 5 (公共交通 -> 自転車) ----
             java.util.Map<String, TransferTransitBike> bestTransferBikePlanByTBKey = new java.util.HashMap<>();
             java.util.Map<Integer, java.util.List<NearByPorts>> toPortsByOp = groupPortsByOperator(result.portsNearDest);
-            final int TRANSFER_BIKE_LIMIT = RESULT_LIMIT * 10;
+
 
             // 出発地近くの停留所候補に対して
             for (NearByStops boardStop : result.stopsNearOrigin) {
@@ -547,10 +548,10 @@ public class RouteSearchServlet extends HttpServlet {
                             TransferTransitBike currentBest = bestTransferBikePlanByTBKey.get(key);
                             if (currentBest == null || betterTransferBike(plan, currentBest)) bestTransferBikePlanByTBKey.put(key, plan);
 
-                            if (bestTransferBikePlanByTBKey.size() > TRANSFER_BIKE_LIMIT) {
+                            if (bestTransferBikePlanByTBKey.size() > TRANSIT_BIKE_LIMIT) {
                                 java.util.List<java.util.Map.Entry<String, TransferTransitBike>> sortPlans = new java.util.ArrayList<>(bestTransferBikePlanByTBKey.entrySet());
                                 sortPlans.sort(java.util.Comparator.comparing(e -> java.time.LocalTime.parse(e.getValue().endTime)));
-                                for (int i = TRANSFER_BIKE_LIMIT; i < sortPlans.size(); i++)
+                                for (int i = TRANSIT_BIKE_LIMIT; i < sortPlans.size(); i++)
                                     bestTransferBikePlanByTBKey.remove(sortPlans.get(i).getKey());
                             }
                         }
@@ -586,7 +587,7 @@ public class RouteSearchServlet extends HttpServlet {
                 }
             }
 
-            final int BIKE_TRANSIT_LIMIT = RESULT_LIMIT * 10;
+
             List<NearByStops> destStopsForBT = result.stopsNearDest.subList(0, Math.min(25, result.stopsNearDest.size()));
 
             // 出発地近くのポート候補に対して
