@@ -168,7 +168,7 @@ function startBikeUsage() {
           clearReserveCountdown();
           updateButtonStates();
           startUseTimer();
-          setStatusMessage('利用中, 安全運転で!!');
+          setStatusMessage('利用中です, 安全運転で!!');
         } else {
           alert('利用開始に失敗しました: ' + response.error);
         }
