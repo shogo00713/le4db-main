@@ -120,7 +120,8 @@ public class RouteSearchView {
         boolean hasDestList = candResult.destCandidates != null && !candResult.destCandidates.isEmpty();
 
         // 出発地
-        if (hasOriginList) {
+        if (hasOriginList && candResult.originCandidates.size() > 1) {
+            // 複数候補がある場合はドロップダウン
             out.println("<div class=\"field\"><label class=\"label\" for=\"originstopid\">出発地 (候補)</label>");
             out.println("<select class=\"select\" id=\"originstopid\" name=\"originstopid\">");
             for (Stop s : candResult.originCandidates) {
@@ -128,6 +129,12 @@ public class RouteSearchView {
                 out.println("<option value=\"" + s.id + "\"" + selected + ">" + esc(s.name) + " (" + esc(s.type) + ")</option>");
             }
             out.println("</select></div>");
+        } else if (hasOriginList && candResult.originCandidates.size() == 1) {
+            // 候補が1件のみの場合は確定として表示
+            Stop single = candResult.originCandidates.get(0);
+            out.println("<input type=\"hidden\" name=\"originstopid\" value=\"" + single.id + "\"/>");
+            out.println("<div class=\"field\"><label class=\"label\">出発地 (確定)</label>");
+            out.println("<div class=\"fixed\">" + esc(single.name) + " (" + esc(single.type) + ")</div></div>");
         } else if (candResult.originStopId != null) {
             out.println("<input type=\"hidden\" name=\"originstopid\" value=\"" + candResult.originStopId + "\"/>");
             if (candResult.fixedOriginStop != null) {
@@ -137,7 +144,8 @@ public class RouteSearchView {
         }
 
         // 目的地
-        if (hasDestList) {
+        if (hasDestList && candResult.destCandidates.size() > 1) {
+            // 複数候補がある場合はドロップダウン
             out.println("<div class=\"field\"><label class=\"label\" for=\"deststopid\">目的地 (候補)</label>");
             out.println("<select class=\"select\" id=\"deststopid\" name=\"deststopid\">");
             for (Stop s : candResult.destCandidates) {
@@ -145,6 +153,12 @@ public class RouteSearchView {
                 out.println("<option value=\"" + s.id + "\"" + selected + ">" + esc(s.name) + " (" + esc(s.type) + ")</option>");
             }
             out.println("</select></div>");
+        } else if (hasDestList && candResult.destCandidates.size() == 1) {
+            // 候補が1件のみの場合は確定として表示
+            Stop single = candResult.destCandidates.get(0);
+            out.println("<input type=\"hidden\" name=\"deststopid\" value=\"" + single.id + "\"/>");
+            out.println("<div class=\"field\"><label class=\"label\">目的地 (確定)</label>");
+            out.println("<div class=\"fixed\">" + esc(single.name) + " (" + esc(single.type) + ")</div></div>");
         } else if (candResult.destStopId != null) {
             out.println("<input type=\"hidden\" name=\"deststopid\" value=\"" + candResult.destStopId + "\"/>");
             if (candResult.fixedDestStop != null) {

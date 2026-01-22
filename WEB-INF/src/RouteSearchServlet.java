@@ -240,8 +240,7 @@ public class RouteSearchServlet extends HttpServlet {
     }
 
     // 候補選択処理メソッド
-    private CandidateSelectionResult selectCandidates(
-            String originstop, String deststop,
+    private CandidateSelectionResult selectCandidates(String originstop, String deststop,
             Integer originstopid, Integer deststopid) throws Exception {
 
         CandidateSelectionResult r = new CandidateSelectionResult();
@@ -269,7 +268,6 @@ public class RouteSearchServlet extends HttpServlet {
             if (r.originStopId == null || r.destStopId == null) {
                 r.status = CandidateSelectionResult.Status.NEED_CHOICE;
 
-                // 確定済み側があるなら表示用に拾う（任意）
                 if (r.originStopId != null) r.fixedOriginStop = StopQueries.getStopById(conn, r.originStopId);
                 if (r.destStopId   != null) r.fixedDestStop   = StopQueries.getStopById(conn, r.destStopId);
 
@@ -334,7 +332,6 @@ public class RouteSearchServlet extends HttpServlet {
 
 
             // ---- part 2 (自転車のみ) ----
-            final int BIKE_DIRECT_LIMIT = RESULT_LIMIT * 2;
             List<BikeDirectPlan> bikeDirectCandidates = new ArrayList<>();
 
             // 出発地近くの乗車ポートの候補に対して
@@ -370,7 +367,6 @@ public class RouteSearchServlet extends HttpServlet {
 
             // 早い順にソート
             bikeDirectCandidates.sort(Comparator.comparing((BikeDirectPlan p) -> LocalTime.parse(p.endTime)).thenComparingInt(p -> p.totalMin));
-
             if(bikeDirectCandidates.size() > BIKE_DIRECT_LIMIT) bikeDirectCandidates = bikeDirectCandidates.subList(0, BIKE_DIRECT_LIMIT);
             for (BikeDirectPlan bp : bikeDirectCandidates) result.results.add(new ResultItem(0, bp.endTime, bp.totalMin, "",bp));
 

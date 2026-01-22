@@ -13,14 +13,15 @@ public class RouteConstants {
     // 距離関係定数
     public static final int FROM_RADIUS_M = 1000; // 出発地周りの徒歩圏最大
     public static final int TO_RADIUS_M = 1000; // 到着地周りの徒歩圏最大
-    public static final int TRANSFER_RADIUS_M = 300; // 乗換の徒歩圏最大
-    public static final int BIKE_PORT_RADIUS_M = 400; // 停留所 と ポート間の徒歩圏最大
+    public static final int TRANSFER_RADIUS_M = 400; // 乗換の徒歩圏最大
+    public static final int BIKE_PORT_RADIUS_M = 200; // 停留所 と ポート間の徒歩圏最大
     public static final int BIKE_MAX_RIDE_M = 6000; // 自転車移動の最大距離（暴走防止）
     // 探索関係定数
     public static final int MID_LIMIT = 10; // 乗り換え地点候補の探索数上限
     public static final int NEAR_LIMIT = 30; // 乗換経路探索数上限
     public static final int PORT_LIMIT = 5; // 近隣ポートの探索数上限
     public static final int RESULT_LIMIT = 5; // 表示する乗換経路の最大
+    public static final int BIKE_DIRECT_LIMIT = 2; // 残す自転車直行経路の最大
 
     // 徒歩/自転車速度関係定数
     public static final double METER_CORRECTION = 1.25; // 徒歩距離補正係数 (直線 -> 道のり)
