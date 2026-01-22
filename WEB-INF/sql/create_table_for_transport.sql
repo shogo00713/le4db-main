@@ -102,6 +102,7 @@ CREATE TABLE stop_at (
 );
 
 
+
 -- =====================================================
 -- 索引
 -- =====================================================
@@ -109,4 +110,3 @@ CREATE INDEX stop_at_stop_depart_idx ON stop_at (stop_id, departure_time, trip_i
 CREATE INDEX stop_at_stop_order_idx ON stop_at (stop_id, departure_time, arrival_order, trip_id);
 CREATE INDEX stop_latlon_idx ON stop_information (stop_latitude, stop_longitude);
 CREATE INDEX route_trip_route_idx ON route_trip (route_id, trip_id);
-CREATE INDEX route_operation_operator_idx ON route_operation (operator_id, route_id);
