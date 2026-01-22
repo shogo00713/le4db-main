@@ -195,35 +195,17 @@ public class PortAdminServlet extends HttpServlet {
         out.println("<a class=\"btn2\"  href=\"" + ctx + "/routesearch\">ルート検索に戻る</a>");
         out.println("<a class=\"btn2\" href=\"" + ctx + "/portlog\">配車ログ</a>");
         out.println("</div>");
-        out.println("</div>"); // header
+        out.println("</div>");
+        out.println("</div>"); // card
 
-        out.println("<div class=\"row\">");
+        out.println("<div class=\"card\">");
 
         if (!msg.isEmpty()) {
             out.println("<div class=\"alert\">" + esc(msg) + "</div>");
         }
 
-        // 検索・ソート
-        out.println("<form method=\"GET\" action=\"" + basePath + "\">");
-        out.println("<div class=\"row\">");
-        out.println("<input type=\"text\" name=\"q\" placeholder=\"ポート名で検索\" value=\"" + esc(q) + "\"/>");
-        out.println("<select name=\"sort\">");
-        out.println("<option value=\"id\"" + ("id".equals(sort) ? " selected" : "") + ">ID順</option>");
-        out.println("<option value=\"name\"" + ("name".equals(sort) ? " selected" : "") + ">名前順</option>");
-        out.println("<option value=\"bikes_desc\"" + ("bikes_desc".equals(sort) ? " selected" : "") + ">bikes 多い順</option>");
-        out.println("<option value=\"bikes_asc\"" + ("bikes_asc".equals(sort) ? " selected" : "") + ">bikes 少ない順</option>");
-        out.println("<option value=\"free_desc\"" + ("free_desc".equals(sort) ? " selected" : "") + ">空き 多い順</option>");
-        out.println("<option value=\"free_asc\"" + ("free_asc".equals(sort) ? " selected" : "") + ">空き 少ない順</option>");
-        out.println("</select>");
-        out.println("<button class=\"btn\" type=\"submit\">表示</button>");
-        out.println("</div>");
-        out.println("</form>");
-
-        out.println("<hr/>");
-
-        out.println("<div class=\"row mt-14\">");
-        out.println("<div class=\"alert alert-warn\">\"配車 : 事業者による自転車の移動を記録できます<br/></div>");
-        out.println("</div>");
+        // 配車フォーム
+        out.println("<h2 class=\"alert alert-warn\">配車: 事業者による自転車の移動を記録できます</h2>");
         out.println("<form method=\"POST\" action=\"" + basePath + "\">");
         out.println("<div class=\"row\">");
         out.println("<input type=\"hidden\" name=\"action\" value=\"move\"/>");
@@ -242,8 +224,26 @@ public class PortAdminServlet extends HttpServlet {
         out.println("</form>");
 
         out.println("<hr/>");
+        out.println("</div>"); // card
 
-        out.println("<h2>ポート一覧 (" + rows.size() + "件)</h2>");
+        out.println("<div class=\"card\">");
+        out.println("<h2 class=\"title\">ポート情報</h2>");
+        // 検索・ソート
+        out.println("<form method=\"GET\" action=\"" + basePath + "\">");
+        out.println("<div class=\"row\">");
+        out.println("<input type=\"text\" name=\"q\" placeholder=\"ポート名で検索\" value=\"" + esc(q) + "\"/>");
+        out.println("<select name=\"sort\">");
+        out.println("<option value=\"id\"" + ("id".equals(sort) ? " selected" : "") + ">ID順</option>");
+        out.println("<option value=\"name\"" + ("name".equals(sort) ? " selected" : "") + ">名前順</option>");
+        out.println("<option value=\"bikes_desc\"" + ("bikes_desc".equals(sort) ? " selected" : "") + ">bikes 多い順</option>");
+        out.println("<option value=\"bikes_asc\"" + ("bikes_asc".equals(sort) ? " selected" : "") + ">bikes 少ない順</option>");
+        out.println("<option value=\"free_desc\"" + ("free_desc".equals(sort) ? " selected" : "") + ">空き 多い順</option>");
+        out.println("<option value=\"free_asc\"" + ("free_asc".equals(sort) ? " selected" : "") + ">空き 少ない順</option>");
+        out.println("</select>");
+        out.println("<button class=\"btn\" type=\"submit\">表示</button>");
+        out.println("</div>");
+        out.println("</form>");
+        out.println("<hr/>");
 
         out.println("<div class=\"table-wrap\">");
         out.println("<table>");

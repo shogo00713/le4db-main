@@ -241,3 +241,4 @@ body{margin:0;font-family:'Segoe UI',Roboto,'Noto Sans JP',Meiryo,sans-serif;-we
 .page-port-log a{color:#3b82f6;text-decoration:none;transition:color 0.2s ease;}
 .page-port-admin a:hover,
 .page-port-log a:hover{color:#1d4ed8;}
+.page-port-admin .section-title{margin: 16px 0 10px;text-align: left;font-size: 20px;font-weight: 700;color: #1a202c;letter-spacing: -0.5px;}

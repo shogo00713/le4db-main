@@ -94,7 +94,7 @@ public class BikeMoveLogServlet extends HttpServlet {
               + "LIMIT 80 ";
 
         // ---- ユーザー利用のみの分析（source='user'）----
-        class PortStat { int portId; String portName; String operatorName; int total; int trips; }
+        class PortStat { int portId; String portName; String operatorName; int trips; }
         List<PortStat> topDepartures = new ArrayList<>();
         List<PortStat> topReturns = new ArrayList<>();
         List<PortStat> leastUsed = new ArrayList<>();
@@ -102,21 +102,21 @@ public class BikeMoveLogServlet extends HttpServlet {
         String topDepartSql =
             "SELECT from_port_id AS port_id, from_port_name AS port_name, " +
             "       operator_id, operator_name, " +
-            "       SUM(moved_bikes) AS total_bikes, COUNT(*) AS trips " +
+            "       COUNT(*) AS trips " +
             "FROM v_bike_move " +
             "WHERE source = 'user' AND (? = -1 OR operator_id = ?) " +
             "GROUP BY from_port_id, from_port_name, operator_id, operator_name " +
-            "ORDER BY total_bikes DESC, trips DESC " +
+            "ORDER BY trips DESC " +
             "LIMIT 3";
 
         String topReturnSql =
             "SELECT to_port_id AS port_id, to_port_name AS port_name, " +
             "       operator_id, operator_name, " +
-            "       SUM(moved_bikes) AS total_bikes, COUNT(*) AS trips " +
+            "       COUNT(*) AS trips " +
             "FROM v_bike_move " +
             "WHERE source = 'user' AND (? = -1 OR operator_id = ?) " +
             "GROUP BY to_port_id, to_port_name, operator_id, operator_name " +
-            "ORDER BY total_bikes DESC, trips DESC " +
+            "ORDER BY trips DESC " +
             "LIMIT 3";
 
         String leastUsedSql =
@@ -179,7 +179,6 @@ public class BikeMoveLogServlet extends HttpServlet {
                         s.portName = rs.getString("port_name");
                         rs.getInt("operator_id");
                         s.operatorName = rs.getString("operator_name");
-                        s.total = rs.getInt("total_bikes");
                         s.trips = rs.getInt("trips");
                         topDepartures.add(s);
                     }
@@ -197,7 +196,6 @@ public class BikeMoveLogServlet extends HttpServlet {
                         s.portName = rs.getString("port_name");
                         rs.getInt("operator_id");
                         s.operatorName = rs.getString("operator_name");
-                        s.total = rs.getInt("total_bikes");
                         s.trips = rs.getInt("trips");
                         topReturns.add(s);
                     }
@@ -215,7 +213,6 @@ public class BikeMoveLogServlet extends HttpServlet {
                         s.portName = rs.getString("port_name");
                         rs.getInt("operator_id");
                         s.operatorName = rs.getString("operator_name");
-                        s.total = rs.getInt("total_bikes");
                         s.trips = rs.getInt("trips");
                         leastUsed.add(s);
                     }
@@ -239,7 +236,6 @@ public class BikeMoveLogServlet extends HttpServlet {
         out.println("<div>");
         out.println("<h1 class=\"title\">配車ログ（bike_move_log）</h1>");
         out.println("<p class=\"muted\">事業者: " + esc(sessionOperatorName) + "</p>");
-        out.println("<p class=\"muted\">検索(SELECT+JOIN) / 集約(GROUP BY) をここでデモできます</p>");
         out.println("</div>");
         out.println("<div class=\"row\">");
         out.println("<a class=\"btn2\" href=\"" + ctx + "/portadmin/\">ポート管理へ戻る</a>");
@@ -248,34 +244,87 @@ public class BikeMoveLogServlet extends HttpServlet {
 
         if (!msg.isEmpty()) out.println("<div class=\"alert\">" + esc(msg) + "</div>");
 
+        out.println("</div>"); // card
+
         // 分析結果（ユーザー利用のみ）
-        out.println("<div class=\"row\">");
-        out.println("<div class=\"alert alert-info\">");
-        out.println("<b>分析（ユーザー利用のみ）</b>：事業者の活用検討に役立つサマリ<br/>");
-        out.println("<div class=\"row gap-24\">");
+        out.println("<div class=\"card\">");
+        out.println("<h2 class=\"title\">分析（ユーザー利用のみ）</h2>");
+        out.println("<p class=\"muted\">事業者の活用検討に役立つサマリ</p>");
+        out.println("<hr/>");
+        
+        out.println("<div class=\"row gap-24\" style=\"align-items: flex-start;\">");
+        
         // 出発上位
-        out.println("<div><span class=\"mini\"><b>出発が多いポート TOP3</b></span><br/>");
-        for (PortStat s : topDepartures) {
-            out.println(esc(s.portName) + " <span class=\"mini\">(#" + s.portId + ")</span> - "
-                + esc(s.operatorName) + "：合計 " + s.total + "台 / " + s.trips + "回<br/>");
+        out.println("<div style=\"flex: 1; min-width: 280px;\">");
+        out.println("<h3 style=\"margin-top: 0; color: #2563eb;\">📤 出発が多いポート TOP3</h3>");
+        if (topDepartures.isEmpty()) {
+            out.println("<p class=\"muted\">データがありません</p>");
+        } else {
+            out.println("<div style=\"background: #f8fafc; padding: 12px; border-radius: 6px;\">");
+            for (int i = 0; i < topDepartures.size(); i++) {
+                PortStat s = topDepartures.get(i);
+                out.println("<div style=\"margin-bottom: 8px; padding-bottom: 8px; " + 
+                    (i < topDepartures.size() - 1 ? "border-bottom: 1px solid #e2e8f0;" : "") + "\">");
+                out.println("<div style=\"font-weight: 600;\">" + esc(s.portName) + 
+                    " <span class=\"mini\" style=\"color: #64748b;\">(#" + s.portId + ")</span></div>");
+                out.println("<div class=\"mini\" style=\"color: #64748b;\">- " + esc(s.operatorName) + "</div>");
+                out.println("<div style=\"margin-top: 4px;\"><span style=\"color: #2563eb; font-weight: 600;\">合計 " + 
+                    s.trips + "回</span></div>");
+                out.println("</div>");
+            }
+            out.println("</div>");
         }
         out.println("</div>");
+        
         // 返却上位
-        out.println("<div><span class=\"mini\"><b>返却が多いポート TOP3</b></span><br/>");
-        for (PortStat s : topReturns) {
-            out.println(esc(s.portName) + " <span class=\"mini\">(#" + s.portId + ")</span> - "
-                + esc(s.operatorName) + "：合計 " + s.total + "台 / " + s.trips + "回<br/>");
+        out.println("<div style=\"flex: 1; min-width: 280px;\">");
+        out.println("<h3 style=\"margin-top: 0; color: #059669;\">📥 返却が多いポート TOP3</h3>");
+        if (topReturns.isEmpty()) {
+            out.println("<p class=\"muted\">データがありません</p>");
+        } else {
+            out.println("<div style=\"background: #f8fafc; padding: 12px; border-radius: 6px;\">");
+            for (int i = 0; i < topReturns.size(); i++) {
+                PortStat s = topReturns.get(i);
+                out.println("<div style=\"margin-bottom: 8px; padding-bottom: 8px; " + 
+                    (i < topReturns.size() - 1 ? "border-bottom: 1px solid #e2e8f0;" : "") + "\">");
+                out.println("<div style=\"font-weight: 600;\">" + esc(s.portName) + 
+                    " <span class=\"mini\" style=\"color: #64748b;\">(#" + s.portId + ")</span></div>");
+                out.println("<div class=\"mini\" style=\"color: #64748b;\">- " + esc(s.operatorName) + "</div>");
+                out.println("<div style=\"margin-top: 4px;\"><span style=\"color: #059669; font-weight: 600;\">合計 " + 
+                    s.trips + "回</span></div>");
+                out.println("</div>");
+            }
+            out.println("</div>");
         }
         out.println("</div>");
+        
         // 未使用寄り
-        out.println("<div><span class=\"mini\"><b>未使用寄りポート TOP3</b></span><br/>");
-        for (PortStat s : leastUsed) {
-            out.println(esc(s.portName) + " <span class=\"mini\">(#" + s.portId + ")</span> - "
-                + esc(s.operatorName) + "：合計 " + s.total + "台 / " + s.trips + "回<br/>");
+        out.println("<div style=\"flex: 1; min-width: 280px;\">");
+        out.println("<h3 style=\"margin-top: 0; color: #dc2626;\">⚠️ 未使用寄りポート TOP3</h3>");
+        if (leastUsed.isEmpty()) {
+            out.println("<p class=\"muted\">データがありません</p>");
+        } else {
+            out.println("<div style=\"background: #fef2f2; padding: 12px; border-radius: 6px;\">");
+            for (int i = 0; i < leastUsed.size(); i++) {
+                PortStat s = leastUsed.get(i);
+                out.println("<div style=\"margin-bottom: 8px; padding-bottom: 8px; " + 
+                    (i < leastUsed.size() - 1 ? "border-bottom: 1px solid #fecaca;" : "") + "\">");
+                out.println("<div style=\"font-weight: 600;\">" + esc(s.portName) + 
+                    " <span class=\"mini\" style=\"color: #64748b;\">(#" + s.portId + ")</span></div>");
+                out.println("<div class=\"mini\" style=\"color: #64748b;\">- " + esc(s.operatorName) + "</div>");
+                out.println("<div style=\"margin-top: 4px;\"><span style=\"color: #dc2626; font-weight: 600;\">合計 " + 
+                    s.trips + "回</span></div>");
+                out.println("</div>");
+            }
+            out.println("</div>");
         }
         out.println("</div>");
-        out.println("</div>");
-        out.println("</div>");
+        
+        out.println("</div>"); // row
+        out.println("</div>"); // card
+
+        out.println("<div class=\"card\">");
+        out.println("<h2 class=\"title\">ログ検索・一覧</h2>");
 
         // 検索フォーム
         out.println("<form method=\"GET\" action=\"" + basePath + "\">");
@@ -286,30 +335,42 @@ public class BikeMoveLogServlet extends HttpServlet {
         out.println("</form>");
 
         // ログ表
+        out.println("<hr/>");
+        out.println("<h3 style=\"margin-top: 16px;\">配車履歴（最新80件）</h3>");
         out.println("<div class=\"table-wrap\"><table>");
+        out.println("<thead>");
         out.println("<tr>");
-        out.println("<th>log_id</th><th>日時</th><th>operator</th><th>from</th><th>to</th><th>台数</th><th>種別</th>");
+        out.println("<th style=\"width: 80px;\">log_id</th>");
+        out.println("<th style=\"width: 150px;\">日時</th>");
+        out.println("<th style=\"width: 150px;\">事業者</th>");
+        out.println("<th>出発</th>");
+        out.println("<th>到着</th>");
+        out.println("<th style=\"width: 80px;\">台数</th>");
+        out.println("<th style=\"width: 100px;\">種別</th>");
         out.println("</tr>");
+        out.println("</thead>");
+        out.println("<tbody>");
 
         for (LogRow r : rows) {
+            String kindClass = "user".equals(r.source) ? "color: #059669;" : "color: #64748b;";
             out.println("<tr>");
             out.println("<td>" + r.logId + "</td>");
-            out.println("<td>" + esc(r.movedAt) + "</td>");
-            out.println("<td>" + esc(r.operatorName) + " <span class=\"mini\">(#" + r.operatorId + ")</span></td>");
-            out.println("<td>" + esc(r.fromName) + " <span class=\"mini\">(" + r.fromPortId + ")</span></td>");
-            out.println("<td>" + esc(r.toName) + " <span class=\"mini\">(" + r.toPortId + ")</span></td>");
-            out.println("<td>" + r.movedBikes + "</td>");
+            out.println("<td style=\"font-size: 0.9em;\">" + esc(r.movedAt) + "</td>");
+            out.println("<td>" + esc(r.operatorName) + " <span class=\"mini\" style=\"color: #94a3b8;\">#" + r.operatorId + "</span></td>");
+            out.println("<td><b>" + esc(r.fromName) + "</b> <span class=\"mini\" style=\"color: #94a3b8;\">#" + r.fromPortId + "</span></td>");
+            out.println("<td><b>" + esc(r.toName) + "</b> <span class=\"mini\" style=\"color: #94a3b8;\">#" + r.toPortId + "</span></td>");
+            out.println("<td style=\"text-align: center; font-weight: 600;\">" + r.movedBikes + "</td>");
             String kind = (r.source == null || r.source.isEmpty()) ? "admin" : r.source;
-            out.println("<td>" + esc(kind) + "</td>");
-
-            // 削除機能は廃止
+            String badge = "user".equals(kind) ? 
+                "<span style=\"background: #d1fae5; color: #065f46; padding: 4px 8px; border-radius: 4px; font-size: 0.85em; font-weight: 600;\">👤 ユーザー</span>" :
+                "<span style=\"background: #f1f5f9; color: #475569; padding: 4px 8px; border-radius: 4px; font-size: 0.85em; font-weight: 600;\">🔧 管理</span>";
+            out.println("<td style=\"text-align: center;\">" + badge + "</td>");
 
             out.println("</tr>");
         }
 
+        out.println("</tbody>");
         out.println("</table></div>");
-        out.println("<p class=\"mini mt-12\">※ 配車ログは監査のため削除できません</p>");
-
         out.println("</div></div></body></html>");
     }
 
