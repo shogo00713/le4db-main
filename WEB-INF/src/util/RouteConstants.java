@@ -25,7 +25,7 @@ public class RouteConstants {
     public static final int RESULT_LIMIT = 5; // 表示する乗換経路の最大
     // 結果のリストに入れる上限
     public static final int BIKE_DIRECT_LIMIT = 2; // 自転車のみ経路の数上限
-    public static final int DIRECT_CANDIDATE_LIMIT   = 30; // 直通の数上限
+    public static final int DIRECT_CANDIDATE_LIMIT   = 10; // 直通の数上限
     public static final int TRANSFER_CANDIDATE_LIMIT = 30; // 乗換1回の数上限
     public static final int TRANSIT_BIKE_LIMIT = 30; // 乗り物 -> 自転車経路の数上限
     public static final int BIKE_TRANSIT_LIMIT = 30; // 自転車 -> 乗り物経路の数上限

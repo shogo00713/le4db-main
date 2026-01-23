@@ -94,7 +94,7 @@ public class RouteSearchServlet extends HttpServlet {
         // ==========================================================================
 
         // -------- header --------
-        RouteSearchView.renderHeader(out, request, "マルチモーダル路線検索", "page-route-search");
+        RouteSearchView.renderHeader(out, request, "マルチモーダル乗換案内", "page-route-search");
 
         // -------- リクエスト入力 --------
         RouteSearchView.renderSearchForm(out, request, originstop, deststop, dayType, timeType, time, alertMsg);
@@ -312,8 +312,6 @@ public class RouteSearchServlet extends HttpServlet {
             result.lastDestStopName   = result.destStop   != null ? result.destStop.name   : "";
             result.lastDestStopType   = result.destStop   != null ? result.destStop.type   : "";
 
-
-
             // 出発地 / 目的地 の近くの停留所を探索
             result.stopsNearOrigin = StopQueries.getNearByStops(conn, originStopId, FROM_RADIUS_M, NEAR_LIMIT);
             result.stopsNearDest   = StopQueries.getNearByStops(conn, destStopId, TO_RADIUS_M, NEAR_LIMIT);
@@ -322,13 +320,10 @@ public class RouteSearchServlet extends HttpServlet {
             result.portsNearOrigin = PortQueries.getNearByPorts(conn, result.originStop.lat, result.originStop.lon, FROM_RADIUS_M, PORT_LIMIT, true, false);
             result.portsNearDest   = PortQueries.getNearByPorts(conn, result.destStop.lat, result.destStop.lon, TO_RADIUS_M, PORT_LIMIT, false, true);
 
-
-
-
             // 結果全体を入れるリスト
             result.results = new ArrayList<>();
 
-
+            // 乗換アルゴリズム開始
 
             // ---- part 1 (徒歩のみ) ----
             int dist           = distanceMeters(result.originStop.lat, result.originStop.lon, result.destStop.lat, result.destStop.lon);
@@ -436,7 +431,7 @@ public class RouteSearchServlet extends HttpServlet {
                 // 乗換降車停留所候補に対して
                 for (Stop firstAlightStop : firstAlightStopCandidates) {
 
-        List<TransitPath> leg1Candidates = TransitQueries.searchDirectTransit(conn, firstBoardStop.stopId, firstAlightStop.id, arrivalTimeTo1BoardStop, dayType, DIRECT_LIMIT);
+                    List<TransitPath> leg1Candidates = TransitQueries.searchDirectTransit(conn, firstBoardStop.stopId, firstAlightStop.id, arrivalTimeTo1BoardStop, dayType, DIRECT_LIMIT);
                     if (leg1Candidates.isEmpty()) continue;
                     TransitPath leg1 = leg1Candidates.get(0);
 
@@ -676,6 +671,8 @@ public class RouteSearchServlet extends HttpServlet {
                 result.displayedResults.add(resultItem);
                 shown++;
             }
+
+            // 乗換アルゴリズム終了
 
             return result;
 

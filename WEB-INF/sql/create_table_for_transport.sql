@@ -92,8 +92,8 @@ CREATE TABLE stop_at (
     trip_id        INTEGER NOT NULL, -- 便ID (主キー)
     stop_id        INTEGER NOT NULL, -- 停留所ID (主キー)
     arrival_order  INTEGER NOT NULL, -- 到着順
-    arrival_time   TIME NOT NULL,    -- 到着時間 (HH:MM:SS)
-    departure_time TIME NOT NULL,    -- 発車時間 (HH:MM:SS)
+    arrival_time   TIME NOT NULL,    -- 到着時間 (HH:MI:SS)
+    departure_time TIME NOT NULL,    -- 発車時間 (HH:MI:SS)
 -- < 主キー & 外部キー >
     PRIMARY KEY (trip_id, stop_id),
     FOREIGN KEY (trip_id) REFERENCES trip_information(trip_id),

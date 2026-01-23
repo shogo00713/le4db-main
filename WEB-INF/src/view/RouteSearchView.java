@@ -32,7 +32,7 @@ public class RouteSearchView {
 
         // タイトル
         out.println("<div>");
-        out.println("<h2 class=\"title\">マルチモーダル路線検索</h2>");
+        out.println("<h2 class=\"title\">マルチモーダル乗換案内</h2>");
         out.println("<p class=\"subtitle\">公共交通 + シェアサイクル の複合型乗換検索</p>");
         out.println("</div>");
 
