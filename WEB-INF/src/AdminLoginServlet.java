@@ -48,7 +48,7 @@ public class AdminLoginServlet extends HttpServlet {
         out.println("<!DOCTYPE html><html lang=\"ja\"><head><meta charset=\"UTF-8\"/>");
         out.println("<meta name=\"viewport\" content=\"width=device-width, initial-scale=1\"/>");
         out.println("<title>ShareCycle Admin Login</title>");
-        out.println("<link rel=\"stylesheet\" href=\"" + request.getContextPath() + "/static/app.css\"/>");
+        out.println("<link rel=\"stylesheet\" href=\"" + request.getContextPath() + "/static/style.css\"/>");
         out.println("</head><body class=\"page-admin-login\">");
 
         out.println("<div class=\"login-container\">");

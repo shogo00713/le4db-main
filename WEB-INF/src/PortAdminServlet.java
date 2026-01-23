@@ -140,7 +140,7 @@ public class PortAdminServlet extends HttpServlet {
         out.println("<!DOCTYPE html><html lang=\"ja\"><head><meta charset=\"UTF-8\"/>");
         out.println("<meta name=\"viewport\" content=\"width=device-width, initial-scale=1\"/>");
         out.println("<title>ShareCycle Admin</title>");
-        out.println("<link rel=\"stylesheet\" href=\"" + ctx + "/static/app.css\"/>");
+        out.println("<link rel=\"stylesheet\" href=\"" + ctx + "/static/style.css\"/>");
         out.println("</head><body class=\"page-port-admin\"><div class=\"app\">");
 
         out.println("<div class=\"card\">");

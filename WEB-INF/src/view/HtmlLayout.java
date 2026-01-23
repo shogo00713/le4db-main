@@ -8,7 +8,7 @@ public class HtmlLayout {
     out.println("<!DOCTYPE html><html lang='ja'><head>");
     out.println("<meta charset='UTF-8'><meta name='viewport' content='width=device-width, initial-scale=1'>");
     out.println("<title>" + title + "</title>");
-    out.println("<link rel='stylesheet' href='" + req.getContextPath() + "/static/app.css'/>");
+    out.println("<link rel='stylesheet' href='" + req.getContextPath() + "/static/style.css'/>");
     out.println("</head><body class='" + bodyClass + "'>");
     out.println("<div class='app'>");
   }

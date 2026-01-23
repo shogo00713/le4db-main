@@ -33,7 +33,7 @@ public class RouteDetailView {
         out.println("<!DOCTYPE html><html lang='ja'><head>");
         out.println("<meta charset='UTF-8'><meta name='viewport' content='width=device-width, initial-scale=1'>");
         out.println("<title>Route Detail</title>");
-        out.println("<link rel=\"stylesheet\" href=\"" + req.getContextPath() + "/static/app.css\"/>");
+        out.println("<link rel=\"stylesheet\" href=\"" + req.getContextPath() + "/static/style.css\"/>");
         out.println("</head><body class='page-route-detail'>");
         out.println("<div class='detail-card'>");
         out.println("<a href='" + esc(m != null ? m.backUrl : (req.getContextPath()+"/routesearch")) + "' class='back-btn'>← 戻る</a>");
@@ -47,7 +47,7 @@ public class RouteDetailView {
     out.println("<!DOCTYPE html><html lang='ja'><head>");
     out.println("<meta charset='UTF-8'><meta name='viewport' content='width=device-width, initial-scale=1'>");
     out.println("<title>Route Detail</title>");
-    out.println("<link rel=\"stylesheet\" href=\"" + req.getContextPath() + "/static/app.css\"/>");
+    out.println("<link rel=\"stylesheet\" href=\"" + req.getContextPath() + "/static/style.css\"/>");
     out.println("</head><body class='page-route-detail'>");
 
     out.println("<div class='detail-card'>");
