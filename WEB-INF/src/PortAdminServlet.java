@@ -11,6 +11,8 @@ import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.List;
 
+import model.*;
+
 import javax.servlet.ServletException;
 import javax.servlet.http.HttpServlet;
 import javax.servlet.http.HttpServletRequest;
@@ -30,24 +32,7 @@ public class PortAdminServlet extends HttpServlet {
     }
     Connection conn = null;
 
-    // ポート情報の1行分を表すクラス
-    private static class PortRow {
-        final int portId;
-        final String operatorName;
-        final String portName;
-        final int bikes;
-        final int freeDocks;
-
-        PortRow(int portId, String operatorName, String portName, int bikes, int freeDocks) {
-            this.portId = portId;
-            this.operatorName = operatorName;
-            this.portName = portName;
-            this.bikes = bikes;
-            this.freeDocks = freeDocks;
-        }
-    }
-
-    // GET: 一覧表示
+    // doGET : 一覧表示
     protected void doGet(HttpServletRequest request, HttpServletResponse response)
             throws ServletException, IOException {
 
@@ -64,9 +49,9 @@ public class PortAdminServlet extends HttpServlet {
         response.setContentType("text/html;charset=UTF-8");
         PrintWriter out = response.getWriter();
 
-        String q = safe(request.getParameter("q"), "").trim();          // ポート名検索
-        String sort = safe(request.getParameter("sort"), "id");       // 並び順
-        String msg = safe(request.getParameter("msg"), "");             // 成功/失敗メッセージ
+        String q = safe(request.getParameter("q"), "").trim();  
+        String sort = safe(request.getParameter("sort"), "id");
+        String msg = safe(request.getParameter("msg"), "");
 
         Integer opId = null;
         String path = request.getPathInfo();
@@ -75,20 +60,15 @@ public class PortAdminServlet extends HttpServlet {
             if (s.matches("\\d+")) opId = Integer.valueOf(s);
         }
 
-        // ★★★ セッションユーザが特定の事業者に絞っている場合の検証
         if (opId != null && !opId.equals(sessionOperatorId)) {
-            // 他の事業者にアクセスしようとしているので、セッションの事業者に強制
             opId = sessionOperatorId;
         }
-        // セッション有効な場合は、必ずセッションの事業者を使用
+        // セッションの事業者を使用
         opId = sessionOperatorId;
 
         String ctx = request.getContextPath();
         String basePath = ctx + "/portadmin" + (opId != null ? ("/" + opId) : "");
 
-
-
-        // sort はホワイトリストで安全に
         String orderBy;
         switch (sort) {
             case "id":         orderBy = "port_id"; break;
@@ -143,25 +123,24 @@ public class PortAdminServlet extends HttpServlet {
         out.println("<link rel=\"stylesheet\" href=\"" + ctx + "/static/style.css\"/>");
         out.println("</head><body class=\"page-port-admin\"><div class=\"app\">");
 
+        // ヘッダー
         out.println("<div class=\"card\">");
-
         out.println("<div class=\"header\">");
         out.println("<div class=\"header-left\">");
         out.println("<h1 class=\"title\">シェアサイクル管理 (ポート一覧) </h1>");
         out.println("<p class=\"muted\">事業者: " + esc(sessionOperatorName) + "</p>");
         out.println("<p class=\"muted\">各ポートの自転車台数 (bikes) と空き (free_docks)</p>");
         out.println("</div>");
-
         out.println("<div class=\"header-actions\">");
         out.println("<a class=\"btn2\" href=\"" + ctx + "/adminlogout\">ログアウト</a>");
         out.println("<a class=\"btn2\"  href=\"" + ctx + "/routesearch\">ルート検索に戻る</a>");
         out.println("<a class=\"btn2\" href=\"" + ctx + "/portlog\">配車ログ</a>");
         out.println("</div>");
         out.println("</div>");
-        out.println("</div>"); // card
+        out.println("</div>");
 
+        // メッセージ表示
         out.println("<div class=\"card\">");
-
         if (!msg.isEmpty()) {
             out.println("<div class=\"alert\">" + esc(msg) + "</div>");
         }
@@ -186,33 +165,33 @@ public class PortAdminServlet extends HttpServlet {
         out.println("</form>");
 
         out.println("<hr/>");
-        out.println("</div>"); // card
+        out.println("</div>");
 
+        // ポート一覧テーブル
         out.println("<div class=\"card\">");
         out.println("<h2 class=\"title\">ポート情報</h2>");
-        // 検索・ソート
         out.println("<form method=\"GET\" action=\"" + basePath + "\">");
         out.println("<div class=\"row\">");
         out.println("<input type=\"text\" name=\"q\" placeholder=\"ポート名で検索\" value=\"" + esc(q) + "\"/>");
         out.println("<select name=\"sort\">");
-        out.println("<option value=\"id\"" + ("id".equals(sort) ? " selected" : "") + ">ID順</option>");
-        out.println("<option value=\"name\"" + ("name".equals(sort) ? " selected" : "") + ">名前順</option>");
+        out.println("<option value=\"id\""         + ("id".equals(sort) ? " selected" : "")         + ">ID順</option>");
+        out.println("<option value=\"name\""       + ("name".equals(sort) ? " selected" : "")       + ">名前順</option>");
         out.println("<option value=\"bikes_desc\"" + ("bikes_desc".equals(sort) ? " selected" : "") + ">bikes 多い順</option>");
-        out.println("<option value=\"bikes_asc\"" + ("bikes_asc".equals(sort) ? " selected" : "") + ">bikes 少ない順</option>");
-        out.println("<option value=\"free_desc\"" + ("free_desc".equals(sort) ? " selected" : "") + ">空き 多い順</option>");
-        out.println("<option value=\"free_asc\"" + ("free_asc".equals(sort) ? " selected" : "") + ">空き 少ない順</option>");
+        out.println("<option value=\"bikes_asc\""  + ("bikes_asc".equals(sort) ? " selected" : "")  + ">bikes 少ない順</option>");
+        out.println("<option value=\"free_desc\""  + ("free_desc".equals(sort) ? " selected" : "")  + ">空き 多い順</option>");
+        out.println("<option value=\"free_asc\""   + ("free_asc".equals(sort) ? " selected" : "")   + ">空き 少ない順</option>");
         out.println("</select>");
         out.println("<button class=\"btn\" type=\"submit\">表示</button>");
         out.println("</div>");
         out.println("</form>");
         out.println("<hr/>");
-
         out.println("<div class=\"table-wrap\">");
         out.println("<table>");
         out.println("<tr>");
         out.println("<th>operator</th><th>port_id</th><th>port_name</th><th>bikes</th><th>free_docks</th>");
         out.println("</tr>");
 
+        // テーブル行表示
         for (PortRow r : rows) {
             out.println("<tr>");
             out.println("<td>" + esc(r.operatorName) + "</td>");
@@ -220,7 +199,6 @@ public class PortAdminServlet extends HttpServlet {
             out.println("<td>" + esc(r.portName) + "</td>");
             out.println("<td>" + r.bikes + "</td>");
             out.println("<td>" + r.freeDocks + "</td>");
-
             out.println("</tr>");
         }
 
@@ -229,7 +207,7 @@ public class PortAdminServlet extends HttpServlet {
         out.println("</div></div></body></html>");
     }
 
-    // POST: bikes/free_docks を更新
+    // doPOST : bikes/free_docks を更新
     protected void doPost(HttpServletRequest request, HttpServletResponse response)
             throws ServletException, IOException {
 
@@ -449,7 +427,9 @@ public class PortAdminServlet extends HttpServlet {
         }
     }
 
-    // port_id から operator_id を取得（トランザクション用）
+    // -------- メソッドたち --------
+
+    // port_id から operator_id を取得
     private Integer readOperatorIdForUpdate(Connection conn, int portId) throws SQLException {
         String sql = "SELECT operator_id FROM port_operation WHERE port_id = ? FOR UPDATE";
         try (PreparedStatement ps = conn.prepareStatement(sql)) {

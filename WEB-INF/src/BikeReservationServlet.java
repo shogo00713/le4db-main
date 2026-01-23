@@ -22,7 +22,7 @@ public class BikeReservationServlet extends HttpServlet {
         }
     }
 
-    // POST: 自転車予約関連
+    // doPOST : 自転車予約関連
     protected void doPost(HttpServletRequest request, HttpServletResponse response)
             throws ServletException, IOException {
         request.setCharacterEncoding("UTF-8");
@@ -97,7 +97,6 @@ public class BikeReservationServlet extends HttpServlet {
             sendJsonResponse(out, false, e.getMessage(), null);
         }
     }
-
 
     // メソッドたち
 

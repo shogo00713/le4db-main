@@ -52,7 +52,7 @@ public class RouteSearchServlet extends HttpServlet {
     // doGet
     protected void doGet(HttpServletRequest request, HttpServletResponse response)throws ServletException, IOException {
 
-        // 詳細ページに飛ぶ場合
+        // 詳細ページに飛ぶ場合 (リクエストの view=detail)
         String view = request.getParameter("view");
         if ("detail".equals(view)) {
             RouteDetail m = buildDetailModel(request);
@@ -60,14 +60,12 @@ public class RouteSearchServlet extends HttpServlet {
             return;
         }
 
-
         // ルート検索の要求を取ってくる
         RouteRequest rr = parseRequest(request);
 
         response.setContentType("text/html;charset=UTF-8");
         PrintWriter out = response.getWriter();
 
-        // セッションは候補選択の再表示にも使うため早めに取得
         HttpSession session = request.getSession();
 
         CandidateSelectionResult persistedCandidateSelection =
@@ -118,6 +116,7 @@ public class RouteSearchServlet extends HttpServlet {
                 HtmlLayout.renderFoot(out);
                 return;
             }
+            // 候補選択が必要な場合は候補選択フォームを表示
             if (candResult.status == CandidateSelectionResult.Status.NEED_CHOICE) {
                 session.setAttribute("lastCandidateSelection", candResult);
                 session.setAttribute("lastCandidateSelectionKey", currentCandidateKey);
@@ -133,6 +132,7 @@ public class RouteSearchServlet extends HttpServlet {
             }
             originstopid = candResult.originStopId;
             deststopid   = candResult.destStopId;
+
         } catch (Exception e) {
             out.println("<pre>候補選択エラー: " + esc(String.valueOf(e)) + "</pre>");
             e.printStackTrace();
@@ -140,7 +140,7 @@ public class RouteSearchServlet extends HttpServlet {
             return;
         }
 
-        // 候補選択フォームを結果表示と一緒に表示したい場合は、前回の候補一覧を再描画
+        // 候補選択フォームを結果表示と一緒に表示したい場合は前回の候補一覧を再描画
         if (persistedCandidateSelection != null && currentCandidateKey.equals(persistedCandidateKey)  && persistedCandidateSelection.status == CandidateSelectionResult.Status.NEED_CHOICE) {
             persistedCandidateSelection.originStopId = originstopid;
             persistedCandidateSelection.destStopId = deststopid;
@@ -151,14 +151,13 @@ public class RouteSearchServlet extends HttpServlet {
         try {
             RouteResult routeResult = executeSearch(originstopid, deststopid, dayType, baseTime);
             
-            // 検索結果をセッションに保存
-            session.setAttribute("lastOriginStopName", routeResult.lastOriginStopName);
+            // 検索結果をセッションに保存 (最後に表示した○○)
+            session.setAttribute("lastOriginStopName", routeResult.lastOriginStopName); 
             session.setAttribute("lastOriginStopType", routeResult.lastOriginStopType);
             session.setAttribute("lastDestStopName",   routeResult.lastDestStopName);
             session.setAttribute("lastDestStopType",   routeResult.lastDestStopType);
-
-            session.setAttribute("lastSearchQuery", request.getQueryString());
             session.setAttribute("lastDisplayedResults", routeResult.displayedResults);
+            session.setAttribute("lastSearchQuery", request.getQueryString());
             
             // 結果を描画
             RouteSearchView.renderSearchResults(out, request, routeResult);
@@ -178,10 +177,9 @@ public class RouteSearchServlet extends HttpServlet {
 
         // ==========================================================================
 
-    @Override
+    // doPost : フォームからのPOSTをGETに変換してリダイレクト (doPostはパラメータがURLに残らない)
     protected void doPost(HttpServletRequest request, HttpServletResponse response) throws ServletException, IOException {
 
-        // POSTで受け取ったパラメータをGETクエリに詰め直してリダイレクト
         String ctx = request.getContextPath();
 
         String qs =

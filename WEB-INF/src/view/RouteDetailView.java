@@ -138,7 +138,7 @@ public class RouteDetailView {
     }
 
 
-    // 予約セクション：m.reservation を使う（View側で抽出しない）
+    // 予約セクション :: m.reservation を使う
     if (m.reservation != null) {
         out.println("<div class='reservation-section'>");
         out.println("<div class='reservation-title'>🚲 シェアサイクルを予約</div>");

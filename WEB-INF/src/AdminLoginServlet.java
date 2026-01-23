@@ -25,11 +25,10 @@ public class AdminLoginServlet extends HttpServlet {
             throw new ServletException("データベース初期化エラー: " + e.getMessage());
         }
     }
-
     Connection conn = null;
 
 
-    // GET : ログインフォームを表示
+    // doGET : ログインフォームを表示
     protected void doGet(HttpServletRequest request, HttpServletResponse response)
             throws ServletException, IOException {
 
@@ -45,6 +44,7 @@ public class AdminLoginServlet extends HttpServlet {
 
         String msg = safe(request.getParameter("msg"), "");
 
+        // HTML
         out.println("<!DOCTYPE html><html lang=\"ja\"><head><meta charset=\"UTF-8\"/>");
         out.println("<meta name=\"viewport\" content=\"width=device-width, initial-scale=1\"/>");
         out.println("<title>ShareCycle Admin Login</title>");
@@ -102,7 +102,7 @@ public class AdminLoginServlet extends HttpServlet {
         out.println("</body></html>");
     }
 
-    // POST: パスワード認証
+    // doPOST : パスワード認証
     protected void doPost(HttpServletRequest request, HttpServletResponse response)
             throws ServletException, IOException {
 

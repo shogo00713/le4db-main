@@ -1,5 +1,6 @@
 import static util.HtmlUtils.esc;
 import static util.HtmlUtils.safe;
+import model.*;
 
 import java.io.IOException;
 import java.io.PrintWriter;
@@ -22,42 +23,15 @@ public class BikeMoveLogServlet extends HttpServlet {
             throw new ServletException("データベース初期化エラー: " + e.getMessage());
         }
     }  
-
     Connection conn = null;
 
-    // ログ行データ保持用   クラス
-    private static class LogRow {
-        final int logId;
-        final String movedAt;
-        final int operatorId;
-        final String operatorName;
-        final int fromPortId;
-        final String fromName;
-        final int toPortId;
-        final String toName;
-        final int movedBikes;
-        final String source;
 
-        LogRow(int logId, String movedAt, int operatorId, String operatorName,
-               int fromPortId, String fromName, int toPortId, String toName, int movedBikes, String source) {
-            this.logId = logId;
-            this.movedAt = movedAt;
-            this.operatorId = operatorId;
-            this.operatorName = operatorName;
-            this.fromPortId = fromPortId;
-            this.fromName = fromName;
-            this.toPortId = toPortId;
-            this.toName = toName;
-            this.movedBikes = movedBikes;
-            this.source = source;
-        }
-    }
 
-    // GET : ログ一覧 + 検索 + 集約
+    // doGET : ログ一覧 + 検索 + 集約
     protected void doGet(HttpServletRequest request, HttpServletResponse response)
             throws ServletException, IOException {
 
-        // ===== セッション認証チェック =====
+        // セッション認証チェック 
         javax.servlet.http.HttpSession session = request.getSession(false);
         if (session == null || session.getAttribute("operatorId") == null) {
             response.sendRedirect(request.getContextPath() + "/adminlogin");
@@ -79,7 +53,6 @@ public class BikeMoveLogServlet extends HttpServlet {
         String ctx = request.getContextPath();
         String basePath = ctx + "/portlog";
 
-        // ---- ログ一覧 ----
         List<LogRow> rows = new ArrayList<>();
 
         String listSql =
@@ -247,9 +220,9 @@ public class BikeMoveLogServlet extends HttpServlet {
 
         if (!msg.isEmpty()) out.println("<div class=\"alert\">" + esc(msg) + "</div>");
 
-        out.println("</div>"); // card
+        out.println("</div>");
 
-        // 分析結果
+        // 分析結果表示
         out.println("<div class=\"card\">");
         out.println("<h2 class=\"title\">分析（ユーザー利用のみ）</h2>");
         out.println("<p class=\"muted\">事業者の活用検討に役立つサマリ</p>");
@@ -323,9 +296,10 @@ public class BikeMoveLogServlet extends HttpServlet {
         }
         out.println("</div>");
         
-        out.println("</div>"); // row
-        out.println("</div>"); // card
+        out.println("</div>");
+        out.println("</div>");
 
+        // ログ検索/一覧
         out.println("<div class=\"card\">");
         out.println("<h2 class=\"title\">ログ検索・一覧</h2>");
 
