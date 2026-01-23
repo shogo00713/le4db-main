@@ -336,7 +336,7 @@ public class BikeMoveLogServlet extends HttpServlet {
 
         // ログ表
         out.println("<hr/>");
-        out.println("<h3 style=\"margin-top: 16px;\">配車履歴（最新80件）</h3>");
+        out.println("<h3 style=\"margin-top: 16px;\">履歴（最新80件）</h3>");
         out.println("<div class=\"table-wrap\"><table>");
         out.println("<thead>");
         out.println("<tr>");
@@ -362,8 +362,8 @@ public class BikeMoveLogServlet extends HttpServlet {
             out.println("<td style=\"text-align: center; font-weight: 600;\">" + r.movedBikes + "</td>");
             String kind = (r.source == null || r.source.isEmpty()) ? "admin" : r.source;
             String badge = "user".equals(kind) ? 
-                "<span style=\"background: #d1fae5; color: #065f46; padding: 4px 8px; border-radius: 4px; font-size: 0.85em; font-weight: 600;\">👤 ユーザー</span>" :
-                "<span style=\"background: #f1f5f9; color: #475569; padding: 4px 8px; border-radius: 4px; font-size: 0.85em; font-weight: 600;\">🔧 管理</span>";
+                "<span style=\"background: #d1fae5; color: #065f46; padding: 4px 8px; border-radius: 4px; font-size: 0.85em; font-weight: 600;\">ユーザ</span>" :
+                "<span style=\"background: #f1f5f9; color: #475569; padding: 4px 8px; border-radius: 4px; font-size: 0.85em; font-weight: 600;\">管理者</span>";
             out.println("<td style=\"text-align: center;\">" + badge + "</td>");
 
             out.println("</tr>");

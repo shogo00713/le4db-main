@@ -225,7 +225,7 @@ GROUP BY
 
 
 -- =====================================================
--- 自転車の現在状態ビュー（bike + management + parking）
+-- 自転車の状態ビュー（bike + management + parking）
 -- =====================================================
 CREATE VIEW v_bike_status AS
 SELECT
@@ -301,25 +301,14 @@ LEFT JOIN port_information pe ON pe.port_id = rep.end_port_id;
 -- =====================================================
 -- 索引
 -- =====================================================
--- ポートの緯度経度検索
 CREATE INDEX port_latlon_idx ON port_information(port_latitude, port_longitude);
--- ポート運営の事業者検索
 CREATE INDEX IF NOT EXISTS port_operation_operator_idx ON port_operation(operator_id);
--- 自転車情報の状態検索
 CREATE INDEX share_bike_status_idx ON share_bike(status);
--- 自転車管理の事業者検索
 CREATE INDEX bike_management_operator_idx ON bike_management(operator_id);
--- 駐輪情報のポート・事業者検索
 CREATE INDEX bike_parking_port_idx ON bike_parking(current_port_id);
--- 移動記録の日時検索
 CREATE INDEX move_record_moved_at_idx ON move_record(moved_at DESC);
--- 移動事業者の事業者検索
--- 移動元の出発地検索
 CREATE INDEX move_from_port_idx ON move_from(from_port_id);
--- 移動先の到着地検索
 CREATE INDEX move_to_port_idx ON move_to(to_port_id);
--- 予約情報の状態検索
 CREATE INDEX reservation_info_status_idx ON reservation_info(status);
 CREATE INDEX reservation_info_reserved_at_idx ON reservation_info(reserved_at DESC);
--- 予約の自転車検索
 CREATE INDEX reservation_bike_bike_idx ON reservation_bike(bike_id);

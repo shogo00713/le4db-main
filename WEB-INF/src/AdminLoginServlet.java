@@ -64,7 +64,7 @@ public class AdminLoginServlet extends HttpServlet {
         out.println("<div class=\"form-group\">");
         out.println("<label for=\"operator_id\">事業者を選択</label>");
         out.println("<select name=\"operator_id\" id=\"operator_id\" required>");
-        out.println("<option value=\"\">-- 選択してください --</option>");
+        out.println("<option value=\"\">- 選択してください -</option>");
 
         // operator 一覧をデータベースから取得
         try (Connection conn = DatabaseConfig.getConnection()) {
