@@ -295,3 +295,4 @@ LEFT JOIN reservation_start_port rsp ON rsp.reservation_id = ri.reservation_id
 LEFT JOIN port_information ps ON ps.port_id = rsp.start_port_id
 LEFT JOIN reservation_end_port rep ON rep.reservation_id = ri.reservation_id
 LEFT JOIN port_information pe ON pe.port_id = rep.end_port_id;
+
