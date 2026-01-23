@@ -8,6 +8,7 @@ import javax.servlet.http.HttpSession;
 
 public class AdminLogoutServlet extends HttpServlet {
 
+    // GET: ログアウト処理
     protected void doGet(HttpServletRequest request, HttpServletResponse response)
             throws ServletException, IOException {
 
@@ -19,6 +20,7 @@ public class AdminLogoutServlet extends HttpServlet {
         response.sendRedirect(request.getContextPath() + "/adminlogin");
     }
 
+    // POST: GETにリダイレクト
     protected void doPost(HttpServletRequest request, HttpServletResponse response)
             throws ServletException, IOException {
         doGet(request, response);

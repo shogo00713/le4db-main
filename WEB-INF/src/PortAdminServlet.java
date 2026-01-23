@@ -17,12 +17,9 @@ import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
 import javax.servlet.http.HttpSession;
 
-
-
-
 public class PortAdminServlet extends HttpServlet {
 
-    // データベース接続 & 初期化
+    // データベース接続 & 初期化 (DatabaseConfigが大体やってくれる)
     public void init() throws ServletException {
         String iniFilePath = getServletConfig().getServletContext().getRealPath("WEB-INF/le4db.ini");
         try {
@@ -31,8 +28,9 @@ public class PortAdminServlet extends HttpServlet {
             throw new ServletException("データベース初期化エラー: " + e.getMessage());
         }
     }
-    Connection conn = null; // 認証 & 接続用
+    Connection conn = null;
 
+    // ポート情報の1行分を表すクラス
     private static class PortRow {
         final int portId;
         final String operatorName;
@@ -46,42 +44,6 @@ public class PortAdminServlet extends HttpServlet {
             this.portName = portName;
             this.bikes = bikes;
             this.freeDocks = freeDocks;
-        }
-    }
-
-    private Integer readOperatorIdForUpdate(Connection conn, int portId) throws SQLException {
-        String sql = "SELECT operator_id FROM port_operation WHERE port_id = ? FOR UPDATE";
-        try (PreparedStatement ps = conn.prepareStatement(sql)) {
-            ps.setInt(1, portId);
-            try (ResultSet rs = ps.executeQuery()) {
-                if (!rs.next()) return null;
-                return rs.getInt("operator_id");
-            }
-        }
-    }
-
-    private int countBikesAtPort(Connection conn, int portId) throws SQLException {
-        String sql = "SELECT COUNT(*) AS c " +
-                    "FROM bike_parking bp " +
-                    "JOIN share_bike sb ON sb.bike_id = bp.bike_id " +
-                    "WHERE bp.current_port_id = ? AND sb.status = 'docked'";
-        try (PreparedStatement ps = conn.prepareStatement(sql)) {
-            ps.setInt(1, portId);
-            try (ResultSet rs = ps.executeQuery()) {
-                rs.next();
-                return rs.getInt("c");
-            }
-        }
-    }
-
-    private Integer readCapacity(Connection conn, int portId) throws SQLException {
-        String sql = "SELECT capacity FROM port_information WHERE port_id = ?";
-        try (PreparedStatement ps = conn.prepareStatement(sql)) {
-            ps.setInt(1, portId);
-            try (ResultSet rs = ps.executeQuery()) {
-                if (!rs.next()) return null;
-                return rs.getInt("capacity");
-            }
         }
     }
 
@@ -267,7 +229,7 @@ public class PortAdminServlet extends HttpServlet {
         out.println("</div></div></body></html>");
     }
 
-    // POST: bikes/free_docks を更新（任意）
+    // POST: bikes/free_docks を更新
     protected void doPost(HttpServletRequest request, HttpServletResponse response)
             throws ServletException, IOException {
 
@@ -486,5 +448,44 @@ public class PortAdminServlet extends HttpServlet {
                     URLEncoder.encode("DBエラー: " + e.getMessage(), "UTF-8"));
         }
     }
+
+    // port_id から operator_id を取得（トランザクション用）
+    private Integer readOperatorIdForUpdate(Connection conn, int portId) throws SQLException {
+        String sql = "SELECT operator_id FROM port_operation WHERE port_id = ? FOR UPDATE";
+        try (PreparedStatement ps = conn.prepareStatement(sql)) {
+            ps.setInt(1, portId);
+            try (ResultSet rs = ps.executeQuery()) {
+                if (!rs.next()) return null;
+                return rs.getInt("operator_id");
+            }
+        }
+    }
+    // port_id にある自転車台数を数える
+    private int countBikesAtPort(Connection conn, int portId) throws SQLException {
+        String sql = "SELECT COUNT(*) AS c " +
+                    "FROM bike_parking bp " +
+                    "JOIN share_bike sb ON sb.bike_id = bp.bike_id " +
+                    "WHERE bp.current_port_id = ? AND sb.status = 'docked'";
+        try (PreparedStatement ps = conn.prepareStatement(sql)) {
+            ps.setInt(1, portId);
+            try (ResultSet rs = ps.executeQuery()) {
+                rs.next();
+                return rs.getInt("c");
+            }
+        }
+    }
+    // port_id の capacity を読む
+    private Integer readCapacity(Connection conn, int portId) throws SQLException {
+        String sql = "SELECT capacity FROM port_information WHERE port_id = ?";
+        try (PreparedStatement ps = conn.prepareStatement(sql)) {
+            ps.setInt(1, portId);
+            try (ResultSet rs = ps.executeQuery()) {
+                if (!rs.next()) return null;
+                return rs.getInt("capacity");
+            }
+        }
+    }
+
+
 }
 

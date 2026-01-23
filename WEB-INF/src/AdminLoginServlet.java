@@ -16,7 +16,7 @@ import javax.servlet.http.HttpSession;
 
 public class AdminLoginServlet extends HttpServlet {
 
-
+    // データベース接続 & 初期化 (DatabaseConfigが大体やってくれる)
     public void init() throws ServletException {
         String iniFilePath = getServletConfig().getServletContext().getRealPath("WEB-INF/le4db.ini");
         try {
@@ -26,10 +26,10 @@ public class AdminLoginServlet extends HttpServlet {
         }
     }
 
-    Connection conn = null; // 認証 & 接続用
+    Connection conn = null;
 
 
-    // GET: ログインフォームを表示
+    // GET : ログインフォームを表示
     protected void doGet(HttpServletRequest request, HttpServletResponse response)
             throws ServletException, IOException {
 
@@ -120,7 +120,7 @@ public class AdminLoginServlet extends HttpServlet {
             return;
         }
 
-        // パスワードをデータベースから取得（v_operator_accounts ビュー）
+        // パスワードをデータベースから取得
         String storedPassword = null;
         String operatorName = null;
 

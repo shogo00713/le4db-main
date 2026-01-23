@@ -1,5 +1,3 @@
-
-
 import java.io.IOException;
 import java.io.PrintWriter;
 import java.sql.Connection;
@@ -14,6 +12,7 @@ import javax.servlet.http.HttpServletResponse;
 
 public class BikeReservationServlet extends HttpServlet {
 
+    // データベース接続 & 初期化 (DatabaseConfigが大体やってくれる)
     public void init() throws ServletException {
         String iniFilePath = getServletConfig().getServletContext().getRealPath("WEB-INF/le4db.ini");
         try {
@@ -23,6 +22,7 @@ public class BikeReservationServlet extends HttpServlet {
         }
     }
 
+    // POST: 自転車予約関連
     protected void doPost(HttpServletRequest request, HttpServletResponse response)
             throws ServletException, IOException {
         request.setCharacterEncoding("UTF-8");
@@ -38,7 +38,7 @@ public class BikeReservationServlet extends HttpServlet {
                 sb.append(line);
             }
 
-            // 簡易JSON パース（本番環境では JSON ライブラリを使用）
+            // 簡易JSON パース
             String jsonStr = sb.toString();
             String action = extractJsonValue(jsonStr, "action");
             String operatorIdStr = extractJsonValue(jsonStr, "operator_id");
@@ -59,7 +59,7 @@ public class BikeReservationServlet extends HttpServlet {
                     sendJsonResponse(out, false, "start_port_id must be numeric", null);
                     return;
                 }
-                // 予約する（開始ポートは必須）
+                // 予約する
                 handleReserve(Integer.parseInt(operatorIdStr), startPortId, out);
 
             }
@@ -80,7 +80,7 @@ public class BikeReservationServlet extends HttpServlet {
                     return;
                 }
                 Long resId = Long.parseLong(reservationIdStr);
-                // 返却する（返却ポートは必須）
+                // 返却する
                 handleReturn(resId, returnPortId, out);
             }
             else if ("cancel".equals(action)) {
@@ -99,7 +99,7 @@ public class BikeReservationServlet extends HttpServlet {
     }
 
 
-    // メソッド
+    // メソッドたち
 
     // 予約処理
     private void handleReserve(int operatorId, int startPortId, PrintWriter out) throws SQLException {
@@ -127,7 +127,7 @@ public class BikeReservationServlet extends HttpServlet {
                 return;
             }
 
-            // 予約を3テーブルに記録（reservation_info + reservation_bike + reservation_start_port）
+            // reservation_infoに記録
             long reservationId = -1;
             String insertReservationSql = "INSERT INTO reservation_info(status, reserved_at) "
                                         + "VALUES('reserved', CURRENT_TIMESTAMP) RETURNING reservation_id";
@@ -152,7 +152,7 @@ public class BikeReservationServlet extends HttpServlet {
                 ps.executeUpdate();
             }
 
-            // reservation_start_portに記録（ポートが判明している場合のみ）
+            // reservation_start_portに記録
             String insertStartPortSql = "INSERT INTO reservation_start_port(reservation_id, start_port_id) VALUES(?, ?)";
             try (PreparedStatement ps = conn.prepareStatement(insertStartPortSql)) {
                 ps.setLong(1, reservationId);
@@ -202,7 +202,7 @@ public class BikeReservationServlet extends HttpServlet {
                 return;
             }
 
-            // start_port が記録されていない場合はエラー（reserve時に必須）
+            // start_port が記録されていない場合はエラー
             if (startPortId == null) {
                 sendJsonResponse(out, false, "start_port_id not recorded for reservation", null);
                 return;
@@ -249,10 +249,6 @@ public class BikeReservationServlet extends HttpServlet {
         Connection conn = null;
         try {
             conn = DatabaseConfig.getConnection();
-
-            // JSON リクエストから return_port_id を取得（別途実装のため、ここでは requestの再読み込みは不要）
-            // 呼び出し元の doPost で既に JSON 解析済み
-            // 後で呼び出し元で追加処理
 
             // 予約情報を取得
             String selectSql = "SELECT bike_id, operator_id, start_port_id FROM v_bike_reservation "
@@ -316,7 +312,7 @@ public class BikeReservationServlet extends HttpServlet {
                 ps.executeUpdate();
             }
 
-            // ユーザー利用による自転車の移動を配車ログに記録（source='user'）
+            // ユーザー利用による自転車の移動を配車ログに記録
             int fromPortId = (startPortId == null ? -1 : startPortId.intValue());
             int toPortId = returnPortId;
             if (fromPortId > 0 && toPortId > 0 && fromPortId != toPortId) {
@@ -403,7 +399,6 @@ public class BikeReservationServlet extends HttpServlet {
             }
         }
     }
-
     // 簡易JSON 解析メソッド
     private String extractJsonValue(String json, String key) {
         String searchKey = "\"" + key + "\":";
@@ -451,7 +446,7 @@ public class BikeReservationServlet extends HttpServlet {
         }
         out.print("}");
     }
-
+    // JSON エスケープメソッド
     private String escapeJson(String str) {
         if (str == null) return "";
         return str.replace("\\", "\\\\")

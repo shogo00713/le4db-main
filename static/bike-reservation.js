@@ -26,7 +26,7 @@ function initBikeReservation(config) {
 }
 
 /**
- * MM:SS形式に変換
+ * MM:SS形式に変換する
  */
 function fmtMMSS(total) {
   const m = Math.floor(total / 60);

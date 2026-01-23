@@ -3,7 +3,6 @@ import static util.HtmlUtils.safe;
 
 import java.io.IOException;
 import java.io.PrintWriter;
-import java.net.URLEncoder;
 import java.sql.*;
 import java.util.ArrayList;
 import java.util.List;
@@ -14,6 +13,7 @@ import javax.servlet.http.HttpServletResponse;
 
 public class BikeMoveLogServlet extends HttpServlet {
 
+    // データベース接続 & 初期化 (DatabaseConfigが大体やってくれる)
     public void init() throws ServletException {
         String iniFilePath = getServletConfig().getServletContext().getRealPath("WEB-INF/le4db.ini");
         try {
@@ -23,8 +23,9 @@ public class BikeMoveLogServlet extends HttpServlet {
         }
     }  
 
-    Connection conn = null; // 認証 & 接続用
+    Connection conn = null;
 
+    // ログ行データ保持用   クラス
     private static class LogRow {
         final int logId;
         final String movedAt;
@@ -52,7 +53,7 @@ public class BikeMoveLogServlet extends HttpServlet {
         }
     }
 
-    // GET: ログ一覧 + 検索 + 集約
+    // GET : ログ一覧 + 検索 + 集約
     protected void doGet(HttpServletRequest request, HttpServletResponse response)
             throws ServletException, IOException {
 
@@ -69,7 +70,7 @@ public class BikeMoveLogServlet extends HttpServlet {
         response.setContentType("text/html;charset=UTF-8");
         PrintWriter out = response.getWriter();
 
-        String q = safe(request.getParameter("q"), "").trim();           // port名検索
+        String q = safe(request.getParameter("q"), "").trim();
         String msg = safe(request.getParameter("msg"), "");
 
         // セッション認証済みなので、常にセッションの事業者IDを使用
@@ -78,7 +79,7 @@ public class BikeMoveLogServlet extends HttpServlet {
         String ctx = request.getContextPath();
         String basePath = ctx + "/portlog";
 
-        // ---- ログ一覧（SELECT + JOIN）----
+        // ---- ログ一覧 ----
         List<LogRow> rows = new ArrayList<>();
 
         String listSql =
@@ -93,12 +94,12 @@ public class BikeMoveLogServlet extends HttpServlet {
               + "ORDER BY moved_at DESC "
               + "LIMIT 80 ";
 
-        // ---- ユーザー利用のみの分析（source='user'）----
         class PortStat { int portId; String portName; String operatorName; int trips; }
         List<PortStat> topDepartures = new ArrayList<>();
         List<PortStat> topReturns = new ArrayList<>();
         List<PortStat> leastUsed = new ArrayList<>();
 
+        // 出発上位SQL
         String topDepartSql =
             "SELECT from_port_id AS port_id, from_port_name AS port_name, " +
             "       operator_id, operator_name, " +
@@ -109,6 +110,7 @@ public class BikeMoveLogServlet extends HttpServlet {
             "ORDER BY trips DESC " +
             "LIMIT 3";
 
+        // 返却上位SQL
         String topReturnSql =
             "SELECT to_port_id AS port_id, to_port_name AS port_name, " +
             "       operator_id, operator_name, " +
@@ -119,6 +121,7 @@ public class BikeMoveLogServlet extends HttpServlet {
             "ORDER BY trips DESC " +
             "LIMIT 3";
 
+        // 未使用寄りSQL
         String leastUsedSql =
             "WITH usage AS ( " +
             "  SELECT from_port_id AS port_id, operator_id, moved_bikes FROM v_bike_move WHERE source='user' " +
@@ -168,7 +171,7 @@ public class BikeMoveLogServlet extends HttpServlet {
             }
 
 
-            // ユーザー利用のみ: 出発上位
+            // 出発上位
             try (PreparedStatement ps = conn.prepareStatement(topDepartSql)) {
                 ps.setInt(1, opId);
                 ps.setInt(2, opId);
@@ -185,7 +188,7 @@ public class BikeMoveLogServlet extends HttpServlet {
                 }
             }
 
-            // ユーザー利用のみ: 返却上位
+            // 返却上位
             try (PreparedStatement ps = conn.prepareStatement(topReturnSql)) {
                 ps.setInt(1, opId);
                 ps.setInt(2, opId);
@@ -202,7 +205,7 @@ public class BikeMoveLogServlet extends HttpServlet {
                 }
             }
 
-            // ユーザー利用のみ: 未使用寄り（合計が少ない）
+            // 未使用寄り
             try (PreparedStatement ps = conn.prepareStatement(leastUsedSql)) {
                 ps.setInt(1, opId);
                 ps.setInt(2, opId);
@@ -246,7 +249,7 @@ public class BikeMoveLogServlet extends HttpServlet {
 
         out.println("</div>"); // card
 
-        // 分析結果（ユーザー利用のみ）
+        // 分析結果
         out.println("<div class=\"card\">");
         out.println("<h2 class=\"title\">分析（ユーザー利用のみ）</h2>");
         out.println("<p class=\"muted\">事業者の活用検討に役立つサマリ</p>");
@@ -374,19 +377,4 @@ public class BikeMoveLogServlet extends HttpServlet {
         out.println("</div></div></body></html>");
     }
 
-    protected void doPost(HttpServletRequest request, HttpServletResponse response)
-            throws ServletException, IOException {
-        // ===== セッション認証チェック =====
-        javax.servlet.http.HttpSession session = request.getSession(false);
-        if (session == null || session.getAttribute("operatorId") == null) {
-            response.sendRedirect(request.getContextPath() + "/adminlogin");
-            return;
-        }
-
-        request.setCharacterEncoding("UTF-8");
-        String q = safe(request.getParameter("q"), "").trim();
-        String keep = "q=" + URLEncoder.encode(q, "UTF-8");
-        response.sendRedirect(request.getContextPath() + "/portlog?" + keep + "&msg=" +
-                URLEncoder.encode("配車ログは削除できません", "UTF-8"));
-    }
 }
