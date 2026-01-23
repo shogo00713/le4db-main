@@ -1,3 +1,5 @@
+-- 索引調べる用のSQL
+
 DROP INDEX IF EXISTS stop_at_stop_depart_idx;
 DROP INDEX IF EXISTS stop_at_stop_order_idx;
 DROP INDEX IF EXISTS stop_latlon_idx;
