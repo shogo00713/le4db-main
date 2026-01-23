@@ -295,20 +295,3 @@ LEFT JOIN reservation_start_port rsp ON rsp.reservation_id = ri.reservation_id
 LEFT JOIN port_information ps ON ps.port_id = rsp.start_port_id
 LEFT JOIN reservation_end_port rep ON rep.reservation_id = ri.reservation_id
 LEFT JOIN port_information pe ON pe.port_id = rep.end_port_id;
-
-
-
--- =====================================================
--- 索引
--- =====================================================
-CREATE INDEX port_latlon_idx ON port_information(port_latitude, port_longitude);
-CREATE INDEX IF NOT EXISTS port_operation_operator_idx ON port_operation(operator_id);
-CREATE INDEX share_bike_status_idx ON share_bike(status);
-CREATE INDEX bike_management_operator_idx ON bike_management(operator_id);
-CREATE INDEX bike_parking_port_idx ON bike_parking(current_port_id);
-CREATE INDEX move_record_moved_at_idx ON move_record(moved_at DESC);
-CREATE INDEX move_from_port_idx ON move_from(from_port_id);
-CREATE INDEX move_to_port_idx ON move_to(to_port_id);
-CREATE INDEX reservation_info_status_idx ON reservation_info(status);
-CREATE INDEX reservation_info_reserved_at_idx ON reservation_info(reserved_at DESC);
-CREATE INDEX reservation_bike_bike_idx ON reservation_bike(bike_id);
