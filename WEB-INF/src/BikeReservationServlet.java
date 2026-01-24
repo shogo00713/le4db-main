@@ -122,7 +122,7 @@ public class BikeReservationServlet extends HttpServlet {
 
             // 自転車が見つからない場合はエラー
             if (bikeId == -1) {
-                sendJsonResponse(out, false, "Available bikes not found at start_port", null);
+                sendJsonResponse(out, false, "自転車が見つかりませんでした", null);
                 return;
             }
 
@@ -139,7 +139,7 @@ public class BikeReservationServlet extends HttpServlet {
             }
 
             if (reservationId == -1) {
-                sendJsonResponse(out, false, "Failed to create reservation", null);
+                sendJsonResponse(out, false, "予約を作成できませんでした", null);
                 return;
             }
 
@@ -159,7 +159,7 @@ public class BikeReservationServlet extends HttpServlet {
                 ps.executeUpdate();
             }
 
-            sendJsonResponse(out, true, "Reservation successful", String.valueOf(reservationId));
+            sendJsonResponse(out, true, "予約が成功しました", String.valueOf(reservationId));
 
         } finally {
             if (conn != null) {
@@ -197,13 +197,13 @@ public class BikeReservationServlet extends HttpServlet {
             }
 
             if (bikeId == -1) {
-                sendJsonResponse(out, false, "Reservation expired or invalid state", null);
+                sendJsonResponse(out, false, "予約が期限切れか無効な状態です", null);
                 return;
             }
 
             // start_port が記録されていない場合はエラー
             if (startPortId == null) {
-                sendJsonResponse(out, false, "start_port_id not recorded for reservation", null);
+                sendJsonResponse(out, false, "出発ポートが記録されていません", null);
                 return;
             }
 
@@ -231,7 +231,7 @@ public class BikeReservationServlet extends HttpServlet {
                 ps.executeUpdate();
             }
 
-            sendJsonResponse(out, true, "Usage started", String.valueOf(reservationId));
+            sendJsonResponse(out, true, "利用を開始しました", String.valueOf(reservationId));
 
         } finally {
             if (conn != null) {
@@ -268,13 +268,13 @@ public class BikeReservationServlet extends HttpServlet {
             }
 
             if (bikeId == -1) {
-                sendJsonResponse(out, false, "Reservation not found or not in use", null);
+                sendJsonResponse(out, false, "予約が見つかりません", null);
                 return;
             }
 
             // 返却ポートはクライアント指定必須
             if (returnPortId <= 0) {
-                sendJsonResponse(out, false, "return_port_id required", null);
+                sendJsonResponse(out, false, "返却ポートが指定されていません", null);
                 return;
             }
 
@@ -343,7 +343,7 @@ public class BikeReservationServlet extends HttpServlet {
                 }
             }
 
-            sendJsonResponse(out, true, "Bike returned", String.valueOf(reservationId));
+            sendJsonResponse(out, true, "自転車を返却しました", String.valueOf(reservationId));
 
         } finally {
             if (conn != null) {
@@ -375,7 +375,7 @@ public class BikeReservationServlet extends HttpServlet {
             }
 
                 if (bikeId == -1) {
-                sendJsonResponse(out, false, "Reservation not found or cannot be cancelled", null);
+                sendJsonResponse(out, false, "予約が見つからないかキャンセルできませんでした", null);
                 return;
             }
 
@@ -386,7 +386,7 @@ public class BikeReservationServlet extends HttpServlet {
                 ps.executeUpdate();
             }
 
-            sendJsonResponse(out, true, "Reservation cancelled", null);
+            sendJsonResponse(out, true, "予約をキャンセルしました", null);
 
         } finally {
             if (conn != null) {

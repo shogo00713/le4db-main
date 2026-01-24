@@ -251,7 +251,7 @@ public class PortAdminServlet extends HttpServlet {
                 if (fromId == toId) throw new NumberFormatException("same port");
             } catch (Exception e) {
                 response.sendRedirect(basePath + "?" + keep + "&msg=" +
-                        URLEncoder.encode("入力が不正です（port_id/台数を確認）", "UTF-8"));
+                        URLEncoder.encode("入力が不正です", "UTF-8"));
                 return;
             }
 
@@ -290,7 +290,7 @@ public class PortAdminServlet extends HttpServlet {
                 if (opA == null || opB == null) {
                     conn.rollback();
                     response.sendRedirect(basePath + "?" + keep + "&msg=" +
-                            URLEncoder.encode("port_id が見つかりません", "UTF-8"));
+                            URLEncoder.encode("ポートが見つかりません", "UTF-8"));
                     return;
                 }
 
@@ -300,7 +300,7 @@ public class PortAdminServlet extends HttpServlet {
                 if (!fromOp.equals(toOp)) {
                     conn.rollback();
                     response.sendRedirect(basePath + "?" + keep + "&msg=" +
-                            URLEncoder.encode("別operator間の移動は不可です", "UTF-8"));
+                            URLEncoder.encode("別事業者間の移動は不可です", "UTF-8"));
                     return;
                 }
 
@@ -311,7 +311,7 @@ public class PortAdminServlet extends HttpServlet {
                 if (capTo == null) {
                     conn.rollback();
                     response.sendRedirect(basePath + "?" + keep + "&msg=" +
-                            URLEncoder.encode("移動先portのcapacityが見つかりません", "UTF-8"));
+                            URLEncoder.encode("移動先ポートの空きが見つかりません", "UTF-8"));
                     return;
                 }
 
@@ -320,13 +320,13 @@ public class PortAdminServlet extends HttpServlet {
                 if (bikesFrom < moved) {
                     conn.rollback();
                     response.sendRedirect(basePath + "?" + keep + "&msg=" +
-                            URLEncoder.encode("移動元の在庫が足りません（bikes不足）", "UTF-8"));
+                            URLEncoder.encode("移動元の在庫が足りません（自転車不足）", "UTF-8"));
                     return;
                 }
                 if (freeTo < moved) {
                     conn.rollback();
                     response.sendRedirect(basePath + "?" + keep + "&msg=" +
-                            URLEncoder.encode("移動先の空きが足りません（free_docks不足）", "UTF-8"));
+                            URLEncoder.encode("移動先の空きが足りません（空き不足）", "UTF-8"));
                     return;
                 }
 
