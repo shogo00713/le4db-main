@@ -1,21 +1,21 @@
 # Ride Share & Transit Database
 
-A database application that integrates public transportation and shared mobility services.
+公共交通機関とシェアモビリティサービスを統合したデータベースアプリケーションです。
 
-This project was developed as part of a university database course. It combines Kyoto City's public transportation data with a fictional shared mobility service to simulate an integrated transportation platform.
+大学のデータベース実験の一環として作成しました。京都市の公共交通データと架空のシェアモビリティサービスを組み合わせ、統合型の交通プラットフォームを模擬しています。
 
-The primary focus of this project is **database design and SQL implementation**, rather than the user interface.
+> ※ 大学の実験で作成したもので、現在はメンテナンスしていません。記録として公開しています。
 
-## Features
+## 特徴
 
-- Designed a relational database using PostgreSQL
-- Integrated public transportation and shared mobility data
-- Implemented data retrieval and management functions with SQL
-- Connected the database to a Java desktop application
+- PostgreSQL によるリレーショナルデータベースの設計
+- 公共交通データとシェアモビリティデータの統合
+- SQL によるデータの検索・管理機能の実装
+- Java デスクトップアプリケーションとデータベースの接続
 
-## SQL Implementation
+## 使用した SQL 機能
 
-This project demonstrates a wide range of fundamental SQL features, including:
+基本的な SQL 機能を幅広く使用しています。
 
 - `CREATE TABLE`
 - `INSERT`
@@ -26,9 +26,9 @@ This project demonstrates a wide range of fundamental SQL features, including:
 - `CREATE VIEW`
 - `CREATE INDEX`
 
-The database schema, relationships, and queries were designed to showcase practical database development techniques.
+スキーマ設計・テーブル間のリレーション・クエリは、実践的なデータベース開発の手法を示すことを意識して設計しました。
 
-## Tech Stack
+## 技術スタック
 
 - Java
 - PostgreSQL
@@ -36,7 +36,3 @@ The database schema, relationships, and queries were designed to showcase practi
 - HTML
 - CSS
 - JavaScript
-
-## Purpose
-
-The goal of this project was to gain hands-on experience with relational database design, SQL programming, and application-database integration through the development of a practical transportation management system.
